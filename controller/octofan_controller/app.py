@@ -212,12 +212,17 @@ async def _write_display(profile: str | None) -> list[str]:
     cfg: AppConfig = state["config"]
     display_cfg = cfg.display.model_copy(update={"profile": profile or cfg.display.profile})
     lines = render_display(state["status"], display_cfg, state["target_fan"], state["ollama"])
-    for y, line in enumerate(lines):
-        try:
-            cli.oled_text(0, y, 0, line)
-        except Exception as exc:
-            _event(f"failed to update display: {exc}")
-            break
+    try:
+        cli.oled_text(0, 0, 4, "0")
+        for y, line in enumerate(lines):
+            if y == 0:
+                cli.oled_text(0, 0, 3, line)
+            elif y == 1:
+                continue
+            else:
+                cli.oled_text(0, y, 0, line)
+    except Exception as exc:
+        _event(f"failed to update display: {exc}")
     return lines
 
 

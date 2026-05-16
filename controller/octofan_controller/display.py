@@ -8,6 +8,7 @@ from .parser import ControllerStatus
 
 
 WIDTH = 20
+BIG_WIDTH = 10
 HEIGHT = 8
 
 
@@ -16,7 +17,7 @@ def fit(text: str, width: int = WIDTH) -> str:
 
 
 def render_display(status: ControllerStatus, cfg: DisplayConfig, fan_percent: int | None, ollama: OllamaStatus) -> list[str]:
-    lines = [fit(cfg.title), fit(cfg.title)]
+    lines = [fit(cfg.title, BIG_WIDTH), fit("")]
     host = socket.gethostname()
     intake = _fmt_temp(status.intake_temp_c)
     exhaust = _fmt_temp(status.exhaust_temp_c)
