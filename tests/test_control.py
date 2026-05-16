@@ -24,6 +24,11 @@ def test_fail_safe_on_bad_read():
     assert calculate_target_fan_percent(ControllerStatus(ok=False), cfg, 35) == 100
 
 
+def test_manual_mode_ignores_transient_bad_read():
+    cfg = FanConfig(mode="manual", manual_percent=10, fail_safe_percent=100)
+    assert calculate_target_fan_percent(ControllerStatus(ok=False), cfg, 35) == 10
+
+
 def test_manual_mode():
     cfg = FanConfig(mode="manual", manual_percent=72)
     assert calculate_target_fan_percent(status_with_temp(80), cfg, 35) == 72

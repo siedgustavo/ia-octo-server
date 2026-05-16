@@ -50,6 +50,8 @@ state: dict[str, Any] = {
     "ollama": OllamaStatus(),
     "nvidia": NvidiaStatus(ok=False, gpus=[], error="not polled yet"),
     "target_fan": None,
+    "applied_fan_target": None,
+    "applied_fan_ids": [],
     "events": [],
     "watchdog": None,
 }
@@ -71,10 +73,13 @@ async def poll_loop() -> None:
         nvidia = nvidia_smi.status()
         target = calculate_target_fan_percent(status, cfg.fans, state["target_fan"], ollama.generating)
         fan_ids = sorted(status.fans.keys()) if status.ok and status.fans else list(range(12))
-        try:
-            cli.set_all_fans_percent(fan_ids, target)
-        except Exception as exc:
-            _event(f"failed to set fans: {exc}")
+        if target != state["applied_fan_target"] or fan_ids != state["applied_fan_ids"]:
+            try:
+                cli.set_all_fans_percent(fan_ids, target)
+                state["applied_fan_target"] = target
+                state["applied_fan_ids"] = fan_ids
+            except Exception as exc:
+                _event(f"failed to set fans: {exc}")
         state.update(status=status, ollama=ollama, nvidia=nvidia, target_fan=target)
         update_metrics(status, ollama, target, nvidia)
         await asyncio.sleep(cfg.fans.poll_interval_seconds)

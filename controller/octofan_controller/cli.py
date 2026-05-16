@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+from threading import Lock
 from pathlib import Path
 
 from .parser import ControllerStatus, parse_controller_output
@@ -51,12 +52,14 @@ class OctofanCli:
         self.binary = str(binary)
         self.timeout = timeout
         self.mock = os.getenv("OCTOFAN_MOCK", "0") == "1"
+        self._lock = Lock()
 
     def status(self) -> ControllerStatus:
         if self.mock:
             return parse_controller_output(MOCK_OUTPUT)
         try:
-            raw = subprocess.check_output([self.binary, "-r"], text=True, stderr=subprocess.STDOUT, timeout=self.timeout)
+            with self._lock:
+                raw = subprocess.check_output([self.binary, "-r"], text=True, stderr=subprocess.STDOUT, timeout=self.timeout)
             return parse_controller_output(raw)
         except Exception as exc:
             return ControllerStatus(ok=False, error=str(exc))
@@ -93,7 +96,8 @@ class OctofanCli:
     def _run(self, *args: str) -> None:
         if self.mock:
             return
-        subprocess.run([self.binary, *args], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=self.timeout, check=True)
+        with self._lock:
+            subprocess.run([self.binary, *args], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=self.timeout, check=True)
 
 
 def percent_to_pwm(percent: int) -> int:

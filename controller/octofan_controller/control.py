@@ -10,15 +10,15 @@ def calculate_target_fan_percent(
     previous_percent: int | None,
     ai_generating: bool = False,
 ) -> int:
+    if cfg.mode == "manual":
+        return cfg.manual_percent
+
     if not status.ok:
         return cfg.fail_safe_percent
 
     temp = status.intake_temp_c
     if temp is None:
         return cfg.fail_safe_percent
-
-    if cfg.mode == "manual":
-        return cfg.manual_percent
 
     previous = previous_percent or cfg.min_percent
     if temp <= cfg.target_temp_c - cfg.hysteresis_c:
