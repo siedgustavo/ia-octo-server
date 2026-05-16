@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import os
+import re
 import subprocess
+from csv import reader
 from dataclasses import asdict, dataclass
 
 
@@ -96,60 +98,75 @@ class NvidiaSmi:
 
     def status(self) -> NvidiaStatus:
         if self.mock:
-            return parse_nvidia_smi_csv(MOCK_NVIDIA_SMI)
-        query = ",".join(GPU_QUERY_FIELDS)
+            return parse_nvidia_smi_csv(MOCK_NVIDIA_SMI, GPU_QUERY_FIELDS)
+        fields = list(GPU_QUERY_FIELDS)
+        dropped_fields: list[str] = []
         try:
-            raw = subprocess.check_output(
-                [self.binary, f"--query-gpu={query}", "--format=csv,noheader,nounits"],
-                text=True,
-                stderr=subprocess.STDOUT,
-                timeout=self.timeout,
-            )
-            return parse_nvidia_smi_csv(raw)
+            while fields:
+                query = ",".join(fields)
+                try:
+                    raw = subprocess.check_output(
+                        [self.binary, f"--query-gpu={query}", "--format=csv,noheader,nounits"],
+                        text=True,
+                        stderr=subprocess.STDOUT,
+                        timeout=self.timeout,
+                    )
+                    status = parse_nvidia_smi_csv(raw, fields)
+                    if dropped_fields:
+                        skipped = ", ".join(dropped_fields)
+                        status.error = f"Skipped unsupported nvidia-smi fields: {skipped}"
+                    return status
+                except subprocess.CalledProcessError as exc:
+                    output = exc.output or ""
+                    invalid = _invalid_query_field(output)
+                    if invalid and invalid in fields:
+                        fields.remove(invalid)
+                        dropped_fields.append(invalid)
+                        continue
+                    raise
         except Exception as exc:
             return NvidiaStatus(ok=False, gpus=[], error=str(exc))
 
 
-def parse_nvidia_smi_csv(raw: str) -> NvidiaStatus:
+def parse_nvidia_smi_csv(raw: str, fields: list[str] | None = None) -> NvidiaStatus:
+    fields = fields or GPU_QUERY_FIELDS
     gpus: list[GpuStatus] = []
     try:
-        for line in raw.splitlines():
-            if not line.strip():
+        for row in reader(raw.splitlines()):
+            if not row:
                 continue
-            parts = [part.strip() for part in line.split(",")]
-            while len(parts) < len(GPU_QUERY_FIELDS):
-                parts.append("")
+            values = {field: row[index].strip() for index, field in enumerate(fields) if index < len(row)}
             gpus.append(
                 GpuStatus(
-                    index=int(_num(parts[0]) or 0),
-                    uuid=parts[1],
-                    name=parts[2],
-                    pci_bus_id=parts[3],
-                    driver_version=_str(parts[4]),
-                    vbios_version=_str(parts[5]),
-                    temperature_gpu_c=_num(parts[6]),
-                    temperature_memory_c=_num(parts[7]),
-                    fan_speed_percent=_num(parts[8]),
-                    utilization_gpu_percent=_num(parts[9]),
-                    utilization_memory_percent=_num(parts[10]),
-                    memory_total_mib=_num(parts[11]),
-                    memory_used_mib=_num(parts[12]),
-                    memory_free_mib=_num(parts[13]),
-                    power_draw_watts=_num(parts[14]),
-                    power_limit_watts=_num(parts[15]),
-                    clock_graphics_mhz=_num(parts[16]),
-                    clock_memory_mhz=_num(parts[17]),
-                    clock_max_graphics_mhz=_num(parts[18]),
-                    clock_max_memory_mhz=_num(parts[19]),
-                    pstate=_str(parts[20]),
-                    compute_mode=_str(parts[21]),
-                    display_active=_str(parts[22]),
-                    pcie_link_gen_current=_num(parts[23]),
-                    pcie_link_gen_max=_num(parts[24]),
-                    pcie_link_width_current=_num(parts[25]),
-                    pcie_link_width_max=_num(parts[26]),
-                    encoder_sessions=_num(parts[27]),
-                    decoder_sessions=_num(parts[28]),
+                    index=int(_num(values.get("index", "")) or 0),
+                    uuid=values.get("uuid", ""),
+                    name=values.get("name", ""),
+                    pci_bus_id=values.get("pci.bus_id", ""),
+                    driver_version=_str(values.get("driver_version", "")),
+                    vbios_version=_str(values.get("vbios_version", "")),
+                    temperature_gpu_c=_num(values.get("temperature.gpu", "")),
+                    temperature_memory_c=_num(values.get("temperature.memory", "")),
+                    fan_speed_percent=_num(values.get("fan.speed", "")),
+                    utilization_gpu_percent=_num(values.get("utilization.gpu", "")),
+                    utilization_memory_percent=_num(values.get("utilization.memory", "")),
+                    memory_total_mib=_num(values.get("memory.total", "")),
+                    memory_used_mib=_num(values.get("memory.used", "")),
+                    memory_free_mib=_num(values.get("memory.free", "")),
+                    power_draw_watts=_num(values.get("power.draw", "")),
+                    power_limit_watts=_num(values.get("power.limit", "")),
+                    clock_graphics_mhz=_num(values.get("clocks.current.graphics", "")),
+                    clock_memory_mhz=_num(values.get("clocks.current.memory", "")),
+                    clock_max_graphics_mhz=_num(values.get("clocks.max.graphics", "")),
+                    clock_max_memory_mhz=_num(values.get("clocks.max.memory", "")),
+                    pstate=_str(values.get("pstate", "")),
+                    compute_mode=_str(values.get("compute_mode", "")),
+                    display_active=_str(values.get("display_active", "")),
+                    pcie_link_gen_current=_num(values.get("pcie.link.gen.current", "")),
+                    pcie_link_gen_max=_num(values.get("pcie.link.gen.max", "")),
+                    pcie_link_width_current=_num(values.get("pcie.link.width.current", "")),
+                    pcie_link_width_max=_num(values.get("pcie.link.width.max", "")),
+                    encoder_sessions=_num(values.get("encoder.stats.sessionCount", "")),
+                    decoder_sessions=_num(values.get("decoder.stats.sessionCount", "")),
                 )
             )
     except Exception as exc:
@@ -170,3 +187,8 @@ def _num(value: str) -> float | None:
 def _str(value: str) -> str | None:
     value = value.strip()
     return None if not value or value.upper() in {"N/A", "[N/A]"} else value
+
+
+def _invalid_query_field(output: str) -> str | None:
+    match = re.search(r'Field "([^"]+)" is not a valid field', output)
+    return match.group(1) if match else None
