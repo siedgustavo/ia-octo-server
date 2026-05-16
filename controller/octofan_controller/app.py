@@ -10,7 +10,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel
 
-from .cli import OctofanCli
+from .cli import OctofanCli, percent_to_pwm
 from .config import AppConfig, load_config, save_config
 from .control import calculate_target_fan_percent
 from .display import render_display
@@ -73,7 +73,12 @@ async def poll_loop() -> None:
         nvidia = nvidia_smi.status()
         target = calculate_target_fan_percent(status, cfg.fans, state["target_fan"], ollama.generating)
         fan_ids = sorted(status.fans.keys()) if status.ok and status.fans else list(range(12))
-        if target != state["applied_fan_target"] or fan_ids != state["applied_fan_ids"]:
+        desired_pwm = percent_to_pwm(target)
+        hardware_drifted = any(
+            fan.current_pwm is not None and fan.current_pwm != desired_pwm
+            for fan in status.fans.values()
+        )
+        if target != state["applied_fan_target"] or fan_ids != state["applied_fan_ids"] or hardware_drifted:
             try:
                 cli.set_all_fans_percent(fan_ids, target)
                 state["applied_fan_target"] = target
@@ -154,6 +159,16 @@ async def api_fans_manual(req: ManualFanRequest) -> dict[str, Any]:
     cfg.fans.manual_percent = max(1, min(100, req.percent))
     save_config(CONFIG_PATH, cfg)
     state["config"] = cfg
+    state["applied_fan_target"] = None
+    state["applied_fan_ids"] = []
+    try:
+        status: ControllerStatus = state["status"]
+        fan_ids = sorted(status.fans.keys()) if status.ok and status.fans else list(range(12))
+        cli.set_all_fans_percent(fan_ids, cfg.fans.manual_percent)
+        state["applied_fan_target"] = cfg.fans.manual_percent
+        state["applied_fan_ids"] = fan_ids
+    except Exception as exc:
+        _event(f"failed to set manual fans: {exc}")
     _event(f"manual fan set to {cfg.fans.manual_percent}%")
     return {"ok": True, "percent": cfg.fans.manual_percent}
 
@@ -164,6 +179,8 @@ async def api_fans_auto() -> dict[str, Any]:
     cfg.fans.mode = "auto"
     save_config(CONFIG_PATH, cfg)
     state["config"] = cfg
+    state["applied_fan_target"] = None
+    state["applied_fan_ids"] = []
     _event("auto fan enabled")
     return {"ok": True}
 

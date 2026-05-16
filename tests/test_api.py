@@ -16,3 +16,10 @@ def test_status_and_metrics():
         assert metrics.status_code == 200
         assert "octofan_controller_up" in metrics.text
         assert "octofan_nvidia_smi_up" in metrics.text
+
+
+def test_manual_fan_endpoint_forces_apply():
+    with TestClient(app) as client:
+        response = client.post("/api/fans/manual", json={"percent": 10})
+        assert response.status_code == 200
+        assert response.json()["percent"] == 10
