@@ -8,7 +8,7 @@ Octofan AI Server is a small container stack around the original Octominer USB c
 - `fan_controller_cli`: original Octominer binary copied into the controller image from `reference/octofan-hiveos-originals/`.
 - `prometheus`: scrapes `octofan-controller:8000/metrics`.
 - `grafana`: loads the Prometheus datasource and the `Octofan AI Server` dashboard.
-- `ollama`: expected to run as a separate container on the same Docker network when AI metrics are enabled.
+- `ollama`: separate inference container on the same Docker network when AI metrics are enabled.
 
 ## Data Flow
 
@@ -39,6 +39,6 @@ Supported controller surfaces include:
 
 ## Network Model
 
-The compose stack uses the Docker network `octofan-ai` by default. This gives the controller a stable way to reach a separate Ollama container at `http://ollama:11434`.
+The compose stack uses the Docker network `octofan-ai` by default. This gives the controller a stable way to reach the Ollama container at `http://ollama:11434`.
 
 If another compose project owns Ollama, connect the container or its compose network to `octofan-ai`.

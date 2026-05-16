@@ -11,6 +11,7 @@ Open:
 - Controller: `http://localhost:8000`
 - Prometheus: `http://localhost:9090`
 - Grafana: `http://localhost:3000`
+- Ollama: `http://localhost:11434`
 
 Grafana login is `admin` / `octofan`.
 
@@ -50,13 +51,7 @@ sg docker -c 'docker compose ps'
 
 ## Connect Ollama
 
-When Ollama runs in another container named `ollama`:
-
-```bash
-docker network connect octofan-ai ollama
-```
-
-Then enable it in `config/octofan.yaml`:
+The compose file includes an Ollama service. To enable controller polling:
 
 ```yaml
 ollama:
@@ -69,6 +64,18 @@ Restart the controller:
 
 ```bash
 docker compose restart octofan-controller
+```
+
+If Ollama runs outside this compose project, connect that container to the stack network:
+
+```bash
+docker network connect octofan-ai ollama
+```
+
+Check Ollama:
+
+```bash
+curl -fsS http://localhost:11434/api/tags
 ```
 
 ## Watchdog

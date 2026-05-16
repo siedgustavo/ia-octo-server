@@ -46,9 +46,22 @@ services:
     depends_on:
       - prometheus
 
+  ollama:
+    image: ${OLLAMA_IMAGE:-ollama/ollama:latest}
+    container_name: octofan-ollama
+    restart: unless-stopped
+    gpus: all
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+    volumes:
+      - ollama-data:/root/.ollama
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+
 volumes:
   prometheus-data:
   grafana-data:
+  ollama-data:
 
 networks:
   default:

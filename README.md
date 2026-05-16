@@ -21,6 +21,7 @@ The original HiveOS package files are preserved only as reference material under
 - `octofan-controller`: FastAPI daemon, UI, REST API, Prometheus exporter, fan control, watchdog and OLED updates.
 - `prometheus`: metrics storage.
 - `grafana`: dashboard at `http://localhost:3000` (`admin` / `octofan`).
+- `ollama`: Ollama inference API at `http://localhost:11434`.
 
 ## Repository Layout
 
@@ -96,7 +97,7 @@ The fan controller uses BME280 sensor `0` as intake/internal temperature when av
 
 Enable `ollama.enabled` in `config/octofan.yaml` and point `ollama.base_url` to the host Ollama endpoint. The OLED and Grafana dashboard include the AI metrics surface; richer request-level token accounting can be added later with an Ollama proxy or app instrumentation.
 
-If Ollama runs in another container, attach it to the same Docker network and use its container name:
+The compose stack includes an `ollama` service on the same Docker network. Enable controller-side polling with:
 
 ```yaml
 ollama:
@@ -105,11 +106,13 @@ ollama:
   timeout_seconds: 2.0
 ```
 
-The compose stack creates/uses the `octofan-ai` network by default. A standalone Ollama container can join it with:
+The compose stack creates/uses the `octofan-ai` network by default. If Ollama is managed by another compose project instead, attach that container to the network:
 
 ```bash
 docker network connect octofan-ai ollama
 ```
+
+The Ollama service uses `gpus: all`, so NVIDIA Container Toolkit must be available on the host.
 
 ## Validation
 
