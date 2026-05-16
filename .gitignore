@@ -4,3 +4,4 @@ __pycache__/
 *.pyc
 prometheus-data/
 grafana-data/
+AGENTS.md
