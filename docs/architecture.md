@@ -8,7 +8,8 @@ Octofan AI Server is a small container stack around the original Octominer USB c
 - `nvidia-smi`: queried by the controller container for GPU telemetry when NVIDIA Container Toolkit is available.
 - `fan_controller_cli`: original Octominer binary copied into the controller image from `reference/octofan-hiveos-originals/`.
 - `prometheus`: scrapes `octofan-controller:8000/metrics`.
-- `grafana`: loads the Prometheus datasource and the `Octofan AI Server` dashboard.
+- `node-exporter`: exposes host CPU, memory, disk, filesystem and network metrics.
+- `grafana`: loads the Prometheus datasource and the Octofan dashboard set.
 - `ollama`: separate inference container on the same Docker network when AI metrics are enabled.
 
 ## Data Flow
@@ -19,9 +20,10 @@ Octofan AI Server is a small container stack around the original Octominer USB c
 4. Fan targets are applied with `fan_controller_cli -f <fan> -v <pwm>`.
 5. Metrics are exported at `/metrics`.
 6. NVIDIA GPU telemetry is read from `nvidia-smi` and exported with the controller metrics.
-7. Prometheus scrapes those metrics and Grafana visualizes them.
-8. The OLED loop renders an 8-line, 20-character layout through `fan_controller_cli -o`.
-9. The watchdog loop runs configured checks and feeds the watchdog with `fan_controller_cli -s` only when healthy.
+7. Prometheus scrapes the controller and node exporter metrics.
+8. Grafana visualizes overview, PSU, environment, cooling, GPU and host/network dashboards.
+9. The OLED loop renders an 8-line, 20-character layout through `fan_controller_cli -o`.
+10. The watchdog loop runs configured checks and feeds the watchdog with `fan_controller_cli -s` only when healthy.
 
 ## Hardware Interface
 
@@ -34,7 +36,7 @@ Supported controller surfaces include:
 - BME280 temperature, humidity and pressure
 - simple temperature and voltage channels
 - fan RPM, max RPM, current PWM and percent
-- PSU AC/DC power, voltage, current, temperature and fan values
+- PSU AC/DC power, voltage, current, temperature, fan, peak and accumulated energy values
 - watchdog mode, timeouts and reset counter
 - OLED text
 - LEDs

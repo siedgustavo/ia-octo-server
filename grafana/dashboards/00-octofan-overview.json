@@ -1,0 +1,32 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [
+    {"asDropdown": true, "icon": "external link", "includeVars": true, "keepTime": true, "tags": ["octofan-detail"], "targetBlank": false, "title": "Detail dashboards", "type": "dashboards"}
+  ],
+  "panels": [
+    {"datasource": "Prometheus", "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "red"}, {"color": "green", "value": 1}]}, "unit": "bool_on_off"}, "overrides": []}, "gridPos": {"h": 4, "w": 4, "x": 0, "y": 0}, "id": 1, "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"}, "targets": [{"expr": "octofan_controller_up", "legendFormat": "controller"}], "title": "Controller", "type": "stat"},
+    {"datasource": "Prometheus", "fieldConfig": {"defaults": {"unit": "celsius", "thresholds": {"mode": "absolute", "steps": [{"color": "green"}, {"color": "orange", "value": 40}, {"color": "red", "value": 55}]}}, "overrides": []}, "gridPos": {"h": 4, "w": 5, "x": 4, "y": 0}, "id": 2, "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"}, "targets": [{"expr": "octofan_intake_temperature_celsius", "legendFormat": "intake"}], "title": "Intake Temp", "type": "stat"},
+    {"datasource": "Prometheus", "fieldConfig": {"defaults": {"unit": "watt", "thresholds": {"mode": "absolute", "steps": [{"color": "green"}, {"color": "orange", "value": 600}, {"color": "red", "value": 1000}]}}, "overrides": []}, "gridPos": {"h": 4, "w": 5, "x": 9, "y": 0}, "id": 3, "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"}, "targets": [{"expr": "octofan_power_ac_total_watts", "legendFormat": "AC total"}], "title": "AC Power", "type": "stat"},
+    {"datasource": "Prometheus", "fieldConfig": {"defaults": {"unit": "percent", "thresholds": {"mode": "absolute", "steps": [{"color": "blue"}, {"color": "green", "value": 20}, {"color": "orange", "value": 65}, {"color": "red", "value": 90}]}}, "overrides": []}, "gridPos": {"h": 4, "w": 5, "x": 14, "y": 0}, "id": 4, "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"}, "targets": [{"expr": "octofan_target_fan_percent", "legendFormat": "target"}], "title": "Chassis Fan Target", "type": "stat"},
+    {"datasource": "Prometheus", "fieldConfig": {"defaults": {"unit": "percent", "thresholds": {"mode": "absolute", "steps": [{"color": "green"}, {"color": "orange", "value": 70}, {"color": "red", "value": 92}]}}, "overrides": []}, "gridPos": {"h": 4, "w": 5, "x": 19, "y": 0}, "id": 5, "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"}, "targets": [{"expr": "max(octofan_nvidia_gpu_metric{metric=\"utilization_gpu_percent\"})", "legendFormat": "max gpu util"}], "title": "GPU Load", "type": "stat"},
+    {"datasource": "Prometheus", "fieldConfig": {"defaults": {"unit": "celsius"}, "overrides": []}, "gridPos": {"h": 8, "w": 8, "x": 0, "y": 4}, "id": 6, "targets": [{"expr": "octofan_intake_temperature_celsius", "legendFormat": "intake"}, {"expr": "octofan_exhaust_temperature_celsius", "legendFormat": "exhaust"}, {"expr": "octofan_nvidia_gpu_metric{metric=\"temperature_gpu_c\"}", "legendFormat": "GPU {{index}}"}], "title": "Thermal Envelope", "type": "timeseries"},
+    {"datasource": "Prometheus", "fieldConfig": {"defaults": {"unit": "watt"}, "overrides": []}, "gridPos": {"h": 8, "w": 8, "x": 8, "y": 4}, "id": 7, "targets": [{"expr": "octofan_power_ac_total_watts", "legendFormat": "PSU AC total"}, {"expr": "sum(octofan_nvidia_gpu_metric{metric=\"power_draw_watts\"})", "legendFormat": "GPU draw"}], "title": "Power Budget", "type": "timeseries"},
+    {"datasource": "Prometheus", "fieldConfig": {"defaults": {"unit": "percent"}, "overrides": []}, "gridPos": {"h": 8, "w": 8, "x": 16, "y": 4}, "id": 8, "targets": [{"expr": "octofan_target_fan_percent", "legendFormat": "target"}, {"expr": "octofan_fan_percent", "legendFormat": "fan {{id}}"}, {"expr": "octofan_nvidia_gpu_metric{metric=\"utilization_gpu_percent\"}", "legendFormat": "GPU {{index}} util"}], "title": "Cooling vs Load", "type": "timeseries"},
+    {"datasource": "Prometheus", "fieldConfig": {"defaults": {"unit": "percentunit"}, "overrides": []}, "gridPos": {"h": 7, "w": 8, "x": 0, "y": 12}, "id": 9, "targets": [{"expr": "1 - (avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[2m])))", "legendFormat": "CPU"}], "title": "Host CPU", "type": "timeseries"},
+    {"datasource": "Prometheus", "fieldConfig": {"defaults": {"unit": "bytes"}, "overrides": []}, "gridPos": {"h": 7, "w": 8, "x": 8, "y": 12}, "id": 10, "targets": [{"expr": "node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes", "legendFormat": "used"}, {"expr": "node_memory_MemTotal_bytes", "legendFormat": "total"}], "title": "Host Memory", "type": "timeseries"},
+    {"datasource": "Prometheus", "fieldConfig": {"defaults": {"unit": "tps"}, "overrides": []}, "gridPos": {"h": 7, "w": 8, "x": 16, "y": 12}, "id": 11, "targets": [{"expr": "octofan_ai_tokens_per_second", "legendFormat": "{{source}}"}, {"expr": "octofan_ai_running_models", "legendFormat": "running models"}], "title": "AI Throughput", "type": "timeseries"}
+  ],
+  "refresh": "5s",
+  "schemaVersion": 39,
+  "tags": ["octofan", "ai"],
+  "templating": {"list": []},
+  "time": {"from": "now-1h", "to": "now"},
+  "timezone": "browser",
+  "title": "Octofan - Overview",
+  "uid": "octofan-overview",
+  "version": 1
+}

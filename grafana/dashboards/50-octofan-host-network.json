@@ -1,0 +1,26 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "graphTooltip": 1,
+  "id": null,
+  "panels": [
+    {"datasource": "Prometheus", "fieldConfig": {"defaults": {"unit": "percentunit", "thresholds": {"mode": "absolute", "steps": [{"color": "green"}, {"color": "orange", "value": 0.7}, {"color": "red", "value": 0.9}]}}, "overrides": []}, "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0}, "id": 1, "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"}, "targets": [{"expr": "1 - avg(rate(node_cpu_seconds_total{mode=\"idle\"}[2m]))", "legendFormat": "cpu"}], "title": "CPU", "type": "stat"},
+    {"datasource": "Prometheus", "fieldConfig": {"defaults": {"unit": "percentunit"}, "overrides": []}, "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0}, "id": 2, "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"}, "targets": [{"expr": "1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes", "legendFormat": "memory"}], "title": "Memory Used", "type": "stat"},
+    {"datasource": "Prometheus", "fieldConfig": {"defaults": {"unit": "percentunit"}, "overrides": []}, "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0}, "id": 3, "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"}, "targets": [{"expr": "max(1 - node_filesystem_avail_bytes{fstype!~\"tmpfs|overlay|squashfs\"} / node_filesystem_size_bytes{fstype!~\"tmpfs|overlay|squashfs\"})", "legendFormat": "disk"}], "title": "Disk Used", "type": "stat"},
+    {"datasource": "Prometheus", "fieldConfig": {"defaults": {"unit": "binBps"}, "overrides": []}, "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0}, "id": 4, "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"}, "targets": [{"expr": "sum(rate(node_network_receive_bytes_total{device!~\"lo|veth.*|br.*|docker.*\"}[2m]) + rate(node_network_transmit_bytes_total{device!~\"lo|veth.*|br.*|docker.*\"}[2m]))", "legendFormat": "traffic"}], "title": "Network I/O", "type": "stat"},
+    {"datasource": "Prometheus", "fieldConfig": {"defaults": {"unit": "percentunit"}, "overrides": []}, "gridPos": {"h": 8, "w": 8, "x": 0, "y": 4}, "id": 5, "targets": [{"expr": "1 - (avg by (cpu) (rate(node_cpu_seconds_total{mode=\"idle\"}[2m])))", "legendFormat": "CPU {{cpu}}"}], "title": "CPU by Core", "type": "timeseries"},
+    {"datasource": "Prometheus", "fieldConfig": {"defaults": {"unit": "bytes"}, "overrides": []}, "gridPos": {"h": 8, "w": 8, "x": 8, "y": 4}, "id": 6, "targets": [{"expr": "node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes", "legendFormat": "used"}, {"expr": "node_memory_MemAvailable_bytes", "legendFormat": "available"}], "title": "Memory", "type": "timeseries"},
+    {"datasource": "Prometheus", "fieldConfig": {"defaults": {"unit": "percentunit"}, "overrides": []}, "gridPos": {"h": 8, "w": 8, "x": 16, "y": 4}, "id": 7, "targets": [{"expr": "1 - node_filesystem_avail_bytes{fstype!~\"tmpfs|overlay|squashfs\"} / node_filesystem_size_bytes{fstype!~\"tmpfs|overlay|squashfs\"}", "legendFormat": "{{mountpoint}}"}], "title": "Filesystem Used", "type": "timeseries"},
+    {"datasource": "Prometheus", "fieldConfig": {"defaults": {"unit": "binBps"}, "overrides": []}, "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12}, "id": 8, "targets": [{"expr": "rate(node_network_receive_bytes_total{device!~\"lo|veth.*|br.*|docker.*\"}[2m])", "legendFormat": "{{device}} rx"}, {"expr": "rate(node_network_transmit_bytes_total{device!~\"lo|veth.*|br.*|docker.*\"}[2m])", "legendFormat": "{{device}} tx"}], "title": "Network Throughput", "type": "timeseries"},
+    {"datasource": "Prometheus", "fieldConfig": {"defaults": {"unit": "iops"}, "overrides": []}, "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12}, "id": 9, "targets": [{"expr": "rate(node_disk_reads_completed_total[2m])", "legendFormat": "{{device}} reads"}, {"expr": "rate(node_disk_writes_completed_total[2m])", "legendFormat": "{{device}} writes"}], "title": "Disk IOPS", "type": "timeseries"}
+  ],
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "tags": ["octofan", "octofan-detail", "host"],
+  "templating": {"list": []},
+  "time": {"from": "now-3h", "to": "now"},
+  "timezone": "browser",
+  "title": "Octofan - Host and Network",
+  "uid": "octofan-host-network",
+  "version": 1
+}

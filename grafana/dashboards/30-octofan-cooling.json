@@ -1,0 +1,26 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "graphTooltip": 1,
+  "id": null,
+  "panels": [
+    {"datasource": "Prometheus", "fieldConfig": {"defaults": {"unit": "percent"}, "overrides": []}, "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0}, "id": 1, "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"}, "targets": [{"expr": "octofan_target_fan_percent", "legendFormat": "target"}], "title": "Target", "type": "stat"},
+    {"datasource": "Prometheus", "fieldConfig": {"defaults": {"unit": "rpm"}, "overrides": []}, "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0}, "id": 2, "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"}, "targets": [{"expr": "max(octofan_fan_rpm)", "legendFormat": "max rpm"}], "title": "Fastest Fan", "type": "stat"},
+    {"datasource": "Prometheus", "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []}, "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0}, "id": 3, "options": {"colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"}, "targets": [{"expr": "count(octofan_fan_rpm > 0)", "legendFormat": "spinning"}], "title": "Fans Spinning", "type": "stat"},
+    {"datasource": "Prometheus", "fieldConfig": {"defaults": {"unit": "celsius"}, "overrides": []}, "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0}, "id": 4, "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"}, "targets": [{"expr": "octofan_intake_temperature_celsius", "legendFormat": "intake"}], "title": "Intake", "type": "stat"},
+    {"datasource": "Prometheus", "fieldConfig": {"defaults": {"unit": "rpm"}, "overrides": []}, "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4}, "id": 5, "targets": [{"expr": "octofan_fan_rpm", "legendFormat": "fan {{id}}"}], "title": "Chassis Fan RPM", "type": "timeseries"},
+    {"datasource": "Prometheus", "fieldConfig": {"defaults": {"unit": "percent"}, "overrides": []}, "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4}, "id": 6, "targets": [{"expr": "octofan_fan_percent", "legendFormat": "fan {{id}}"}, {"expr": "octofan_target_fan_percent", "legendFormat": "target"}], "title": "Fan Percent", "type": "timeseries"},
+    {"datasource": "Prometheus", "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []}, "gridPos": {"h": 8, "w": 8, "x": 0, "y": 12}, "id": 7, "targets": [{"expr": "octofan_fan_pwm", "legendFormat": "fan {{id}}"}], "title": "PWM", "type": "timeseries"},
+    {"datasource": "Prometheus", "fieldConfig": {"defaults": {"unit": "rpm"}, "overrides": []}, "gridPos": {"h": 8, "w": 8, "x": 8, "y": 12}, "id": 8, "targets": [{"expr": "octofan_psu_metric{metric=\"fan_rpm\"}", "legendFormat": "PSU {{id}}"}], "title": "PSU Fan RPM", "type": "timeseries"},
+    {"datasource": "Prometheus", "fieldConfig": {"defaults": {"unit": "celsius"}, "overrides": []}, "gridPos": {"h": 8, "w": 8, "x": 16, "y": 12}, "id": 9, "targets": [{"expr": "octofan_intake_temperature_celsius", "legendFormat": "intake"}, {"expr": "octofan_exhaust_temperature_celsius", "legendFormat": "exhaust"}, {"expr": "max(octofan_psu_metric{metric=~\"temp_1|temp_2|temp_3\"})", "legendFormat": "PSU max"}, {"expr": "max(octofan_nvidia_gpu_metric{metric=\"temperature_gpu_c\"})", "legendFormat": "GPU max"}], "title": "Cooling Result", "type": "timeseries"}
+  ],
+  "refresh": "5s",
+  "schemaVersion": 39,
+  "tags": ["octofan", "octofan-detail", "cooling"],
+  "templating": {"list": []},
+  "time": {"from": "now-3h", "to": "now"},
+  "timezone": "browser",
+  "title": "Octofan - Cooling",
+  "uid": "octofan-cooling",
+  "version": 1
+}

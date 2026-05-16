@@ -29,6 +29,24 @@ services:
       - "${PROMETHEUS_PORT:-9090}:9090"
     depends_on:
       - octofan-controller
+      - node-exporter
+
+  node-exporter:
+    image: quay.io/prometheus/node-exporter:v1.8.2
+    container_name: octofan-node-exporter
+    restart: unless-stopped
+    pid: host
+    command:
+      - --path.procfs=/host/proc
+      - --path.sysfs=/host/sys
+      - --path.rootfs=/rootfs
+      - --collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro,rslave
+    ports:
+      - "${NODE_EXPORTER_PORT:-9100}:9100"
 
   grafana:
     image: grafana/grafana:11.4.0

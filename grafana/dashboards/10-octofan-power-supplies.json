@@ -1,0 +1,27 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "graphTooltip": 1,
+  "id": null,
+  "panels": [
+    {"datasource": "Prometheus", "fieldConfig": {"defaults": {"unit": "watt"}, "overrides": []}, "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0}, "id": 1, "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"}, "targets": [{"expr": "octofan_power_ac_total_watts", "legendFormat": "AC total"}], "title": "Total AC Draw", "type": "stat"},
+    {"datasource": "Prometheus", "fieldConfig": {"defaults": {"unit": "kwatth"}, "overrides": []}, "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0}, "id": 2, "options": {"colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"}, "targets": [{"expr": "sum(octofan_psu_metric{metric=\"energy_ac_kwh\"})", "legendFormat": "kWh"}], "title": "Energy AC", "type": "stat"},
+    {"datasource": "Prometheus", "fieldConfig": {"defaults": {"unit": "watt"}, "overrides": []}, "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0}, "id": 3, "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"}, "targets": [{"expr": "sum(octofan_psu_metric{metric=\"power_dc\"})", "legendFormat": "DC total"}], "title": "Total DC Output", "type": "stat"},
+    {"datasource": "Prometheus", "fieldConfig": {"defaults": {"unit": "celsius"}, "overrides": []}, "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0}, "id": 4, "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"}, "targets": [{"expr": "max(octofan_psu_metric{metric=~\"temp_1|temp_2|temp_3\"})", "legendFormat": "max temp"}], "title": "Max PSU Temp", "type": "stat"},
+    {"datasource": "Prometheus", "fieldConfig": {"defaults": {"unit": "watt"}, "overrides": []}, "gridPos": {"h": 8, "w": 8, "x": 0, "y": 4}, "id": 5, "targets": [{"expr": "octofan_psu_metric{metric=\"power_ac\"}", "legendFormat": "PSU {{id}} AC"}, {"expr": "octofan_psu_metric{metric=\"power_dc\"}", "legendFormat": "PSU {{id}} DC"}], "title": "Per-PSU Power", "type": "timeseries"},
+    {"datasource": "Prometheus", "fieldConfig": {"defaults": {"unit": "volt"}, "overrides": []}, "gridPos": {"h": 8, "w": 8, "x": 8, "y": 4}, "id": 6, "targets": [{"expr": "octofan_psu_metric{metric=\"voltage_ac\"}", "legendFormat": "PSU {{id}} AC"}, {"expr": "octofan_psu_metric{metric=\"voltage_dc\"}", "legendFormat": "PSU {{id}} DC"}], "title": "Voltage Rails", "type": "timeseries"},
+    {"datasource": "Prometheus", "fieldConfig": {"defaults": {"unit": "amp"}, "overrides": []}, "gridPos": {"h": 8, "w": 8, "x": 16, "y": 4}, "id": 7, "targets": [{"expr": "octofan_psu_metric{metric=\"amperage_ac\"}", "legendFormat": "PSU {{id}} AC"}, {"expr": "octofan_psu_metric{metric=\"amperage_dc\"}", "legendFormat": "PSU {{id}} DC"}, {"expr": "octofan_psu_metric{metric=\"peak_amperage_dc\"}", "legendFormat": "PSU {{id}} peak DC"}], "title": "Current", "type": "timeseries"},
+    {"datasource": "Prometheus", "fieldConfig": {"defaults": {"unit": "celsius"}, "overrides": []}, "gridPos": {"h": 8, "w": 8, "x": 0, "y": 12}, "id": 8, "targets": [{"expr": "octofan_psu_metric{metric=\"temp_1\"}", "legendFormat": "PSU {{id}} T1"}, {"expr": "octofan_psu_metric{metric=\"temp_2\"}", "legendFormat": "PSU {{id}} T2"}, {"expr": "octofan_psu_metric{metric=\"temp_3\"}", "legendFormat": "PSU {{id}} T3"}], "title": "PSU Temperatures", "type": "timeseries"},
+    {"datasource": "Prometheus", "fieldConfig": {"defaults": {"unit": "rpm"}, "overrides": []}, "gridPos": {"h": 8, "w": 8, "x": 8, "y": 12}, "id": 9, "targets": [{"expr": "octofan_psu_metric{metric=\"fan_rpm\"}", "legendFormat": "PSU {{id}}"}], "title": "PSU Fan RPM", "type": "timeseries"},
+    {"datasource": "Prometheus", "fieldConfig": {"defaults": {"unit": "watt"}, "overrides": []}, "gridPos": {"h": 8, "w": 8, "x": 16, "y": 12}, "id": 10, "targets": [{"expr": "octofan_psu_metric{metric=\"peak_power_ac\"}", "legendFormat": "PSU {{id}} peak"}, {"expr": "octofan_psu_metric{metric=\"power_ac\"}", "legendFormat": "PSU {{id}} now"}], "title": "AC Peaks", "type": "timeseries"}
+  ],
+  "refresh": "5s",
+  "schemaVersion": 39,
+  "tags": ["octofan", "octofan-detail", "power"],
+  "templating": {"list": []},
+  "time": {"from": "now-6h", "to": "now"},
+  "timezone": "browser",
+  "title": "Octofan - Power Supplies",
+  "uid": "octofan-power-supplies",
+  "version": 1
+}

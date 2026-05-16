@@ -29,6 +29,8 @@ class PsuStatus:
     temp_3: float | None = None
     fan_rpm: float | None = None
     peak_power_ac: float | None = None
+    peak_amperage_dc: float | None = None
+    energy_ac_kwh: float | None = None
 
 
 @dataclass
@@ -100,7 +102,7 @@ RE_FAN = re.compile(r"FAN No\.\s+(\d+)\s+(RPM|Default PWM|Current PWM|max RPM|RP
 RE_BME = re.compile(r"BME280 No\.\s+(\d+)\s+(Temp|Humid|Press):\s+(-?\d+(?:\.\d+)?)")
 RE_PSU = re.compile(
     r"(?P<model>.+?)\s+PSU No\.\s+(?P<id>\d+)\s+"
-    r"(?P<metric>Vac|Iac|Pac|Vdc|Idc|Pdc|T1|T2|T3|FAN|Peak Pac):\s+"
+    r"(?P<metric>Vac|Iac|Pac|Vdc|Idc|Pdc|T1|T2|T3|FAN|Peak Pac|Peak Idc|Wac):\s+"
     r"(?P<value>-?\d+(?:\.\d+)?)"
 )
 
@@ -170,6 +172,8 @@ def parse_controller_output(raw: str) -> ControllerStatus:
                 "T3": "temp_3",
                 "FAN": "fan_rpm",
                 "Peak Pac": "peak_power_ac",
+                "Peak Idc": "peak_amperage_dc",
+                "Wac": "energy_ac_kwh",
             }[metric]
             setattr(psu, field_name, value)
     return status

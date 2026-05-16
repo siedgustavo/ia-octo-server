@@ -12,7 +12,8 @@ The original HiveOS package files are preserved only as reference material under
 - Controls chassis fans from internal case temperature.
 - Exposes all controller telemetry as Prometheus metrics.
 - Adds NVIDIA GPU telemetry from `nvidia-smi`.
-- Ships a Grafana dashboard for thermals, fans, power, watchdog and AI metrics.
+- Adds host CPU, memory, disk and network telemetry through node exporter.
+- Ships Grafana dashboards for overview, PSUs, environment, cooling, GPUs, host/network, watchdog and AI metrics.
 - Updates the controller OLED with host, thermal, power and AI status.
 - Feeds the hardware watchdog only when configured host checks pass.
 - Integrates with an Ollama container over Docker networking.
@@ -21,6 +22,7 @@ The original HiveOS package files are preserved only as reference material under
 
 - `octofan-controller`: FastAPI daemon, UI, REST API, Prometheus exporter, fan control, watchdog and OLED updates.
 - `prometheus`: metrics storage.
+- `node-exporter`: host system and network metrics.
 - `grafana`: dashboard at `http://localhost:3000` (`admin` / `octofan`).
 - `ollama`: Ollama inference API at `http://localhost:11434`.
 
@@ -46,6 +48,15 @@ Open:
 - Controller UI: `http://localhost:8000`
 - Prometheus: `http://localhost:9090`
 - Grafana: `http://localhost:3000`
+
+Grafana provisions these dashboards under the `Octofan` folder:
+
+- `Octofan - Overview`
+- `Octofan - Power Supplies`
+- `Octofan - Environment`
+- `Octofan - Cooling`
+- `Octofan - GPUs`
+- `Octofan - Host and Network`
 
 To test without Octofan hardware:
 

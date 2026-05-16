@@ -15,6 +15,17 @@ def test_parse_controller_output():
     assert status.power_ac_total_w == 692.0
 
 
+def test_parse_controller_output_with_psu_peaks_and_energy():
+    raw = """PSMI(DPS1200-compat.) PSU No. 0 Peak Pac: 124.0
+PSMI(DPS1200-compat.) PSU No. 0 Peak Idc: 6.5
+PSMI(DPS1200-compat.) PSU No. 0 Wac: 0.567
+"""
+    status = parse_controller_output(raw)
+    assert status.psus[0].peak_power_ac == 124.0
+    assert status.psus[0].peak_amperage_dc == 6.5
+    assert status.psus[0].energy_ac_kwh == 0.567
+
+
 def test_intake_temp_ignores_impossible_sensor_values():
     raw = """Temperature No. 0 Celsius: -60
 Temperature No. 1 Celsius: 22

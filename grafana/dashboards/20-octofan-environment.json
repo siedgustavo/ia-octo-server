@@ -1,0 +1,26 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "graphTooltip": 1,
+  "id": null,
+  "panels": [
+    {"datasource": "Prometheus", "fieldConfig": {"defaults": {"unit": "celsius", "thresholds": {"mode": "absolute", "steps": [{"color": "green"}, {"color": "orange", "value": 40}, {"color": "red", "value": 55}]}}, "overrides": []}, "gridPos": {"h": 5, "w": 6, "x": 0, "y": 0}, "id": 1, "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"}, "targets": [{"expr": "octofan_intake_temperature_celsius", "legendFormat": "intake"}], "title": "Selected Intake", "type": "stat"},
+    {"datasource": "Prometheus", "fieldConfig": {"defaults": {"unit": "celsius"}, "overrides": []}, "gridPos": {"h": 5, "w": 6, "x": 6, "y": 0}, "id": 2, "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"}, "targets": [{"expr": "octofan_exhaust_temperature_celsius", "legendFormat": "exhaust"}], "title": "Selected Exhaust", "type": "stat"},
+    {"datasource": "Prometheus", "fieldConfig": {"defaults": {"unit": "humidity"}, "overrides": []}, "gridPos": {"h": 5, "w": 6, "x": 12, "y": 0}, "id": 3, "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"}, "targets": [{"expr": "avg(octofan_bme_humidity_percent)", "legendFormat": "humidity"}], "title": "Humidity", "type": "stat"},
+    {"datasource": "Prometheus", "fieldConfig": {"defaults": {"unit": "pressurehpa"}, "overrides": []}, "gridPos": {"h": 5, "w": 6, "x": 18, "y": 0}, "id": 4, "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"}, "targets": [{"expr": "avg(octofan_bme_pressure_hpa)", "legendFormat": "pressure"}], "title": "Pressure", "type": "stat"},
+    {"datasource": "Prometheus", "fieldConfig": {"defaults": {"unit": "celsius"}, "overrides": []}, "gridPos": {"h": 8, "w": 12, "x": 0, "y": 5}, "id": 5, "targets": [{"expr": "octofan_intake_temperature_celsius", "legendFormat": "selected intake"}, {"expr": "octofan_exhaust_temperature_celsius", "legendFormat": "selected exhaust"}, {"expr": "octofan_temperature_celsius{source=\"temperature\"}", "legendFormat": "raw temp {{id}}"}, {"expr": "octofan_temperature_celsius{source=\"bme280\"}", "legendFormat": "raw BME {{id}}"}], "title": "Temperatures: Selected and Raw", "type": "timeseries"},
+    {"datasource": "Prometheus", "fieldConfig": {"defaults": {"unit": "humidity"}, "overrides": []}, "gridPos": {"h": 8, "w": 6, "x": 12, "y": 5}, "id": 6, "targets": [{"expr": "octofan_bme_humidity_percent", "legendFormat": "BME {{id}}"}], "title": "Humidity", "type": "timeseries"},
+    {"datasource": "Prometheus", "fieldConfig": {"defaults": {"unit": "pressurehpa"}, "overrides": []}, "gridPos": {"h": 8, "w": 6, "x": 18, "y": 5}, "id": 7, "targets": [{"expr": "octofan_bme_pressure_hpa", "legendFormat": "BME {{id}}"}], "title": "Pressure", "type": "timeseries"},
+    {"datasource": "Prometheus", "fieldConfig": {"defaults": {"unit": "volt"}, "overrides": []}, "gridPos": {"h": 7, "w": 12, "x": 0, "y": 13}, "id": 8, "targets": [{"expr": "octofan_voltage_volts", "legendFormat": "channel {{id}}"}], "title": "Controller Voltage Inputs", "type": "timeseries"},
+    {"datasource": "Prometheus", "fieldConfig": {"defaults": {"unit": "celsius"}, "overrides": []}, "gridPos": {"h": 7, "w": 12, "x": 12, "y": 13}, "id": 9, "targets": [{"expr": "octofan_temperature_celsius{source=\"temperature\"} >= -20 <= 120", "legendFormat": "sane raw {{id}}"}], "title": "Sane Raw Temperature Channels", "type": "timeseries"}
+  ],
+  "refresh": "5s",
+  "schemaVersion": 39,
+  "tags": ["octofan", "octofan-detail", "environment"],
+  "templating": {"list": []},
+  "time": {"from": "now-6h", "to": "now"},
+  "timezone": "browser",
+  "title": "Octofan - Environment",
+  "uid": "octofan-environment",
+  "version": 1
+}

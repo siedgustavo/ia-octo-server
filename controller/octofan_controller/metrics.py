@@ -10,8 +10,11 @@ from .parser import ControllerStatus
 
 controller_up = Gauge("octofan_controller_up", "Controller read success")
 temperature = Gauge("octofan_temperature_celsius", "Temperature readings", ["source", "id"])
+intake_temperature = Gauge("octofan_intake_temperature_celsius", "Selected sane intake temperature")
+exhaust_temperature = Gauge("octofan_exhaust_temperature_celsius", "Selected sane exhaust temperature")
 bme_humidity = Gauge("octofan_bme_humidity_percent", "BME280 humidity", ["id"])
 bme_pressure = Gauge("octofan_bme_pressure_hpa", "BME280 pressure", ["id"])
+controller_voltage = Gauge("octofan_voltage_volts", "Controller voltage readings", ["id"])
 fan_rpm = Gauge("octofan_fan_rpm", "Fan RPM", ["id"])
 fan_percent = Gauge("octofan_fan_percent", "Fan percent", ["id"])
 fan_pwm = Gauge("octofan_fan_pwm", "Fan PWM", ["id"])
@@ -41,6 +44,12 @@ def update_metrics(status: ControllerStatus, ollama: OllamaStatus, current_targe
         version_metric.labels("boot").set(status.version_boot)
     for sensor_id, value in status.temperatures.items():
         temperature.labels("temperature", str(sensor_id)).set(value)
+    if status.intake_temp_c is not None:
+        intake_temperature.set(status.intake_temp_c)
+    if status.exhaust_temp_c is not None:
+        exhaust_temperature.set(status.exhaust_temp_c)
+    for voltage_id, value in status.voltages.items():
+        controller_voltage.labels(str(voltage_id)).set(value)
     for sensor_id, bme in status.bme280.items():
         if bme.temp_c is not None:
             temperature.labels("bme280", str(sensor_id)).set(bme.temp_c)
@@ -57,7 +66,21 @@ def update_metrics(status: ControllerStatus, ollama: OllamaStatus, current_targe
         if fan.current_pwm is not None:
             fan_pwm.labels(label).set(fan.current_pwm)
     for psu_id, psu in status.psus.items():
-        for metric in ("voltage_ac", "amperage_ac", "power_ac", "voltage_dc", "amperage_dc", "power_dc", "temp_1", "temp_2", "temp_3", "fan_rpm", "peak_power_ac"):
+        for metric in (
+            "voltage_ac",
+            "amperage_ac",
+            "power_ac",
+            "voltage_dc",
+            "amperage_dc",
+            "power_dc",
+            "temp_1",
+            "temp_2",
+            "temp_3",
+            "fan_rpm",
+            "peak_power_ac",
+            "peak_amperage_dc",
+            "energy_ac_kwh",
+        ):
             value = getattr(psu, metric)
             if value is not None:
                 psu_metric.labels(str(psu_id), psu.model, metric).set(value)

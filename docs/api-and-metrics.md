@@ -59,10 +59,13 @@ Core:
 - `octofan_controller_up`
 - `octofan_controller_version{type="cli|fw|hw|boot"}`
 - `octofan_target_fan_percent`
+- `octofan_voltage_volts{id}`
 
 Thermal:
 
 - `octofan_temperature_celsius{source,id}`
+- `octofan_intake_temperature_celsius`
+- `octofan_exhaust_temperature_celsius`
 - `octofan_bme_humidity_percent{id}`
 - `octofan_bme_pressure_hpa{id}`
 
@@ -76,6 +79,8 @@ Power:
 
 - `octofan_power_ac_total_watts`
 - `octofan_psu_metric{id,model,metric}`
+
+Common PSU metric values include `voltage_ac`, `amperage_ac`, `power_ac`, `voltage_dc`, `amperage_dc`, `power_dc`, `temp_1`, `temp_2`, `temp_3`, `fan_rpm`, `peak_power_ac`, `peak_amperage_dc` and `energy_ac_kwh`.
 
 Watchdog:
 
@@ -93,6 +98,21 @@ AI:
 
 - `octofan_ai_tokens_per_second{source="ollama"}`
 - `octofan_ai_running_models{source="ollama"}`
+
+Host and network:
+
+The stack includes `node_exporter`, scraped by Prometheus as `node-exporter:9100`. It provides standard `node_*` metrics for CPU, memory, filesystems, disks and network interfaces.
+
+## Dashboards
+
+Grafana provisions these dashboards under the `Octofan` folder:
+
+- `Octofan - Overview`: operating view for controller health, thermal envelope, power, fans, GPU load, host CPU/memory and AI throughput.
+- `Octofan - Power Supplies`: AC/DC rails, watts, current, PSU temperatures, PSU fan RPM, peaks and accumulated AC energy.
+- `Octofan - Environment`: selected sane intake/exhaust temperatures, raw sensor channels, BME280 humidity/pressure and controller voltage inputs.
+- `Octofan - Cooling`: chassis fan RPM, PWM, target percent, PSU fans and cooling result versus heat sources.
+- `Octofan - GPUs`: NVIDIA SMI status, GPU temperature, power, utilization, VRAM, clocks, PCIe and encoder sessions.
+- `Octofan - Host and Network`: node exporter CPU, memory, filesystems, disk I/O and network throughput.
 
 ## Notes
 
