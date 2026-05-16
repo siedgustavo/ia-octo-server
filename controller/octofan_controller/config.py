@@ -29,6 +29,7 @@ class WatchdogCheck(BaseModel):
 
 class WatchdogConfig(BaseModel):
     enabled: bool = False
+    keepalive_when_disabled: bool = True
     short_timeout_seconds: int = Field(default=120, ge=10, le=3600)
     long_timeout_seconds: int = Field(default=1500, ge=60, le=86400)
     feed_interval_seconds: float = Field(default=5.0, ge=1.0, le=300.0)

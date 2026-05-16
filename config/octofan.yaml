@@ -12,6 +12,7 @@ fans:
   poll_interval_seconds: 5.0
 watchdog:
   enabled: false
+  keepalive_when_disabled: true
   short_timeout_seconds: 120
   long_timeout_seconds: 1500
   feed_interval_seconds: 5.0

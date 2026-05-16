@@ -113,6 +113,12 @@ async def watchdog_loop() -> None:
                 _event(f"watchdog unhealthy: {', '.join(result.errors)}")
         else:
             configured = False
+            state["watchdog"] = None
+            if cfg.watchdog.keepalive_when_disabled:
+                try:
+                    cli.feed_watchdog()
+                except Exception as exc:
+                    _event(f"failed to keep watchdog alive: {exc}")
         await asyncio.sleep(cfg.watchdog.feed_interval_seconds)
 
 

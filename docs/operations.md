@@ -80,7 +80,9 @@ curl -fsS http://localhost:11434/api/tags
 
 ## Watchdog
 
-The watchdog is disabled by default. To enable it:
+The watchdog reset policy is disabled by default, but `keepalive_when_disabled` is enabled so an Octofan controller with an already-armed hardware watchdog does not periodically reset/re-enumerate its USB device.
+
+To enable host-health watchdog resets:
 
 1. Set `watchdog.enabled: true`.
 2. Configure `short_timeout_seconds` and `long_timeout_seconds`.
@@ -91,6 +93,7 @@ Example TCP check for the host SSH service:
 ```yaml
 watchdog:
   enabled: true
+  keepalive_when_disabled: true
   short_timeout_seconds: 120
   long_timeout_seconds: 1500
   feed_interval_seconds: 5.0
@@ -100,7 +103,7 @@ watchdog:
       timeout_seconds: 1.0
 ```
 
-If any check fails, the daemon does not feed the hardware watchdog.
+If `enabled` is true and any check fails, the daemon does not feed the hardware watchdog. If `enabled` is false and `keepalive_when_disabled` is true, the daemon feeds the hardware watchdog without using it as a reset policy.
 
 ## Fan Control
 
