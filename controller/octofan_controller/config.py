@@ -40,6 +40,7 @@ class DisplayConfig(BaseModel):
     profile: Literal["system", "thermal", "power", "ai"] = "ai"
     refresh_interval_seconds: float = Field(default=15.0, ge=5.0, le=3600.0)
     title: str = "OCTOFAN AI"
+    persist_to_eeprom: bool = True
 
 
 class OllamaConfig(BaseModel):

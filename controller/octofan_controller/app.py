@@ -52,6 +52,7 @@ state: dict[str, Any] = {
     "target_fan": None,
     "applied_fan_target": None,
     "applied_fan_ids": [],
+    "eeprom_display_signature": None,
     "events": [],
     "watchdog": None,
 }
@@ -187,7 +188,7 @@ async def api_fans_auto() -> dict[str, Any]:
 
 @app.post("/api/display/render")
 async def api_display_render(req: DisplayRenderRequest) -> dict[str, Any]:
-    return {"ok": True, "lines": await _write_display(req.profile)}
+    return {"ok": True, "lines": await _write_display(req.profile, force_eeprom=True)}
 
 
 @app.post("/api/watchdog/test")
@@ -208,15 +209,25 @@ async def api_calibrate_fans() -> dict[str, Any]:
     return {"ok": True}
 
 
-async def _write_display(profile: str | None) -> list[str]:
+async def _write_display(profile: str | None, force_eeprom: bool = False) -> list[str]:
     cfg: AppConfig = state["config"]
     display_cfg = cfg.display.model_copy(update={"profile": profile or cfg.display.profile})
     lines = render_display(state["status"], display_cfg, state["target_fan"], state["ollama"])
     try:
-        cli.oled_text(0, 0, 4, "0")
+        signature = (display_cfg.title, display_cfg.profile)
+        title_written = False
+        if display_cfg.persist_to_eeprom and (force_eeprom or state["eeprom_display_signature"] != signature):
+            cli.oled_text(0, 0, 4, "0")
+            cli.oled_text(0, 0, 3, lines[0])
+            title_written = True
+            for y, line in enumerate(lines[2:], start=2):
+                cli.oled_text(0, y, 2, line)
+            state["eeprom_display_signature"] = signature
+
         for y, line in enumerate(lines):
             if y == 0:
-                cli.oled_text(0, 0, 3, line)
+                if not display_cfg.persist_to_eeprom and not title_written:
+                    cli.oled_text(0, 0, 3, line)
             elif y == 1:
                 continue
             else:

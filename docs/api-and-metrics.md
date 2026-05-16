@@ -30,7 +30,7 @@ Switches fans back to automatic mode.
 
 ### `POST /api/display/render`
 
-Renders and writes a display profile.
+Renders and writes a display profile. When `display.persist_to_eeprom` is enabled, this also rewrites the static OLED layout in controller EEPROM.
 
 Payload:
 

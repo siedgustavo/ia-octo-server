@@ -112,6 +112,18 @@ Auto mode uses the intake/internal sensor:
 
 Impossible sensor values below `-20C` or above `120C` are ignored. If the controller cannot be read, fans are set to `fail_safe_percent`.
 
+## OLED Display
+
+The dynamic display refresh is controlled in `config/octofan.yaml`:
+
+```yaml
+display:
+  refresh_interval_seconds: 15.0
+  persist_to_eeprom: true
+```
+
+When `persist_to_eeprom` is true, the controller writes the static OLED layout to EEPROM once per process start/profile change, and whenever `POST /api/display/render` is called. Runtime values continue to refresh at the normal interval without rewriting EEPROM every cycle.
+
 ## Useful Checks
 
 ```bash
