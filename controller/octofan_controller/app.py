@@ -15,6 +15,7 @@ from .config import AppConfig, load_config, save_config
 from .control import calculate_target_fan_percent
 from .display import render_display
 from .metrics import metrics_payload, update_metrics
+from .nvidia import NvidiaSmi, NvidiaStatus
 from .ollama import OllamaClient, OllamaStatus
 from .parser import ControllerStatus
 from .watchdog import run_watchdog_checks
@@ -42,10 +43,12 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(title="Octofan AI Controller", version="0.1.0", lifespan=lifespan)
 cli = OctofanCli(BIN_PATH)
 ollama_client = OllamaClient()
+nvidia_smi = NvidiaSmi()
 state: dict[str, Any] = {
     "config": load_config(CONFIG_PATH),
     "status": ControllerStatus(ok=False, error="not polled yet"),
     "ollama": OllamaStatus(),
+    "nvidia": NvidiaStatus(ok=False, gpus=[], error="not polled yet"),
     "target_fan": None,
     "events": [],
     "watchdog": None,
@@ -65,14 +68,15 @@ async def poll_loop() -> None:
         cfg: AppConfig = state["config"]
         status = cli.status()
         ollama = await ollama_client.status(cfg.ollama)
+        nvidia = nvidia_smi.status()
         target = calculate_target_fan_percent(status, cfg.fans, state["target_fan"], ollama.generating)
         fan_ids = sorted(status.fans.keys()) if status.ok and status.fans else list(range(12))
         try:
             cli.set_all_fans_percent(fan_ids, target)
         except Exception as exc:
             _event(f"failed to set fans: {exc}")
-        state.update(status=status, ollama=ollama, target_fan=target)
-        update_metrics(status, ollama, target)
+        state.update(status=status, ollama=ollama, nvidia=nvidia, target_fan=target)
+        update_metrics(status, ollama, target, nvidia)
         await asyncio.sleep(cfg.fans.poll_interval_seconds)
 
 
@@ -218,6 +222,7 @@ def serialize_status() -> dict[str, Any]:
         "bme280": {k: vars(v) for k, v in status.bme280.items()},
         "watchdog": None if watchdog is None else vars(watchdog),
         "ollama": vars(state["ollama"]),
+        "nvidia": state["nvidia"].to_dict(),
         "target_fan_percent": state["target_fan"],
         "events": state["events"][-50:],
     }
@@ -294,7 +299,9 @@ async function refresh(){
     ['Exhaust', st.controller.exhaust_temp_c+' C'],
     ['Target fan', st.target_fan_percent+' %'],
     ['Power', st.controller.power_ac_total_w+' W'],
-    ['Ollama', st.ollama.running_models+' models']
+    ['Ollama', st.ollama.running_models+' models'],
+    ['GPUs', (st.nvidia.gpus||[]).length],
+    ['GPU temp', (st.nvidia.gpus||[]).map(g=>g.temperature_gpu_c+' C').join(' / ') || '--']
   ].map(([k,v])=>`<div class="metric"><b>${k}</b><br>${v}</div>`).join('')
   raw.textContent=JSON.stringify(st,null,2)
 }

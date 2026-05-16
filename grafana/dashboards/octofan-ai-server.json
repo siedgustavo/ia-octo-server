@@ -65,6 +65,75 @@
       "targets": [{"expr": "octofan_watchdog", "legendFormat": "{{metric}}"}],
       "title": "Watchdog",
       "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {"defaults": {"unit": "celsius"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 16},
+      "id": 7,
+      "targets": [{"expr": "octofan_nvidia_gpu_metric{metric=\"temperature_gpu_c\"}", "legendFormat": "GPU {{index}} {{name}}"}],
+      "title": "GPU Temperature",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {"defaults": {"unit": "watt"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 16},
+      "id": 8,
+      "targets": [
+        {"expr": "octofan_nvidia_gpu_metric{metric=\"power_draw_watts\"}", "legendFormat": "GPU {{index}} draw"},
+        {"expr": "octofan_nvidia_gpu_metric{metric=\"power_limit_watts\"}", "legendFormat": "GPU {{index}} limit"}
+      ],
+      "title": "GPU Power",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {"defaults": {"unit": "percent"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 16},
+      "id": 9,
+      "targets": [
+        {"expr": "octofan_nvidia_gpu_metric{metric=\"utilization_gpu_percent\"}", "legendFormat": "GPU {{index}} core"},
+        {"expr": "octofan_nvidia_gpu_metric{metric=\"utilization_memory_percent\"}", "legendFormat": "GPU {{index}} mem"}
+      ],
+      "title": "GPU Utilization",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {"defaults": {"unit": "decmbytes"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 24},
+      "id": 10,
+      "targets": [
+        {"expr": "octofan_nvidia_gpu_metric{metric=\"memory_used_mib\"}", "legendFormat": "GPU {{index}} used"},
+        {"expr": "octofan_nvidia_gpu_metric{metric=\"memory_total_mib\"}", "legendFormat": "GPU {{index}} total"}
+      ],
+      "title": "GPU Memory",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {"defaults": {"unit": "hertz"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 24},
+      "id": 11,
+      "targets": [
+        {"expr": "octofan_nvidia_gpu_metric{metric=\"clock_graphics_mhz\"} * 1000000", "legendFormat": "GPU {{index}} graphics"},
+        {"expr": "octofan_nvidia_gpu_metric{metric=\"clock_memory_mhz\"} * 1000000", "legendFormat": "GPU {{index}} memory"}
+      ],
+      "title": "GPU Clocks",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 24},
+      "id": 12,
+      "targets": [
+        {"expr": "octofan_nvidia_gpu_metric{metric=\"pcie_link_gen_current\"}", "legendFormat": "GPU {{index}} gen"},
+        {"expr": "octofan_nvidia_gpu_metric{metric=\"pcie_link_width_current\"}", "legendFormat": "GPU {{index}} width"}
+      ],
+      "title": "GPU PCIe Link",
+      "type": "timeseries"
     }
   ],
   "refresh": "5s",

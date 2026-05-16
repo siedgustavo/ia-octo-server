@@ -129,4 +129,6 @@ The container must be able to access USB. The compose file uses:
 - `privileged: true`
 - `/dev/bus/usb:/dev/bus/usb`
 
+The controller and Ollama services also request `gpus: all` so the NVIDIA runtime can expose `nvidia-smi` and CUDA devices.
+
 Keep the controller UI/API on a trusted LAN. v1 has no authentication.

@@ -3,6 +3,7 @@ services:
     build: .
     container_name: octofan-controller
     privileged: true
+    gpus: all
     restart: unless-stopped
     environment:
       OCTOFAN_CONFIG: /config/octofan.yaml

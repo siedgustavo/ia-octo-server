@@ -15,3 +15,4 @@ def test_status_and_metrics():
         metrics = client.get("/metrics")
         assert metrics.status_code == 200
         assert "octofan_controller_up" in metrics.text
+        assert "octofan_nvidia_smi_up" in metrics.text

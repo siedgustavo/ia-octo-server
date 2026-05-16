@@ -81,6 +81,14 @@ Watchdog:
 
 - `octofan_watchdog{metric}`
 
+NVIDIA:
+
+- `octofan_nvidia_smi_up`
+- `octofan_nvidia_gpu_info{index,uuid,name,pci_bus_id,driver_version,vbios_version}`
+- `octofan_nvidia_gpu_metric{index,uuid,name,metric}`
+
+Common NVIDIA metric values include `temperature_gpu_c`, `temperature_memory_c`, `fan_speed_percent`, `utilization_gpu_percent`, `utilization_memory_percent`, `memory_total_mib`, `memory_used_mib`, `memory_free_mib`, `power_draw_watts`, `power_limit_watts`, `clock_graphics_mhz`, `clock_memory_mhz`, `pcie_link_gen_current`, `pcie_link_width_current`, `encoder_sessions` and `decoder_sessions`.
+
 AI:
 
 - `octofan_ai_tokens_per_second{source="ollama"}`

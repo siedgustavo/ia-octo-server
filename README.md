@@ -11,6 +11,7 @@ The original HiveOS package files are preserved only as reference material under
 - Reads Octofan controller telemetry through the original USB CLI.
 - Controls chassis fans from internal case temperature.
 - Exposes all controller telemetry as Prometheus metrics.
+- Adds NVIDIA GPU telemetry from `nvidia-smi`.
 - Ships a Grafana dashboard for thermals, fans, power, watchdog and AI metrics.
 - Updates the controller OLED with host, thermal, power and AI status.
 - Feeds the hardware watchdog only when configured host checks pass.

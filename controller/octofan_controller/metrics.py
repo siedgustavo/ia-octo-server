@@ -4,6 +4,7 @@ from prometheus_client import Gauge, generate_latest
 from prometheus_client.core import REGISTRY
 
 from .ollama import OllamaStatus
+from .nvidia import NvidiaStatus
 from .parser import ControllerStatus
 
 
@@ -21,9 +22,12 @@ power_total = Gauge("octofan_power_ac_total_watts", "Total AC power")
 ai_tps = Gauge("octofan_ai_tokens_per_second", "AI tokens per second", ["source"])
 ai_models = Gauge("octofan_ai_running_models", "AI running models", ["source"])
 target_fan = Gauge("octofan_target_fan_percent", "Last target case fan percent")
+nvidia_up = Gauge("octofan_nvidia_smi_up", "nvidia-smi read success")
+nvidia_info = Gauge("octofan_nvidia_gpu_info", "NVIDIA GPU info", ["index", "uuid", "name", "pci_bus_id", "driver_version", "vbios_version"])
+nvidia_metric = Gauge("octofan_nvidia_gpu_metric", "NVIDIA GPU metric from nvidia-smi", ["index", "uuid", "name", "metric"])
 
 
-def update_metrics(status: ControllerStatus, ollama: OllamaStatus, current_target_fan: int | None) -> None:
+def update_metrics(status: ControllerStatus, ollama: OllamaStatus, current_target_fan: int | None, nvidia: NvidiaStatus | None = None) -> None:
     controller_up.set(1 if status.ok else 0)
     if current_target_fan is not None:
         target_fan.set(current_target_fan)
@@ -64,6 +68,36 @@ def update_metrics(status: ControllerStatus, ollama: OllamaStatus, current_targe
         watchdog_metric.labels("resets").set(status.watchdog_resets)
     ai_tps.labels("ollama").set(ollama.tokens_per_second)
     ai_models.labels("ollama").set(ollama.running_models)
+    if nvidia is not None:
+        nvidia_up.set(1 if nvidia.ok else 0)
+        for gpu in nvidia.gpus:
+            labels = (str(gpu.index), gpu.uuid, gpu.name)
+            nvidia_info.labels(str(gpu.index), gpu.uuid, gpu.name, gpu.pci_bus_id, gpu.driver_version or "", gpu.vbios_version or "").set(1)
+            for metric_name in (
+                "temperature_gpu_c",
+                "temperature_memory_c",
+                "fan_speed_percent",
+                "utilization_gpu_percent",
+                "utilization_memory_percent",
+                "memory_total_mib",
+                "memory_used_mib",
+                "memory_free_mib",
+                "power_draw_watts",
+                "power_limit_watts",
+                "clock_graphics_mhz",
+                "clock_memory_mhz",
+                "clock_max_graphics_mhz",
+                "clock_max_memory_mhz",
+                "pcie_link_gen_current",
+                "pcie_link_gen_max",
+                "pcie_link_width_current",
+                "pcie_link_width_max",
+                "encoder_sessions",
+                "decoder_sessions",
+            ):
+                value = getattr(gpu, metric_name)
+                if value is not None:
+                    nvidia_metric.labels(*labels, metric_name).set(value)
 
 
 def metrics_payload() -> bytes:
