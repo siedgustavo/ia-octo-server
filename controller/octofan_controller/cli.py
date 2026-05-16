@@ -93,7 +93,7 @@ class OctofanCli:
     def _run(self, *args: str) -> None:
         if self.mock:
             return
-        subprocess.check_call([self.binary, *args], timeout=self.timeout)
+        subprocess.run([self.binary, *args], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=self.timeout, check=True)
 
 
 def percent_to_pwm(percent: int) -> int:
