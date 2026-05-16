@@ -108,8 +108,9 @@ Auto mode uses the intake/internal sensor:
 
 1. BME280 No. 0 temperature when present.
 2. `Temperature No. 0` fallback.
+3. First sane controller temperature fallback.
 
-If the controller cannot be read, fans are set to `fail_safe_percent`.
+Impossible sensor values below `-20C` or above `120C` are ignored. If the controller cannot be read, fans are set to `fail_safe_percent`.
 
 ## Useful Checks
 

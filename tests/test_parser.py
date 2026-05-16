@@ -13,3 +13,14 @@ def test_parse_controller_output():
     assert status.fans[0].percent == 61
     assert status.psus[0].power_ac == 692.0
     assert status.power_ac_total_w == 692.0
+
+
+def test_intake_temp_ignores_impossible_sensor_values():
+    raw = """Temperature No. 0 Celsius: -60
+Temperature No. 1 Celsius: 22
+Temperature No. 2 Celsius: 281
+BME280 No. 0 Temp: 188.83
+"""
+    status = parse_controller_output(raw)
+    assert status.intake_temp_c == 22
+    assert status.exhaust_temp_c == 22

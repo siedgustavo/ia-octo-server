@@ -62,16 +62,26 @@ class ControllerStatus:
     @property
     def intake_temp_c(self) -> float | None:
         bme = self.bme280.get(0)
-        if bme and bme.temp_c is not None:
+        if bme and is_sane_temperature(bme.temp_c):
             return bme.temp_c
-        return self.temperatures.get(0)
+        if is_sane_temperature(self.temperatures.get(0)):
+            return self.temperatures.get(0)
+        for bme in self.bme280.values():
+            if is_sane_temperature(bme.temp_c):
+                return bme.temp_c
+        for value in self.temperatures.values():
+            if is_sane_temperature(value):
+                return value
+        return None
 
     @property
     def exhaust_temp_c(self) -> float | None:
         bme = self.bme280.get(1)
-        if bme and bme.temp_c is not None:
+        if bme and is_sane_temperature(bme.temp_c):
             return bme.temp_c
-        return self.temperatures.get(1)
+        if is_sane_temperature(self.temperatures.get(1)):
+            return self.temperatures.get(1)
+        return self.intake_temp_c
 
     @property
     def power_ac_total_w(self) -> float:
@@ -163,3 +173,7 @@ def parse_controller_output(raw: str) -> ControllerStatus:
             }[metric]
             setattr(psu, field_name, value)
     return status
+
+
+def is_sane_temperature(value: float | None) -> bool:
+    return value is not None and -20 <= value <= 120
