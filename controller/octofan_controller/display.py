@@ -16,8 +16,8 @@ def fit(text: str, width: int = WIDTH) -> str:
 
 
 def render_display(status: ControllerStatus, cfg: DisplayConfig, fan_percent: int | None, ollama: OllamaStatus) -> list[str]:
+    lines = [fit(cfg.title), fit(cfg.title)]
     host = socket.gethostname()
-    lines = [fit(cfg.title), fit(host)]
     intake = _fmt_temp(status.intake_temp_c)
     exhaust = _fmt_temp(status.exhaust_temp_c)
     power = f"{status.power_ac_total_w:.0f}W" if status.power_ac_total_w else "--W"
@@ -30,7 +30,7 @@ def render_display(status: ControllerStatus, cfg: DisplayConfig, fan_percent: in
         tps = f"{ollama.tokens_per_second:.1f} tok/s" if ollama.ok else "AI offline"
         lines += [fit(tps), fit(f"Models {ollama.running_models}"), fit(f"In {intake} Fan {fan_percent or 0}%"), fit(f"Power {power}")]
     else:
-        lines += [fit(f"FW {status.version_fw or '-'} HW {status.version_hw or '-'}"), fit(f"In {intake} Out {exhaust}"), fit(f"Fan {fan_percent or 0}%")]
+        lines += [fit(host), fit(f"FW {status.version_fw or '-'} HW {status.version_hw or '-'}"), fit(f"In {intake} Out {exhaust}"), fit(f"Fan {fan_percent or 0}%")]
 
     while len(lines) < HEIGHT:
         lines.append(fit(""))
