@@ -1,0 +1,8 @@
+global:
+  scrape_interval: 5s
+
+scrape_configs:
+  - job_name: octofan-controller
+    static_configs:
+      - targets:
+          - octofan-controller:8000

@@ -1,0 +1,42 @@
+from __future__ import annotations
+
+from .config import FanConfig
+from .parser import ControllerStatus
+
+
+def calculate_target_fan_percent(
+    status: ControllerStatus,
+    cfg: FanConfig,
+    previous_percent: int | None,
+    ai_generating: bool = False,
+) -> int:
+    if not status.ok:
+        return cfg.fail_safe_percent
+
+    temp = status.intake_temp_c
+    if temp is None:
+        return cfg.fail_safe_percent
+
+    if cfg.mode == "manual":
+        return cfg.manual_percent
+
+    previous = previous_percent or cfg.min_percent
+    if temp <= cfg.target_temp_c - cfg.hysteresis_c:
+        target = cfg.min_percent
+    elif temp >= cfg.target_temp_c + cfg.hysteresis_c:
+        degrees_over = temp - cfg.target_temp_c
+        span = max(1.0, 15.0 - cfg.hysteresis_c)
+        ratio = max(0.0, min(1.0, degrees_over / span))
+        target = round(cfg.min_percent + (cfg.max_percent - cfg.min_percent) * ratio)
+    else:
+        target = previous
+
+    if cfg.ai_load_assist and ai_generating:
+        target += cfg.ai_load_boost_percent
+
+    target = max(cfg.min_percent, min(cfg.max_percent, target))
+    if target > previous:
+        target = min(target, previous + cfg.max_step_percent)
+    elif target < previous:
+        target = max(target, previous - cfg.max_step_percent)
+    return max(cfg.min_percent, min(cfg.max_percent, target))

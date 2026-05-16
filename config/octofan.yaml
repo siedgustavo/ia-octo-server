@@ -1,0 +1,30 @@
+fans:
+  mode: auto
+  target_temp_c: 38.0
+  hysteresis_c: 2.0
+  min_percent: 35
+  max_percent: 100
+  manual_percent: 70
+  max_step_percent: 8
+  ai_load_assist: true
+  ai_load_boost_percent: 10
+  fail_safe_percent: 100
+  poll_interval_seconds: 5.0
+watchdog:
+  enabled: false
+  short_timeout_seconds: 120
+  long_timeout_seconds: 1500
+  feed_interval_seconds: 5.0
+  checks:
+  - type: tcp
+    target: host.docker.internal:22
+    timeout_seconds: 1.0
+display:
+  enabled: true
+  profile: ai
+  refresh_interval_seconds: 15.0
+  title: OCTOFAN AI
+ollama:
+  enabled: false
+  base_url: http://ollama:11434
+  timeout_seconds: 2.0
