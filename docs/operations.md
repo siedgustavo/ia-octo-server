@@ -134,6 +134,7 @@ docker compose ps
 curl -fsS http://localhost:8000/api/status
 curl -fsS http://localhost:8000/metrics
 curl -fsS 'http://localhost:9090/api/v1/query?query=octofan_controller_up'
+curl -fsS 'http://localhost:9090/api/v1/query?query=rate(node_network_receive_bytes_total[2m])'
 curl -fsS http://admin:octofan@localhost:3000/api/health
 ```
 
@@ -145,5 +146,7 @@ The container must be able to access USB. The compose file uses:
 - `/dev/bus/usb:/dev/bus/usb`
 
 The controller and Ollama services also request `gpus: all` so the NVIDIA runtime can expose `nvidia-smi` and CUDA devices.
+
+`node-exporter` runs in the host network namespace. Without this, Linux network metrics would show the exporter container interface instead of the host NIC.
 
 Keep the controller UI/API on a trusted LAN. v1 has no authentication.

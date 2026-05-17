@@ -22,6 +22,8 @@ services:
     image: prom/prometheus:v2.55.1
     container_name: octofan-prometheus
     restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
@@ -35,6 +37,7 @@ services:
     image: quay.io/prometheus/node-exporter:v1.8.2
     container_name: octofan-node-exporter
     restart: unless-stopped
+    network_mode: host
     pid: host
     command:
       - --path.procfs=/host/proc
@@ -45,8 +48,6 @@ services:
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
       - /:/rootfs:ro,rslave
-    ports:
-      - "${NODE_EXPORTER_PORT:-9100}:9100"
 
   grafana:
     image: grafana/grafana:11.4.0

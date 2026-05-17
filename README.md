@@ -22,7 +22,7 @@ The original HiveOS package files are preserved only as reference material under
 
 - `octofan-controller`: FastAPI daemon, UI, REST API, Prometheus exporter, fan control, watchdog and OLED updates.
 - `prometheus`: metrics storage.
-- `node-exporter`: host system and network metrics.
+- `node-exporter`: host system and network metrics, running in the host network namespace.
 - `grafana`: dashboard at `http://localhost:3000` (`admin` / `octofan`).
 - `ollama`: Ollama inference API at `http://localhost:11434`.
 

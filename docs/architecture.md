@@ -8,7 +8,7 @@ Octofan AI Server is a small container stack around the original Octominer USB c
 - `nvidia-smi`: queried by the controller container for GPU telemetry when NVIDIA Container Toolkit is available.
 - `fan_controller_cli`: original Octominer binary copied into the controller image from `reference/octofan-hiveos-originals/`.
 - `prometheus`: scrapes `octofan-controller:8000/metrics`.
-- `node-exporter`: exposes host CPU, memory, disk, filesystem and network metrics.
+- `node-exporter`: exposes host CPU, memory, disk, filesystem and network metrics. It runs with `network_mode: host` so network counters come from the host namespace instead of the exporter container.
 - `grafana`: loads the Prometheus datasource and the Octofan dashboard set.
 - `ollama`: separate inference container on the same Docker network when AI metrics are enabled.
 
