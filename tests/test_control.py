@@ -32,3 +32,13 @@ def test_manual_mode_ignores_transient_bad_read():
 def test_manual_mode():
     cfg = FanConfig(mode="manual", manual_percent=72)
     assert calculate_target_fan_percent(status_with_temp(80), cfg, 35) == 72
+
+
+def test_gpu_idle_stop_can_return_zero_below_minimum():
+    cfg = FanConfig(gpu_idle_stop_enabled=True, min_percent=35, gpu_idle_stop_percent=0)
+    assert calculate_target_fan_percent(status_with_temp(30), cfg, 35, gpu_idle_stop_active=True) == 0
+
+
+def test_gpu_idle_stop_does_not_override_manual_mode():
+    cfg = FanConfig(mode="manual", manual_percent=10, gpu_idle_stop_enabled=True, gpu_idle_stop_percent=0)
+    assert calculate_target_fan_percent(status_with_temp(30), cfg, 35, gpu_idle_stop_active=True) == 10

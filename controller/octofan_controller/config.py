@@ -19,6 +19,13 @@ class FanConfig(BaseModel):
     ai_load_boost_percent: int = Field(default=10, ge=0, le=50)
     fail_safe_percent: int = Field(default=100, ge=1, le=100)
     poll_interval_seconds: float = Field(default=5.0, ge=1.0, le=300.0)
+    gpu_idle_stop_enabled: bool = False
+    gpu_idle_stop_percent: int = Field(default=0, ge=0, le=100)
+    gpu_idle_stop_delay_seconds: float = Field(default=300.0, ge=0.0, le=3600.0)
+    gpu_idle_utilization_percent: float = Field(default=5.0, ge=0.0, le=100.0)
+    gpu_idle_power_watts: float = Field(default=25.0, ge=0.0, le=1000.0)
+    gpu_idle_max_gpu_temp_c: float = Field(default=45.0, ge=0.0, le=120.0)
+    gpu_idle_max_intake_temp_c: float = Field(default=35.0, ge=0.0, le=120.0)
 
 
 class WatchdogCheck(BaseModel):

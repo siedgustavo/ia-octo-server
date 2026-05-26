@@ -6,6 +6,8 @@
 
 Returns current controller status, fan data, PSU data, BME280 readings, watchdog result, Ollama status and recent events.
 
+When GPU idle stop is enabled, the response also includes `gpu_idle_seconds` and `gpu_idle_stop_active`.
+
 ### `GET /api/config`
 
 Returns the active YAML configuration as JSON.

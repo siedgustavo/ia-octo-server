@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import time
 from pathlib import Path
 from typing import Any
 from contextlib import asynccontextmanager
@@ -52,6 +53,8 @@ state: dict[str, Any] = {
     "target_fan": None,
     "applied_fan_target": None,
     "applied_fan_ids": [],
+    "gpu_idle_since": None,
+    "gpu_idle_stop_active": False,
     "eeprom_display_signature": None,
     "events": [],
     "watchdog": None,
@@ -72,7 +75,14 @@ async def poll_loop() -> None:
         status = cli.status()
         ollama = await ollama_client.status(cfg.ollama)
         nvidia = nvidia_smi.status()
-        target = calculate_target_fan_percent(status, cfg.fans, state["target_fan"], ollama.generating)
+        gpu_idle_stop_active = _gpu_idle_stop_active(cfg, status, nvidia, ollama)
+        target = calculate_target_fan_percent(
+            status,
+            cfg.fans,
+            state["target_fan"],
+            ollama.generating,
+            gpu_idle_stop_active,
+        )
         fan_ids = sorted(status.fans.keys()) if status.ok and status.fans else list(range(12))
         desired_pwm = percent_to_pwm(target)
         hardware_drifted = any(
@@ -86,7 +96,13 @@ async def poll_loop() -> None:
                 state["applied_fan_ids"] = fan_ids
             except Exception as exc:
                 _event(f"failed to set fans: {exc}")
-        state.update(status=status, ollama=ollama, nvidia=nvidia, target_fan=target)
+        state.update(
+            status=status,
+            ollama=ollama,
+            nvidia=nvidia,
+            target_fan=target,
+            gpu_idle_stop_active=gpu_idle_stop_active,
+        )
         update_metrics(status, ollama, target, nvidia)
         await asyncio.sleep(cfg.fans.poll_interval_seconds)
 
@@ -246,6 +262,7 @@ async def _write_display(profile: str | None, force_eeprom: bool = False) -> lis
 def serialize_status() -> dict[str, Any]:
     status: ControllerStatus = state["status"]
     watchdog = state["watchdog"]
+    gpu_idle_since = state["gpu_idle_since"]
     return {
         "controller": {
             "ok": status.ok,
@@ -268,6 +285,8 @@ def serialize_status() -> dict[str, Any]:
         "ollama": vars(state["ollama"]),
         "nvidia": state["nvidia"].to_dict(),
         "target_fan_percent": state["target_fan"],
+        "gpu_idle_seconds": None if gpu_idle_since is None else round(time.monotonic() - gpu_idle_since, 1),
+        "gpu_idle_stop_active": state["gpu_idle_stop_active"],
         "events": state["events"][-50:],
     }
 
@@ -275,6 +294,55 @@ def serialize_status() -> dict[str, Any]:
 def _event(message: str) -> None:
     state["events"].append(message)
     state["events"] = state["events"][-200:]
+
+
+def _gpu_idle_stop_active(
+    cfg: AppConfig,
+    status: ControllerStatus,
+    nvidia: NvidiaStatus,
+    ollama: OllamaStatus,
+) -> bool:
+    fans = cfg.fans
+    now = time.monotonic()
+    if not _gpu_idle_stop_candidate(cfg, status, nvidia, ollama):
+        state["gpu_idle_since"] = None
+        return False
+
+    if state["gpu_idle_since"] is None:
+        state["gpu_idle_since"] = now
+    return now - state["gpu_idle_since"] >= fans.gpu_idle_stop_delay_seconds
+
+
+def _gpu_idle_stop_candidate(
+    cfg: AppConfig,
+    status: ControllerStatus,
+    nvidia: NvidiaStatus,
+    ollama: OllamaStatus,
+) -> bool:
+    fans = cfg.fans
+    intake_temp = status.intake_temp_c
+    if (
+        not fans.gpu_idle_stop_enabled
+        or fans.mode != "auto"
+        or not status.ok
+        or intake_temp is None
+        or intake_temp > fans.gpu_idle_max_intake_temp_c
+        or ollama.generating
+        or not nvidia.ok
+        or not nvidia.gpus
+    ):
+        return False
+
+    for gpu in nvidia.gpus:
+        if gpu.temperature_gpu_c is None or gpu.temperature_gpu_c > fans.gpu_idle_max_gpu_temp_c:
+            return False
+        if gpu.utilization_gpu_percent is None or gpu.utilization_gpu_percent > fans.gpu_idle_utilization_percent:
+            return False
+        if gpu.power_draw_watts is None or gpu.power_draw_watts > fans.gpu_idle_power_watts:
+            return False
+        if (gpu.encoder_sessions or 0) > 0 or (gpu.decoder_sessions or 0) > 0:
+            return False
+    return True
 
 
 UI_HTML = """

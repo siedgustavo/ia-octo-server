@@ -10,6 +10,13 @@ fans:
   ai_load_boost_percent: 10
   fail_safe_percent: 100
   poll_interval_seconds: 5.0
+  gpu_idle_stop_enabled: false
+  gpu_idle_stop_percent: 0
+  gpu_idle_stop_delay_seconds: 300.0
+  gpu_idle_utilization_percent: 5.0
+  gpu_idle_power_watts: 25.0
+  gpu_idle_max_gpu_temp_c: 45.0
+  gpu_idle_max_intake_temp_c: 35.0
 watchdog:
   enabled: false
   keepalive_when_disabled: true

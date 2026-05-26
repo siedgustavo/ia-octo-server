@@ -9,6 +9,7 @@ def calculate_target_fan_percent(
     cfg: FanConfig,
     previous_percent: int | None,
     ai_generating: bool = False,
+    gpu_idle_stop_active: bool = False,
 ) -> int:
     if cfg.mode == "manual":
         return cfg.manual_percent
@@ -19,6 +20,9 @@ def calculate_target_fan_percent(
     temp = status.intake_temp_c
     if temp is None:
         return cfg.fail_safe_percent
+
+    if gpu_idle_stop_active:
+        return cfg.gpu_idle_stop_percent
 
     previous = previous_percent or cfg.min_percent
     if temp <= cfg.target_temp_c - cfg.hysteresis_c:
