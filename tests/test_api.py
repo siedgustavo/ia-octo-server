@@ -24,7 +24,11 @@ def test_status_and_metrics():
 
 def test_manual_fan_endpoint_forces_apply():
     with TestClient(app) as client:
-        response = client.post("/api/fans/manual", json={"percent": 10})
+        cfg = client.get("/api/config").json()
+        cfg["fans"]["min_percent"] = 10
+        cfg["fans"]["max_percent"] = 100
+        client.put("/api/config", json=cfg)
+        response = client.post("/api/fans/manual", json={"percent": 5})
         assert response.status_code == 200
         assert response.json()["percent"] == 10
 

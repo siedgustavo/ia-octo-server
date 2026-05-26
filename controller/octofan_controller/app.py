@@ -13,7 +13,7 @@ from pydantic import BaseModel
 
 from .cli import OctofanCli, percent_to_pwm
 from .config import AppConfig, load_config, save_config
-from .control import calculate_target_fan_percent
+from .control import calculate_target_fan_percent, clamp_active_fan_percent
 from .display import render_display
 from .metrics import metrics_payload, update_metrics
 from .nvidia import NvidiaSmi, NvidiaStatus
@@ -179,7 +179,7 @@ async def api_update_config(payload: dict[str, Any]) -> dict[str, Any]:
 async def api_fans_manual(req: ManualFanRequest) -> dict[str, Any]:
     cfg: AppConfig = state["config"]
     cfg.fans.mode = "manual"
-    cfg.fans.manual_percent = max(1, min(100, req.percent))
+    cfg.fans.manual_percent = clamp_active_fan_percent(req.percent, cfg.fans)
     save_config(CONFIG_PATH, cfg)
     state["config"] = cfg
     state["applied_fan_target"] = None

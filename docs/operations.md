@@ -115,13 +115,14 @@ Auto mode uses the intake/internal sensor:
 
 Impossible sensor values below `-20C` or above `120C` are ignored. If the controller cannot be read, fans are set to `fail_safe_percent`.
 
-To let the chassis fans stop while GPUs are idle, enable the GPU idle stop policy:
+To let the chassis fans settle at the lowest active speed while GPUs are idle, enable the GPU idle policy and set `min_percent` to the measured hardware floor:
 
 ```yaml
 fans:
   mode: auto
+  min_percent: 10
   gpu_idle_stop_enabled: true
-  gpu_idle_stop_percent: 0
+  gpu_idle_stop_percent: 10
   gpu_idle_stop_delay_seconds: 300.0
   gpu_idle_utilization_percent: 5.0
   gpu_idle_power_watts: 25.0
@@ -129,7 +130,7 @@ fans:
   gpu_idle_max_intake_temp_c: 35.0
 ```
 
-The controller only enters idle stop when `nvidia-smi` is healthy, all GPUs are below the configured utilization, power and temperature thresholds, Ollama is not generating, and intake temperature is below the configured limit. Any load, hotter temperature, missing GPU reading or controller read failure returns to the normal fan curve or fail-safe behavior.
+The controller only enters idle mode when `nvidia-smi` is healthy, all GPUs are below the configured utilization, power and temperature thresholds, Ollama is not generating, and intake temperature is below the configured limit. Manual and automatic targets are clamped to `min_percent..max_percent`, so requests below the known active range do not produce misleading PWM targets. Any load, hotter temperature, missing GPU reading or controller read failure returns to the normal fan curve or fail-safe behavior.
 
 ## OLED Display
 

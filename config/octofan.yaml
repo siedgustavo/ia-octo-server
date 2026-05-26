@@ -11,7 +11,7 @@ fans:
   fail_safe_percent: 100
   poll_interval_seconds: 5.0
   gpu_idle_stop_enabled: false
-  gpu_idle_stop_percent: 0
+  gpu_idle_stop_percent: 10
   gpu_idle_stop_delay_seconds: 300.0
   gpu_idle_utilization_percent: 5.0
   gpu_idle_power_watts: 25.0
