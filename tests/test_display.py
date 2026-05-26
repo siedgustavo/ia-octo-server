@@ -1,6 +1,6 @@
 from octofan_controller.cli import MOCK_OUTPUT
 from octofan_controller.config import DisplayConfig
-from octofan_controller.display import render_display
+from octofan_controller.display import render_display, resolve_display_title
 from octofan_controller.ollama import OllamaStatus
 from octofan_controller.parser import parse_controller_output
 
@@ -22,3 +22,8 @@ def test_display_uses_big_title_area():
     assert lines[0] == "OCTOFAN AI"
     assert lines[1] == "".ljust(20)
     assert "tok/s" in lines[2]
+
+
+def test_display_title_uses_main_hostname_uppercase(monkeypatch):
+    monkeypatch.setenv("OCTOFAN_DISPLAY_HOSTNAME", "aiworker.core.sied.ar")
+    assert resolve_display_title(DisplayConfig(title=None)) == "AIWORKER"

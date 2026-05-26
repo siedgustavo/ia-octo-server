@@ -13,6 +13,7 @@ services:
     volumes:
       - ./config:/config
       - /dev/bus/usb:/dev/bus/usb
+      - /etc/hostname:/host/etc/hostname:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:

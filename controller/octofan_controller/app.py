@@ -14,7 +14,7 @@ from pydantic import BaseModel
 from .cli import OctofanCli, percent_to_pwm
 from .config import AppConfig, load_config, save_config
 from .control import calculate_target_fan_percent, clamp_active_fan_percent
-from .display import render_display
+from .display import render_display, resolve_display_title
 from .metrics import metrics_payload, update_metrics
 from .nvidia import NvidiaSmi, NvidiaStatus
 from .ollama import OllamaClient, OllamaStatus
@@ -236,7 +236,7 @@ async def _write_display(profile: str | None, force_eeprom: bool = False) -> lis
     display_cfg = cfg.display.model_copy(update={"profile": profile or cfg.display.profile})
     lines = render_display(state["status"], display_cfg, state["target_fan"], state["ollama"])
     try:
-        signature = (display_cfg.title, display_cfg.profile)
+        signature = (resolve_display_title(display_cfg), display_cfg.profile)
         title_written = False
         if display_cfg.persist_to_eeprom and (force_eeprom or state["eeprom_display_signature"] != signature):
             cli.oled_text(0, 0, 4, "0")

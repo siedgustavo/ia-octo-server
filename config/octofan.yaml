@@ -31,7 +31,7 @@ display:
   enabled: true
   profile: ai
   refresh_interval_seconds: 15.0
-  title: OCTOFAN AI
+  title: null
   persist_to_eeprom: true
 ollama:
   enabled: false

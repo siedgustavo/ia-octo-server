@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+from pathlib import Path
 import socket
 
 from .config import DisplayConfig
@@ -10,6 +12,7 @@ from .parser import ControllerStatus
 WIDTH = 20
 BIG_WIDTH = 10
 HEIGHT = 8
+HOST_HOSTNAME_PATH = Path("/host/etc/hostname")
 
 
 def fit(text: str, width: int = WIDTH) -> str:
@@ -17,7 +20,7 @@ def fit(text: str, width: int = WIDTH) -> str:
 
 
 def render_display(status: ControllerStatus, cfg: DisplayConfig, fan_percent: int | None, ollama: OllamaStatus) -> list[str]:
-    lines = [fit(cfg.title, BIG_WIDTH), fit("")]
+    lines = [fit(resolve_display_title(cfg), BIG_WIDTH), fit("")]
     host = socket.gethostname()
     intake = _fmt_temp(status.intake_temp_c)
     exhaust = _fmt_temp(status.exhaust_temp_c)
@@ -40,3 +43,21 @@ def render_display(status: ControllerStatus, cfg: DisplayConfig, fan_percent: in
 
 def _fmt_temp(value: float | None) -> str:
     return "--C" if value is None else f"{value:.0f}C"
+
+
+def resolve_display_title(cfg: DisplayConfig) -> str:
+    if cfg.title:
+        return cfg.title
+    hostname = (
+        os.getenv("OCTOFAN_DISPLAY_HOSTNAME")
+        or _read_host_hostname()
+        or socket.gethostname()
+    )
+    return hostname.split(".", 1)[0].upper()
+
+
+def _read_host_hostname() -> str | None:
+    try:
+        return HOST_HOSTNAME_PATH.read_text(encoding="utf-8").strip() or None
+    except OSError:
+        return None
