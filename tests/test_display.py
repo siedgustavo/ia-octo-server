@@ -21,7 +21,7 @@ def test_display_uses_big_title_area():
     )
     assert lines[0] == "OCTOFAN AI"
     assert lines[1] == "".ljust(20)
-    assert "tok/s" in lines[2]
+    assert lines[2].strip() == "TPS n/a"
 
 
 def test_display_title_uses_main_hostname_uppercase(monkeypatch):

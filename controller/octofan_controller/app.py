@@ -411,7 +411,7 @@ async function refresh(){
     ['Exhaust', st.controller.exhaust_temp_c+' C'],
     ['Target fan', st.target_fan_percent+' %'],
     ['Power', st.controller.power_ac_total_w+' W'],
-    ['Ollama', st.ollama.running_models+' models'],
+    ['Ollama', st.ollama.available_models+' installed / '+st.ollama.running_models+' running'],
     ['GPUs', (st.nvidia.gpus||[]).length],
     ['GPU temp', (st.nvidia.gpus||[]).map(g=>g.temperature_gpu_c+' C').join(' / ') || '--']
   ].map(([k,v])=>`<div class="metric"><b>${k}</b><br>${v}</div>`).join('')

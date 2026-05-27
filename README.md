@@ -109,7 +109,7 @@ The fan controller uses BME280 sensor `0` as intake/internal temperature when av
 
 ## Ollama
 
-Enable `ollama.enabled` in `config/octofan.yaml` and point `ollama.base_url` to the host Ollama endpoint. The OLED and Grafana dashboard include the AI metrics surface; richer request-level token accounting can be added later with an Ollama proxy or app instrumentation.
+Enable `ollama.enabled` in `config/octofan.yaml` and point `ollama.base_url` to the host Ollama endpoint. The OLED and Grafana dashboard include model inventory from `/api/tags` and loaded models from `/api/ps`; richer request-level token accounting can be added later with an Ollama proxy or app instrumentation.
 
 The compose stack includes an `ollama` service on the same Docker network. Enable controller-side polling with:
 

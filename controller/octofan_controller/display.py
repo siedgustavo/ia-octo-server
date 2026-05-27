@@ -31,8 +31,13 @@ def render_display(status: ControllerStatus, cfg: DisplayConfig, fan_percent: in
     elif cfg.profile == "power":
         lines += [fit(f"Power {power}"), fit(f"PSUs {len(status.psus)}"), fit(f"FW {status.version_fw or '-'} HW {status.version_hw or '-'}")]
     elif cfg.profile == "ai":
-        tps = f"{ollama.tokens_per_second:.1f} tok/s" if ollama.ok else "AI offline"
-        lines += [fit(tps), fit(f"Models {ollama.running_models}"), fit(f"In {intake} Fan {fan_percent or 0}%"), fit(f"Power {power}")]
+        if not ollama.ok:
+            tps = "AI offline"
+        elif ollama.tokens_per_second_available and ollama.tokens_per_second is not None:
+            tps = f"{ollama.tokens_per_second:.1f} tok/s"
+        else:
+            tps = "TPS n/a"
+        lines += [fit(tps), fit(f"Models {ollama.available_models}/{ollama.running_models}"), fit(f"In {intake} Fan {fan_percent or 0}%"), fit(f"Power {power}")]
     else:
         lines += [fit(host), fit(f"FW {status.version_fw or '-'} HW {status.version_hw or '-'}"), fit(f"In {intake} Out {exhaust}"), fit(f"Fan {fan_percent or 0}%")]
 

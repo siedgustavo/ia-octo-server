@@ -99,6 +99,8 @@ Common NVIDIA metric values include `temperature_gpu_c`, `temperature_memory_c`,
 AI:
 
 - `octofan_ai_tokens_per_second{source="ollama"}`
+- `octofan_ai_tokens_per_second_available{source="ollama"}`
+- `octofan_ai_available_models{source="ollama"}`
 - `octofan_ai_running_models{source="ollama"}`
 
 Host and network:
@@ -118,4 +120,4 @@ Grafana provisions these dashboards under the `Octofan` folder:
 
 ## Notes
 
-Ollama `/api/ps` does not expose complete live token accounting. The current v1 surface detects active/running models and keeps a stable metric/API shape for richer instrumentation later.
+Ollama model inventory is read from `/api/tags`; loaded/running models are read from `/api/ps`. Ollama 0.24.0 does not expose a native Prometheus endpoint or live token counters through those polling APIs, so `octofan_ai_tokens_per_second_available` is `0` unless request-level instrumentation is added later.
