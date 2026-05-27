@@ -113,7 +113,7 @@ Auto mode uses the intake/internal sensor:
 2. `Temperature No. 0` fallback.
 3. First sane controller temperature fallback.
 
-Impossible sensor values below `-20C` or above `120C` are ignored. If the controller cannot be read, fans are set to `fail_safe_percent`.
+Impossible sensor values below `-20C` or above `120C` are ignored. If the controller cannot be read or no sane temperature is available, fans ramp toward `fail_safe_percent` by `max_step_percent` per poll while `fail_safe_ramp` is enabled. Set `fail_safe_ramp: false` to jump directly to `fail_safe_percent`.
 
 To let the chassis fans settle at the lowest active speed while GPUs are idle, enable the GPU idle policy and set `min_percent` to the measured hardware floor:
 

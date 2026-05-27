@@ -19,8 +19,13 @@ def test_above_target_steps_up():
     assert calculate_target_fan_percent(status_with_temp(46), cfg, 40) == 48
 
 
-def test_fail_safe_on_bad_read():
-    cfg = FanConfig(fail_safe_percent=100)
+def test_fail_safe_ramps_up_on_bad_read():
+    cfg = FanConfig(fail_safe_percent=100, max_step_percent=8)
+    assert calculate_target_fan_percent(ControllerStatus(ok=False), cfg, 35) == 43
+
+
+def test_fail_safe_can_still_jump_to_max_when_ramp_disabled():
+    cfg = FanConfig(fail_safe_percent=100, fail_safe_ramp=False)
     assert calculate_target_fan_percent(ControllerStatus(ok=False), cfg, 35) == 100
 
 

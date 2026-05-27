@@ -15,11 +15,11 @@ def calculate_target_fan_percent(
         return clamp_active_fan_percent(cfg.manual_percent, cfg)
 
     if not status.ok:
-        return cfg.fail_safe_percent
+        return calculate_fail_safe_target(cfg, previous_percent)
 
     temp = status.intake_temp_c
     if temp is None:
-        return cfg.fail_safe_percent
+        return calculate_fail_safe_target(cfg, previous_percent)
 
     if gpu_idle_stop_active:
         return clamp_active_fan_percent(cfg.gpu_idle_stop_percent, cfg)
@@ -48,3 +48,11 @@ def calculate_target_fan_percent(
 
 def clamp_active_fan_percent(percent: int, cfg: FanConfig) -> int:
     return max(cfg.min_percent, min(cfg.max_percent, percent))
+
+
+def calculate_fail_safe_target(cfg: FanConfig, previous_percent: int | None) -> int:
+    if not cfg.fail_safe_ramp:
+        return cfg.fail_safe_percent
+    previous = previous_percent or cfg.min_percent
+    target = min(cfg.fail_safe_percent, previous + cfg.max_step_percent)
+    return max(cfg.min_percent, min(cfg.fail_safe_percent, target))

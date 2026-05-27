@@ -9,6 +9,7 @@ fans:
   ai_load_assist: true
   ai_load_boost_percent: 10
   fail_safe_percent: 100
+  fail_safe_ramp: true
   poll_interval_seconds: 5.0
   gpu_idle_stop_enabled: false
   gpu_idle_stop_percent: 10

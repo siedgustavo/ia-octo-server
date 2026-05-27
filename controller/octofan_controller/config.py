@@ -18,6 +18,7 @@ class FanConfig(BaseModel):
     ai_load_assist: bool = True
     ai_load_boost_percent: int = Field(default=10, ge=0, le=50)
     fail_safe_percent: int = Field(default=100, ge=1, le=100)
+    fail_safe_ramp: bool = True
     poll_interval_seconds: float = Field(default=5.0, ge=1.0, le=300.0)
     gpu_idle_stop_enabled: bool = False
     gpu_idle_stop_percent: int = Field(default=0, ge=0, le=100)
