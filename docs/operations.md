@@ -78,6 +78,14 @@ Check Ollama:
 curl -fsS http://localhost:11434/api/tags
 ```
 
+The Ollama container defaults to a 64k context window through:
+
+```yaml
+OLLAMA_CONTEXT_LENGTH: "64000"
+```
+
+Set `OLLAMA_CONTEXT_LENGTH` in the shell or `.env` before `docker compose up` to override that default.
+
 ## Watchdog
 
 The watchdog reset policy is disabled by default, but `keepalive_when_disabled` is enabled so an Octofan controller with an already-armed hardware watchdog does not periodically reset/re-enumerate its USB device.
