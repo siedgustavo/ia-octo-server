@@ -84,7 +84,13 @@ The Ollama container defaults to a 64k context window through:
 OLLAMA_CONTEXT_LENGTH: "64000"
 ```
 
-Set `OLLAMA_CONTEXT_LENGTH` in the shell or `.env` before `docker compose up` to override that default.
+It also keeps the last used model loaded by default:
+
+```yaml
+OLLAMA_KEEP_ALIVE: "-1"
+```
+
+Set `OLLAMA_CONTEXT_LENGTH` or `OLLAMA_KEEP_ALIVE` in the shell or `.env` before `docker compose up` to override those defaults.
 
 ## Watchdog
 

@@ -128,7 +128,7 @@ docker network connect octofan-ai ollama
 
 The Ollama service uses `gpus: all`, so NVIDIA Container Toolkit must be available on the host.
 
-The compose service sets `OLLAMA_CONTEXT_LENGTH` to `64000` by default. Override it with an environment variable before starting the stack if a smaller or larger context window is needed.
+The compose service sets `OLLAMA_CONTEXT_LENGTH` to `64000` by default. It also sets `OLLAMA_KEEP_ALIVE` to `-1` so the last used model remains loaded in memory instead of expiring after the default idle window. Override either value with an environment variable before starting the stack if a different context window or unload policy is needed.
 
 ## Validation
 
