@@ -1,12 +1,12 @@
 fans:
-  mode: auto
+  mode: manual
   target_temp_c: 38.0
   hysteresis_c: 2.0
-  min_percent: 35
+  min_percent: 10
   max_percent: 100
-  manual_percent: 70
+  manual_percent: 10
   max_step_percent: 8
-  ai_load_assist: true
+  ai_load_assist: false
   ai_load_boost_percent: 10
   fail_safe_percent: 100
   fail_safe_ramp: true
@@ -19,7 +19,7 @@ fans:
   gpu_idle_max_gpu_temp_c: 45.0
   gpu_idle_max_intake_temp_c: 35.0
 watchdog:
-  enabled: false
+  enabled: true
   keepalive_when_disabled: true
   short_timeout_seconds: 120
   long_timeout_seconds: 1500
@@ -35,7 +35,7 @@ display:
   title: null
   persist_to_eeprom: true
 leds:
-  enabled: false
+  enabled: true
   poll_interval_seconds: 1.0
   warning_led_id: 0
   online_led_id: 1
@@ -47,6 +47,6 @@ leds:
   gpu_activity_utilization_percent: 15.0
   gpu_activity_power_watts: 40.0
 ollama:
-  enabled: false
+  enabled: true
   base_url: http://ollama:11434
   timeout_seconds: 2.0
