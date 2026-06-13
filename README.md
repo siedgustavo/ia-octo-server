@@ -15,6 +15,7 @@ The original HiveOS package files are preserved only as reference material under
 - Adds host CPU, memory, disk and network telemetry through node exporter.
 - Ships Grafana dashboards for overview, PSUs, environment, cooling, GPUs, host/network, watchdog and AI metrics.
 - Updates the controller OLED with host, thermal, power and AI status.
+- Drives the front-panel LEDs for Ollama health and GPU activity.
 - Feeds the hardware watchdog only when configured host checks pass.
 - Integrates with an Ollama container over Docker networking.
 
@@ -89,6 +90,7 @@ Important sections:
 - `fans`: auto/manual mode, target temperature, min/max fan limits and fail-safe speed.
 - `watchdog`: hardware watchdog timeouts and HTTP/TCP health checks.
 - `display`: OLED profile and refresh interval.
+- `leds`: front-panel LED policy. By default LED `0` is orange warning, LED `1` is blue online and LED `2` is white activity.
 - `ollama`: external Ollama endpoint.
 
 The fan controller uses BME280 sensor `0` as intake/internal temperature when available, then falls back to `Temperature No. 0`.
@@ -109,7 +111,9 @@ The fan controller uses BME280 sensor `0` as intake/internal temperature when av
 
 ## Ollama
 
-Enable `ollama.enabled` in `config/octofan.yaml` and point `ollama.base_url` to the host Ollama endpoint. The OLED and Grafana dashboard include model inventory from `/api/tags` and loaded models from `/api/ps`; richer request-level token accounting can be added later with an Ollama proxy or app instrumentation.
+Enable `ollama.enabled` in `config/octofan.yaml` and point `ollama.base_url` to the host Ollama endpoint. The OLED and Grafana dashboard include model inventory from `/api/tags` and loaded models from `/api/ps`.
+
+Tokens per second remain unavailable from controller-side polling because Ollama only reports evaluation counts and durations in individual generation responses. To expose exact token throughput without changing traffic flow, instrument the application that calls Ollama and export that data separately.
 
 The compose stack includes an `ollama` service on the same Docker network. Enable controller-side polling with:
 

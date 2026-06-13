@@ -52,6 +52,20 @@ class DisplayConfig(BaseModel):
     persist_to_eeprom: bool = True
 
 
+class LedConfig(BaseModel):
+    enabled: bool = False
+    poll_interval_seconds: float = Field(default=1.0, ge=0.2, le=60.0)
+    warning_led_id: int = Field(default=0, ge=0, le=15)
+    online_led_id: int = Field(default=1, ge=0, le=15)
+    activity_led_id: int = Field(default=2, ge=0, le=15)
+    off_mode: int = Field(default=0, ge=0, le=15)
+    on_mode: int = Field(default=1, ge=0, le=15)
+    fast_blink_mode: int = Field(default=2, ge=0, le=15)
+    slow_blink_mode: int = Field(default=3, ge=0, le=15)
+    gpu_activity_utilization_percent: float = Field(default=15.0, ge=0.0, le=100.0)
+    gpu_activity_power_watts: float = Field(default=40.0, ge=0.0, le=1000.0)
+
+
 class OllamaConfig(BaseModel):
     enabled: bool = False
     base_url: str = "http://host.docker.internal:11434"
@@ -62,6 +76,7 @@ class AppConfig(BaseModel):
     fans: FanConfig = Field(default_factory=FanConfig)
     watchdog: WatchdogConfig = Field(default_factory=WatchdogConfig)
     display: DisplayConfig = Field(default_factory=DisplayConfig)
+    leds: LedConfig = Field(default_factory=LedConfig)
     ollama: OllamaConfig = Field(default_factory=OllamaConfig)
 
 

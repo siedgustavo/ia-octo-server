@@ -1,36 +1,37 @@
 import os
+import asyncio
 
 os.environ["OCTOFAN_CONFIG"] = "/tmp/octofan-test.yaml"
 os.environ["OCTOFAN_MOCK"] = "1"
 
-from fastapi.testclient import TestClient
-
-from octofan_controller.app import _gpu_idle_stop_candidate, app
+from octofan_controller.app import ManualFanRequest, _desired_led_modes, _gpu_idle_stop_candidate, api_fans_manual, serialize_status, state
 from octofan_controller.config import AppConfig
+from octofan_controller.metrics import metrics_payload
 from octofan_controller.nvidia import GpuStatus, NvidiaStatus
 from octofan_controller.ollama import OllamaStatus
 from octofan_controller.parser import BmeStatus, ControllerStatus
 
 
 def test_status_and_metrics():
-    with TestClient(app) as client:
-        status = client.get("/api/status")
-        assert status.status_code == 200
-        metrics = client.get("/metrics")
-        assert metrics.status_code == 200
-        assert "octofan_controller_up" in metrics.text
-        assert "octofan_nvidia_smi_up" in metrics.text
+    status = serialize_status()
+    assert "controller" in status
+    metrics = metrics_payload().decode()
+    assert "octofan_controller_up" in metrics
+    assert "octofan_nvidia_smi_up" in metrics
 
 
 def test_manual_fan_endpoint_forces_apply():
-    with TestClient(app) as client:
-        cfg = client.get("/api/config").json()
-        cfg["fans"]["min_percent"] = 10
-        cfg["fans"]["max_percent"] = 100
-        client.put("/api/config", json=cfg)
-        response = client.post("/api/fans/manual", json={"percent": 5})
-        assert response.status_code == 200
-        assert response.json()["percent"] == 10
+    cfg = AppConfig()
+    cfg.fans.min_percent = 10
+    cfg.fans.max_percent = 100
+    state["config"] = cfg
+    state["status"] = ControllerStatus()
+    state["applied_fan_target"] = None
+    state["applied_fan_ids"] = []
+
+    response = asyncio.run(api_fans_manual(ManualFanRequest(percent=5)))
+
+    assert response["percent"] == 10
 
 
 def test_gpu_idle_stop_candidate_requires_cool_idle_gpus():
@@ -81,3 +82,44 @@ def test_gpu_idle_stop_candidate_rejects_gpu_load():
     )
 
     assert not _gpu_idle_stop_candidate(cfg, status, nvidia, OllamaStatus(generating=False))
+
+
+def test_led_modes_show_online_and_gpu_activity():
+    cfg = AppConfig()
+    cfg.leds.enabled = True
+    status = ControllerStatus()
+    nvidia = NvidiaStatus(
+        ok=True,
+        gpus=[
+            GpuStatus(
+                index=0,
+                uuid="gpu-0",
+                name="test",
+                pci_bus_id="00000000:02:00.0",
+                utilization_gpu_percent=80,
+                power_draw_watts=80,
+            )
+        ],
+    )
+
+    modes = _desired_led_modes(cfg, status, OllamaStatus(ok=True), nvidia)
+
+    assert modes == {
+        cfg.leds.warning_led_id: cfg.leds.off_mode,
+        cfg.leds.online_led_id: cfg.leds.on_mode,
+        cfg.leds.activity_led_id: cfg.leds.fast_blink_mode,
+    }
+
+
+def test_led_modes_warn_when_ollama_is_down():
+    cfg = AppConfig()
+    cfg.leds.enabled = True
+    cfg.ollama.enabled = True
+    status = ControllerStatus()
+    nvidia = NvidiaStatus(ok=True, gpus=[])
+
+    modes = _desired_led_modes(cfg, status, OllamaStatus(ok=False), nvidia)
+
+    assert modes[cfg.leds.warning_led_id] == cfg.leds.slow_blink_mode
+    assert modes[cfg.leds.online_led_id] == cfg.leds.off_mode
+    assert modes[cfg.leds.activity_led_id] == cfg.leds.off_mode

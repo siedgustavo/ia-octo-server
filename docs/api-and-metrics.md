@@ -8,6 +8,8 @@ Returns current controller status, fan data, PSU data, BME280 readings, watchdog
 
 When GPU idle stop is enabled, the response also includes `gpu_idle_seconds` and `gpu_idle_stop_active`.
 
+The response also includes current LED control state under `leds`.
+
 ### `GET /api/config`
 
 Returns the active YAML configuration as JSON.
@@ -120,4 +122,4 @@ Grafana provisions these dashboards under the `Octofan` folder:
 
 ## Notes
 
-Ollama model inventory is read from `/api/tags`; loaded/running models are read from `/api/ps`. Ollama 0.24.0 does not expose a native Prometheus endpoint or live token counters through those polling APIs, so `octofan_ai_tokens_per_second_available` is `0` unless request-level instrumentation is added later.
+Ollama model inventory is read from `/api/tags`; loaded/running models are read from `/api/ps`. Ollama does not expose a native Prometheus endpoint or live token counters through those polling APIs, so `octofan_ai_tokens_per_second_available` remains `0` unless the application that calls Ollama exports request-level token telemetry separately.

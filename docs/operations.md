@@ -92,6 +92,30 @@ OLLAMA_KEEP_ALIVE: "-1"
 
 Set `OLLAMA_CONTEXT_LENGTH` or `OLLAMA_KEEP_ALIVE` in the shell or `.env` before `docker compose up` to override those defaults.
 
+Ollama token throughput is not available from `/api/tags` or `/api/ps`. The controller keeps `octofan_ai_tokens_per_second_available` at `0` unless the application that calls Ollama exports request-level token telemetry through another integration.
+
+## Front LEDs
+
+The controller can drive the Octofan front LEDs through `fan_controller_cli -l`.
+
+Default mapping:
+
+- LED `0`: orange warning/error.
+- LED `1`: blue Ollama online.
+- LED `2`: white GPU activity.
+
+Enable LED control with:
+
+```yaml
+leds:
+  enabled: true
+  poll_interval_seconds: 1.0
+  gpu_activity_utilization_percent: 15.0
+  gpu_activity_power_watts: 40.0
+```
+
+The white activity LED uses NVIDIA utilization or power as an external signal. The controller does not intercept Ollama requests.
+
 ## Watchdog
 
 The watchdog reset policy is disabled by default, but `keepalive_when_disabled` is enabled so an Octofan controller with an already-armed hardware watchdog does not periodically reset/re-enumerate its USB device.

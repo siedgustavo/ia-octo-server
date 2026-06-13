@@ -23,7 +23,8 @@ Octofan AI Server is a small container stack around the original Octominer USB c
 7. Prometheus scrapes the controller and node exporter metrics.
 8. Grafana visualizes overview, PSU, environment, cooling, GPU and host/network dashboards.
 9. The OLED loop renders an 8-line, 20-character layout through `fan_controller_cli -o`.
-10. The watchdog loop runs configured checks and feeds the watchdog with `fan_controller_cli -s` only when healthy.
+10. The LED loop maps Ollama health and NVIDIA activity to front-panel LEDs through `fan_controller_cli -l`.
+11. The watchdog loop runs configured checks and feeds the watchdog with `fan_controller_cli -s` only when healthy.
 
 ## Hardware Interface
 

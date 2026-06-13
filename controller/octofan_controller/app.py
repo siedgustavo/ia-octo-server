@@ -32,6 +32,7 @@ async def lifespan(_app: FastAPI):
         asyncio.create_task(poll_loop()),
         asyncio.create_task(watchdog_loop()),
         asyncio.create_task(display_loop()),
+        asyncio.create_task(led_loop()),
     ]
     try:
         yield
@@ -56,6 +57,7 @@ state: dict[str, Any] = {
     "gpu_idle_since": None,
     "gpu_idle_stop_active": False,
     "eeprom_display_signature": None,
+    "led_modes": {},
     "events": [],
     "watchdog": None,
 }
@@ -144,6 +146,18 @@ async def display_loop() -> None:
         if cfg.display.enabled:
             await _write_display(cfg.display.profile)
         await asyncio.sleep(cfg.display.refresh_interval_seconds)
+
+
+async def led_loop() -> None:
+    while True:
+        cfg: AppConfig = state["config"]
+        try:
+            if cfg.leds.enabled:
+                desired = _desired_led_modes(cfg, state["status"], state["ollama"], state["nvidia"])
+                _apply_led_modes(desired)
+        except Exception as exc:
+            _event(f"failed to update leds: {exc}")
+        await asyncio.sleep(cfg.leds.poll_interval_seconds)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -284,6 +298,10 @@ def serialize_status() -> dict[str, Any]:
         "watchdog": None if watchdog is None else vars(watchdog),
         "ollama": vars(state["ollama"]),
         "nvidia": state["nvidia"].to_dict(),
+        "leds": {
+            "enabled": state["config"].leds.enabled,
+            "modes": dict(state["led_modes"]),
+        },
         "target_fan_percent": state["target_fan"],
         "gpu_idle_seconds": None if gpu_idle_since is None else round(time.monotonic() - gpu_idle_since, 1),
         "gpu_idle_stop_active": state["gpu_idle_stop_active"],
@@ -294,6 +312,50 @@ def serialize_status() -> dict[str, Any]:
 def _event(message: str) -> None:
     state["events"].append(message)
     state["events"] = state["events"][-200:]
+
+
+def _desired_led_modes(
+    cfg: AppConfig,
+    status: ControllerStatus,
+    ollama: OllamaStatus,
+    nvidia: NvidiaStatus,
+) -> dict[int, int]:
+    leds = cfg.leds
+    controlled_ids = {leds.warning_led_id, leds.online_led_id, leds.activity_led_id}
+    desired = {led_id: leds.off_mode for led_id in controlled_ids}
+    if ollama.ok:
+        desired[leds.online_led_id] = leds.on_mode
+    if _led_activity_active(cfg, nvidia):
+        desired[leds.activity_led_id] = leds.fast_blink_mode
+    if not status.ok or (cfg.ollama.enabled and not ollama.ok):
+        desired[leds.warning_led_id] = leds.slow_blink_mode
+    return desired
+
+
+def _led_activity_active(cfg: AppConfig, nvidia: NvidiaStatus) -> bool:
+    if not nvidia.ok:
+        return False
+    for gpu in nvidia.gpus:
+        if (
+            gpu.utilization_gpu_percent is not None
+            and gpu.utilization_gpu_percent >= cfg.leds.gpu_activity_utilization_percent
+        ):
+            return True
+        if gpu.power_draw_watts is not None and gpu.power_draw_watts >= cfg.leds.gpu_activity_power_watts:
+            return True
+    return False
+
+
+def _apply_led_modes(desired: dict[int, int]) -> None:
+    previous: dict[int, int] = state["led_modes"]
+    for led_id, mode in sorted(desired.items()):
+        if previous.get(led_id) == mode:
+            continue
+        cli.set_led(led_id, mode)
+        previous[led_id] = mode
+    for led_id in sorted(set(previous) - set(desired)):
+        cli.set_led(led_id, state["config"].leds.off_mode)
+        del previous[led_id]
 
 
 def _gpu_idle_stop_active(
@@ -412,6 +474,8 @@ async function refresh(){
     ['Target fan', st.target_fan_percent+' %'],
     ['Power', st.controller.power_ac_total_w+' W'],
     ['Ollama', st.ollama.available_models+' installed / '+st.ollama.running_models+' running'],
+    ['AI activity', (st.nvidia.gpus||[]).some(g=>g.utilization_gpu_percent>=cfg.leds.gpu_activity_utilization_percent || g.power_draw_watts>=cfg.leds.gpu_activity_power_watts) ? 'GPU active' : 'idle'],
+    ['LEDs', st.leds.enabled ? JSON.stringify(st.leds.modes) : 'disabled'],
     ['GPUs', (st.nvidia.gpus||[]).length],
     ['GPU temp', (st.nvidia.gpus||[]).map(g=>g.temperature_gpu_c+' C').join(' / ') || '--']
   ].map(([k,v])=>`<div class="metric"><b>${k}</b><br>${v}</div>`).join('')

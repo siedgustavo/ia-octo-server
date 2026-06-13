@@ -34,6 +34,18 @@ display:
   refresh_interval_seconds: 15.0
   title: null
   persist_to_eeprom: true
+leds:
+  enabled: false
+  poll_interval_seconds: 1.0
+  warning_led_id: 0
+  online_led_id: 1
+  activity_led_id: 2
+  off_mode: 0
+  on_mode: 1
+  fast_blink_mode: 2
+  slow_blink_mode: 3
+  gpu_activity_utilization_percent: 15.0
+  gpu_activity_power_watts: 40.0
 ollama:
   enabled: false
   base_url: http://ollama:11434
