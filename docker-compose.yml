@@ -84,12 +84,11 @@ services:
     ports:
       - "${VLLM_PORT:-8001}:8000"
     command:
+      - "${VLLM_MODEL:-Qwen/Qwen3-Coder-30B-A3B-Instruct-FP8}"
       - --host
       - 0.0.0.0
       - --port
       - "8000"
-      - --model
-      - "${VLLM_MODEL:-Qwen/Qwen3-Coder-30B-A3B-Instruct-FP8}"
       - --served-model-name
       - "${VLLM_SERVED_MODEL_NAME:-qwen3-coder:30b}"
       - --tensor-parallel-size
@@ -99,7 +98,6 @@ services:
       - --gpu-memory-utilization
       - "${VLLM_GPU_MEMORY_UTILIZATION:-0.90}"
       - --enable-expert-parallel
-      - --disable-log-requests
 
 volumes:
   prometheus-data:
