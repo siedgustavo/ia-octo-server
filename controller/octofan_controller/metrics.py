@@ -3,7 +3,7 @@ from __future__ import annotations
 from prometheus_client import Gauge, generate_latest
 from prometheus_client.core import REGISTRY
 
-from .ollama import OllamaStatus
+from .ai_runtime import AIStatus
 from .nvidia import NvidiaStatus
 from .parser import ControllerStatus
 
@@ -32,7 +32,7 @@ nvidia_info = Gauge("octofan_nvidia_gpu_info", "NVIDIA GPU info", ["index", "uui
 nvidia_metric = Gauge("octofan_nvidia_gpu_metric", "NVIDIA GPU metric from nvidia-smi", ["index", "uuid", "name", "metric"])
 
 
-def update_metrics(status: ControllerStatus, ollama: OllamaStatus, current_target_fan: int | None, nvidia: NvidiaStatus | None = None) -> None:
+def update_metrics(status: ControllerStatus, ai: AIStatus, current_target_fan: int | None, nvidia: NvidiaStatus | None = None) -> None:
     controller_up.set(1 if status.ok else 0)
     if current_target_fan is not None:
         target_fan.set(current_target_fan)
@@ -91,10 +91,10 @@ def update_metrics(status: ControllerStatus, ollama: OllamaStatus, current_targe
         watchdog_metric.labels("mode").set(status.watchdog_mode)
     if status.watchdog_resets is not None:
         watchdog_metric.labels("resets").set(status.watchdog_resets)
-    ai_tps.labels("ollama").set(ollama.tokens_per_second or 0)
-    ai_tps_available.labels("ollama").set(1 if ollama.tokens_per_second_available else 0)
-    ai_available_models.labels("ollama").set(ollama.available_models)
-    ai_models.labels("ollama").set(ollama.running_models)
+    ai_tps.labels(ai.source).set(ai.tokens_per_second or 0)
+    ai_tps_available.labels(ai.source).set(1 if ai.tokens_per_second_available else 0)
+    ai_available_models.labels(ai.source).set(ai.available_models)
+    ai_models.labels(ai.source).set(ai.running_models)
     if nvidia is not None:
         nvidia_up.set(1 if nvidia.ok else 0)
         for gpu in nvidia.gpus:

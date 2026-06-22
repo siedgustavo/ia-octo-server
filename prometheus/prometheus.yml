@@ -11,3 +11,8 @@ scrape_configs:
     static_configs:
       - targets:
           - host.docker.internal:9100
+
+  - job_name: vllm
+    static_configs:
+      - targets:
+          - vllm:8000

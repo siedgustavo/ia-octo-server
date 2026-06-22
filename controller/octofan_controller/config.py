@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class FanConfig(BaseModel):
@@ -66,10 +66,14 @@ class LedConfig(BaseModel):
     gpu_activity_power_watts: float = Field(default=40.0, ge=0.0, le=1000.0)
 
 
-class OllamaConfig(BaseModel):
+class AIRuntimeConfig(BaseModel):
     enabled: bool = False
-    base_url: str = "http://host.docker.internal:11434"
+    provider: Literal["vllm", "ollama"] = "vllm"
+    base_url: str = "http://vllm:8000"
     timeout_seconds: float = Field(default=2.0, ge=0.2, le=30.0)
+    api_key: str | None = None
+    metrics_path: str = "/metrics"
+    source_label: str | None = None
 
 
 class AppConfig(BaseModel):
@@ -77,7 +81,14 @@ class AppConfig(BaseModel):
     watchdog: WatchdogConfig = Field(default_factory=WatchdogConfig)
     display: DisplayConfig = Field(default_factory=DisplayConfig)
     leds: LedConfig = Field(default_factory=LedConfig)
-    ollama: OllamaConfig = Field(default_factory=OllamaConfig)
+    ai: AIRuntimeConfig = Field(default_factory=AIRuntimeConfig)
+
+    @model_validator(mode="before")
+    @classmethod
+    def migrate_legacy_ai_config(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            return migrate_config_data(data)
+        return data
 
 
 def load_config(path: Path) -> AppConfig:
@@ -94,3 +105,10 @@ def save_config(path: Path, cfg: AppConfig) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as fh:
         yaml.safe_dump(cfg.model_dump(mode="json"), fh, sort_keys=False)
+
+
+def migrate_config_data(data: dict[str, Any]) -> dict[str, Any]:
+    if "ai" not in data and isinstance(data.get("ollama"), dict):
+        data = dict(data)
+        data["ai"] = {**data["ollama"], "provider": "ollama"}
+    return data

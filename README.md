@@ -15,9 +15,9 @@ The original HiveOS package files are preserved only as reference material under
 - Adds host CPU, memory, disk and network telemetry through node exporter.
 - Ships Grafana dashboards for overview, PSUs, environment, cooling, GPUs, host/network, watchdog and AI metrics.
 - Updates the controller OLED with host, thermal, power and AI status.
-- Drives the front-panel LEDs for Ollama health and GPU activity.
+- Drives the front-panel LEDs for AI runtime health and GPU activity.
 - Feeds the hardware watchdog only when configured host checks pass.
-- Integrates with an Ollama container over Docker networking.
+- Integrates with a vLLM OpenAI-compatible server over Docker networking.
 
 ## Services
 
@@ -25,7 +25,7 @@ The original HiveOS package files are preserved only as reference material under
 - `prometheus`: metrics storage.
 - `node-exporter`: host system and network metrics, running in the host network namespace.
 - `grafana`: dashboard at `http://localhost:3000` (`admin` / `octofan`).
-- `ollama`: Ollama inference API at `http://localhost:11434`.
+- `vllm`: vLLM OpenAI-compatible inference API at `http://localhost:8001/v1`.
 
 ## Repository Layout
 
@@ -49,6 +49,7 @@ Open:
 - Controller UI: `http://localhost:8000`
 - Prometheus: `http://localhost:9090`
 - Grafana: `http://localhost:3000`
+- vLLM: `http://localhost:8001/v1`
 
 Grafana provisions these dashboards under the `Octofan` folder:
 
@@ -68,7 +69,7 @@ OCTOFAN_MOCK=1 docker compose up --build
 If the default UI ports are already in use:
 
 ```bash
-OCTOFAN_MOCK=1 OCTOFAN_CONTROLLER_PORT=18000 PROMETHEUS_PORT=19090 GRAFANA_PORT=13000 docker compose up --build
+OCTOFAN_MOCK=1 OCTOFAN_CONTROLLER_PORT=18000 PROMETHEUS_PORT=19090 GRAFANA_PORT=13000 VLLM_PORT=18001 docker compose up --build
 ```
 
 ## AlmaLinux 10 Notes
@@ -91,7 +92,7 @@ Important sections:
 - `watchdog`: hardware watchdog timeouts and HTTP/TCP health checks.
 - `display`: OLED profile and refresh interval.
 - `leds`: front-panel LED policy. By default LED `0` is orange warning, LED `1` is blue online and LED `2` is white activity.
-- `ollama`: external Ollama endpoint.
+- `ai`: external AI runtime endpoint.
 
 The fan controller uses BME280 sensor `0` as intake/internal temperature when available, then falls back to `Temperature No. 0`.
 
@@ -109,30 +110,29 @@ The fan controller uses BME280 sensor `0` as intake/internal temperature when av
 - `POST /api/calibrate-fans`
 - `GET /metrics`
 
-## Ollama
+## vLLM
 
-Enable `ollama.enabled` in `config/octofan.yaml` and point `ollama.base_url` to the host Ollama endpoint. The OLED and Grafana dashboard include model inventory from `/api/tags` and loaded models from `/api/ps`.
+Enable `ai.enabled` in `config/octofan.yaml` and point `ai.base_url` to the vLLM endpoint. The OLED and Grafana dashboard include model inventory from `/v1/models`, running/waiting request state from vLLM metrics, and token throughput calculated from vLLM Prometheus counters.
 
-Tokens per second remain unavailable from controller-side polling because Ollama only reports evaluation counts and durations in individual generation responses. To expose exact token throughput without changing traffic flow, instrument the application that calls Ollama and export that data separately.
-
-The compose stack includes an `ollama` service on the same Docker network. Enable controller-side polling with:
+The compose stack includes a `vllm` service on the same Docker network. Enable controller-side polling with:
 
 ```yaml
-ollama:
+ai:
   enabled: true
-  base_url: http://ollama:11434
-  timeout_seconds: 2.0
+  provider: vllm
+  base_url: http://vllm:8000
+  timeout_seconds: 5.0
 ```
 
-The compose stack creates/uses the `octofan-ai` network by default. If Ollama is managed by another compose project instead, attach that container to the network:
+The compose stack creates/uses the `octofan-ai` network by default. If vLLM is managed by another compose project instead, attach that container to the network and set `ai.base_url` accordingly.
 
-```bash
-docker network connect octofan-ai ollama
-```
+The vLLM service uses `gpus: all`, so NVIDIA Container Toolkit must be available on the host. It also uses `ipc: host`, as recommended by vLLM for PyTorch shared memory.
 
-The Ollama service uses `gpus: all`, so NVIDIA Container Toolkit must be available on the host.
+The default model is `Qwen/Qwen3-Coder-30B-A3B-Instruct-FP8`, served as `qwen3-coder:30b` for client compatibility. Override it before startup with `VLLM_MODEL`, `VLLM_SERVED_MODEL_NAME`, `VLLM_TENSOR_PARALLEL_SIZE`, `VLLM_MAX_MODEL_LEN`, `VLLM_GPU_MEMORY_UTILIZATION`, `VLLM_NVIDIA_VISIBLE_DEVICES` and `HF_TOKEN` when the model requires Hugging Face authentication.
 
-The compose service sets `OLLAMA_CONTEXT_LENGTH` to `64000` by default. It also sets `OLLAMA_KEEP_ALIVE` to `-1` so the last used model remains loaded in memory instead of expiring after the default idle window. Override either value with an environment variable before starting the stack if a different context window or unload policy is needed.
+Legacy `ollama:` config is still accepted and migrated in memory as provider `ollama`, but new config should use `ai:`.
+
+When migrating an existing deployment, use `docker compose up --build -d --remove-orphans` once so the old `octofan-ollama` container does not keep GPUs allocated.
 
 ## Validation
 
