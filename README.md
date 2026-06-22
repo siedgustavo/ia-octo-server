@@ -128,7 +128,7 @@ The compose stack creates/uses the `octofan-ai` network by default. If vLLM is m
 
 The vLLM service uses `gpus: all`, so NVIDIA Container Toolkit must be available on the host. It also uses `ipc: host`, as recommended by vLLM for PyTorch shared memory.
 
-The default model is `Qwen/Qwen3-Coder-30B-A3B-Instruct-FP8`, served as `qwen3-coder:30b` for client compatibility. Override it before startup with `VLLM_MODEL`, `VLLM_SERVED_MODEL_NAME`, `VLLM_TENSOR_PARALLEL_SIZE`, `VLLM_MAX_MODEL_LEN`, `VLLM_GPU_MEMORY_UTILIZATION`, `VLLM_NVIDIA_VISIBLE_DEVICES` and `HF_TOKEN` when the model requires Hugging Face authentication.
+The default model is `Qwen/Qwen3-Coder-30B-A3B-Instruct-FP8`, served as `qwen3-coder:30b` for client compatibility. vLLM defaults to `CUDA_DEVICE_ORDER=PCI_BUS_ID` and `VLLM_NVIDIA_VISIBLE_DEVICES=0,1`, matching the two RTX 3090 cards on the production host. Override it before startup with `VLLM_MODEL`, `VLLM_SERVED_MODEL_NAME`, `VLLM_TENSOR_PARALLEL_SIZE`, `VLLM_MAX_MODEL_LEN`, `VLLM_GPU_MEMORY_UTILIZATION`, `VLLM_NVIDIA_VISIBLE_DEVICES` and `HF_TOKEN` when the model requires Hugging Face authentication.
 
 Legacy `ollama:` config is still accepted and migrated in memory as provider `ollama`, but new config should use `ai:`.
 

@@ -83,6 +83,8 @@ VLLM_MODEL=Qwen/Qwen3-Coder-30B-A3B-Instruct-FP8
 VLLM_SERVED_MODEL_NAME=qwen3-coder:30b
 VLLM_TENSOR_PARALLEL_SIZE=2
 VLLM_MAX_MODEL_LEN=32768
+VLLM_CUDA_DEVICE_ORDER=PCI_BUS_ID
+VLLM_NVIDIA_VISIBLE_DEVICES=0,1
 ```
 
 Override these in the shell or `.env` before `docker compose up`. Set `HF_TOKEN` when the selected Hugging Face model requires authentication.
