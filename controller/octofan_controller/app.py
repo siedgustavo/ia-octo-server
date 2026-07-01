@@ -111,6 +111,7 @@ async def poll_loop() -> None:
 
 async def watchdog_loop() -> None:
     configured = False
+    unhealthy_failures = 0
     while True:
         cfg: AppConfig = state["config"]
         if cfg.watchdog.enabled:
@@ -123,14 +124,28 @@ async def watchdog_loop() -> None:
             result = await run_watchdog_checks(cfg.watchdog)
             state["watchdog"] = result
             if result.healthy:
+                unhealthy_failures = 0
                 try:
                     cli.feed_watchdog()
                 except Exception as exc:
                     _event(f"failed to feed watchdog: {exc}")
             else:
-                _event(f"watchdog unhealthy: {', '.join(result.errors)}")
+                unhealthy_failures += 1
+                errors = ", ".join(result.errors)
+                if _watchdog_in_grace_period(unhealthy_failures, cfg.watchdog.unhealthy_failures_before_reset):
+                    _event(
+                        "watchdog unhealthy "
+                        f"({unhealthy_failures}/{cfg.watchdog.unhealthy_failures_before_reset}): {errors}"
+                    )
+                    try:
+                        cli.feed_watchdog()
+                    except Exception as exc:
+                        _event(f"failed to feed watchdog during unhealthy grace period: {exc}")
+                else:
+                    _event(f"watchdog unhealthy: {errors}")
         else:
             configured = False
+            unhealthy_failures = 0
             state["watchdog"] = None
             if cfg.watchdog.keepalive_when_disabled:
                 try:
@@ -138,6 +153,10 @@ async def watchdog_loop() -> None:
                 except Exception as exc:
                     _event(f"failed to keep watchdog alive: {exc}")
         await asyncio.sleep(cfg.watchdog.feed_interval_seconds)
+
+
+def _watchdog_in_grace_period(unhealthy_failures: int, threshold: int) -> bool:
+    return unhealthy_failures < threshold
 
 
 async def display_loop() -> None:

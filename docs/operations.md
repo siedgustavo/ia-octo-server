@@ -153,13 +153,14 @@ watchdog:
   short_timeout_seconds: 120
   long_timeout_seconds: 1500
   feed_interval_seconds: 5.0
+  unhealthy_failures_before_reset: 3
   checks:
     - type: tcp
       target: host.docker.internal:22
       timeout_seconds: 1.0
 ```
 
-If `enabled` is true and any check fails, the daemon does not feed the hardware watchdog. If `enabled` is false and `keepalive_when_disabled` is true, the daemon feeds the hardware watchdog without using it as a reset policy.
+If `enabled` is true and any check fails for `unhealthy_failures_before_reset` consecutive watchdog cycles, the daemon does not feed the hardware watchdog. Short transient check failures are tolerated so the USB controller is not reset by one missed TCP or HTTP probe. If `enabled` is false and `keepalive_when_disabled` is true, the daemon feeds the hardware watchdog without using it as a reset policy.
 
 ## Fan Control
 

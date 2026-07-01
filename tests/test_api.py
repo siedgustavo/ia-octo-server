@@ -4,7 +4,15 @@ import asyncio
 os.environ["OCTOFAN_CONFIG"] = "/tmp/octofan-test.yaml"
 os.environ["OCTOFAN_MOCK"] = "1"
 
-from octofan_controller.app import ManualFanRequest, _desired_led_modes, _gpu_idle_stop_candidate, api_fans_manual, serialize_status, state
+from octofan_controller.app import (
+    ManualFanRequest,
+    _desired_led_modes,
+    _gpu_idle_stop_candidate,
+    _watchdog_in_grace_period,
+    api_fans_manual,
+    serialize_status,
+    state,
+)
 from octofan_controller.config import AppConfig
 from octofan_controller.metrics import metrics_payload
 from octofan_controller.nvidia import GpuStatus, NvidiaStatus
@@ -123,3 +131,9 @@ def test_led_modes_warn_when_ollama_is_down():
     assert modes[cfg.leds.warning_led_id] == cfg.leds.slow_blink_mode
     assert modes[cfg.leds.online_led_id] == cfg.leds.off_mode
     assert modes[cfg.leds.activity_led_id] == cfg.leds.off_mode
+
+
+def test_watchdog_tolerates_transient_unhealthy_checks():
+    assert _watchdog_in_grace_period(unhealthy_failures=1, threshold=3)
+    assert _watchdog_in_grace_period(unhealthy_failures=2, threshold=3)
+    assert not _watchdog_in_grace_period(unhealthy_failures=3, threshold=3)

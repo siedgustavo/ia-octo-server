@@ -41,6 +41,7 @@ class WatchdogConfig(BaseModel):
     short_timeout_seconds: int = Field(default=120, ge=10, le=3600)
     long_timeout_seconds: int = Field(default=1500, ge=60, le=86400)
     feed_interval_seconds: float = Field(default=5.0, ge=1.0, le=300.0)
+    unhealthy_failures_before_reset: int = Field(default=3, ge=1, le=100)
     checks: list[WatchdogCheck] = Field(default_factory=list)
 
 
