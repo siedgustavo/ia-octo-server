@@ -1,0 +1,19 @@
+services:
+  llama-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        LLAMA_CPP_REF: ${LLAMA_CPP_REF:-master}
+    image: local/llamacpp-rpc-server:${LLAMA_CPP_REF:-master}
+    container_name: llamacpp-rpc-server
+    restart: unless-stopped
+    environment:
+      MODEL_PATH: ${MODEL_PATH:-/models/modelo.gguf}
+      CTX_SIZE: ${CTX_SIZE:-8192}
+      N_GPU_LAYERS: ${N_GPU_LAYERS:-99}
+      RPC_ENDPOINTS: ${RPC_ENDPOINTS:-172.16.1.39:5000,172.16.1.39:5001,172.16.1.39:5002,172.16.1.39:5003}
+    volumes:
+      - ${MODELS_DIR:-/opt/llamacpp-rpc/models}:/models:ro
+    ports:
+      - "8080:8080"
