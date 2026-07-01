@@ -31,18 +31,22 @@ install_build_deps() {
 }
 
 install_cuda_if_needed() {
-  if command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi >/dev/null 2>&1; then
-    echo "nvidia-smi works; keeping current NVIDIA driver/CUDA runtime."
+  if command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi >/dev/null 2>&1 && command -v nvcc >/dev/null 2>&1; then
+    echo "nvidia-smi and nvcc work; keeping current NVIDIA driver/CUDA toolkit."
     return
   fi
 
-  echo "nvidia-smi is not available. Installing NVIDIA headless driver and CUDA toolkit for Alma/RHEL-like host."
+  echo "Installing missing NVIDIA/CUDA components for Alma/RHEL-like host."
   local repo_major="${VERSION_ID%%.*}"
   dnf install -y dnf-plugins-core epel-release || true
   dnf config-manager --add-repo "https://developer.download.nvidia.com/compute/cuda/repos/rhel${repo_major}/x86_64/cuda-rhel${repo_major}.repo" \
     || dnf config-manager --add-repo https://developer.download.nvidia.com/compute/cuda/repos/rhel9/x86_64/cuda-rhel9.repo
   dnf clean expire-cache
-  dnf install -y cuda-toolkit nvidia-driver-cuda nvidia-driver-cuda-libs
+  if command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi >/dev/null 2>&1; then
+    dnf install -y cuda-toolkit
+  else
+    dnf install -y cuda-toolkit nvidia-driver-cuda nvidia-driver-cuda-libs
+  fi
 }
 
 force_fans_low() {
