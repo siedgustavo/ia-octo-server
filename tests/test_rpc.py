@@ -1,7 +1,7 @@
 import asyncio
 
 from octofan_controller.config import RpcBackendConfig, RpcConfig
-from octofan_controller.rpc import RpcMonitor
+from octofan_controller.rpc import RpcMonitor, _decode_chunked
 
 
 def test_rpc_monitor_reports_backend_up():
@@ -39,3 +39,7 @@ def test_rpc_monitor_reports_backend_down():
     assert status.up == 0
     assert status.total == 1
     assert status.backends[0].error
+
+
+def test_decode_chunked_docker_response_body():
+    assert _decode_chunked(b'8\r\n{"ok":1}\r\n0\r\n\r\n') == b'{"ok":1}'

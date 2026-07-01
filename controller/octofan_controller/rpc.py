@@ -121,7 +121,26 @@ def _docker_get_json(socket_path: Path, path: str, timeout_seconds: float) -> di
     status_line = header.splitlines()[0].decode("ascii", errors="replace") if header else ""
     if " 200 " not in status_line:
         raise RuntimeError(status_line or "empty Docker response")
+    headers = header.decode("iso-8859-1", errors="replace").lower()
+    if "transfer-encoding: chunked" in headers:
+        body = _decode_chunked(body)
     return json.loads(body.decode("utf-8"))
+
+
+def _decode_chunked(body: bytes) -> bytes:
+    decoded = bytearray()
+    pos = 0
+    while True:
+        line_end = body.find(b"\r\n", pos)
+        if line_end == -1:
+            raise ValueError("invalid chunked response")
+        size_line = body[pos:line_end].split(b";", 1)[0]
+        size = int(size_line, 16)
+        pos = line_end + 2
+        if size == 0:
+            return bytes(decoded)
+        decoded.extend(body[pos : pos + size])
+        pos += size + 2
 
 
 def _split_host_port(target: str) -> tuple[str, int]:
