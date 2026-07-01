@@ -51,12 +51,17 @@ sg docker -c 'docker compose ps'
 
 ## Connect Ollama
 
-The compose file includes an Ollama service. To enable controller polling:
+The compose file includes one Ollama service per GPU. To enable controller polling across all instances:
 
 ```yaml
 ollama:
   enabled: true
-  base_url: http://ollama:11434
+  base_url: http://ollama-gpu0:11434
+  base_urls:
+  - http://ollama-gpu0:11434
+  - http://ollama-gpu1:11434
+  - http://ollama-gpu2:11434
+  - http://ollama-gpu3:11434
   timeout_seconds: 2.0
 ```
 
@@ -76,12 +81,18 @@ Check Ollama:
 
 ```bash
 curl -fsS http://localhost:11434/api/tags
+curl -fsS http://localhost:11435/api/tags
+curl -fsS http://localhost:11436/api/tags
+curl -fsS http://localhost:11437/api/tags
 ```
 
-The Ollama container defaults to a 64k context window through:
+The Ollama containers use GPU-specific context windows:
 
 ```yaml
-OLLAMA_CONTEXT_LENGTH: "64000"
+OLLAMA_GPU0_CONTEXT_LENGTH: "49152"
+OLLAMA_GPU1_CONTEXT_LENGTH: "40960"
+OLLAMA_GPU2_CONTEXT_LENGTH: "32768"
+OLLAMA_GPU3_CONTEXT_LENGTH: "32768"
 ```
 
 It also keeps the last used model loaded by default:
@@ -94,9 +105,10 @@ It also keeps Ollama in pack scheduling mode:
 
 ```yaml
 OLLAMA_SCHED_SPREAD: "false"
+OLLAMA_MAX_LOADED_MODELS: "1"
 ```
 
-With that setting, Ollama tries to load each model on the fewest GPUs possible and only splits it when the model does not fit on one GPU. Set `OLLAMA_CONTEXT_LENGTH`, `OLLAMA_KEEP_ALIVE` or `OLLAMA_SCHED_SPREAD` in the shell or `.env` before `docker compose up` to override those defaults.
+Each service is pinned to one NVIDIA device with Compose `device_ids`, so selecting ports `11434` through `11437` selects GPU 0 through GPU 3. `OLLAMA_MAX_LOADED_MODELS=1` keeps one resident model per instance. Set `OLLAMA_GPU*_CONTEXT_LENGTH`, `OLLAMA_KEEP_ALIVE`, `OLLAMA_MAX_LOADED_MODELS` or `OLLAMA_SCHED_SPREAD` in the shell or `.env` before `docker compose up` to override those defaults.
 
 Ollama token throughput is not available from `/api/tags` or `/api/ps`. The controller keeps `octofan_ai_tokens_per_second_available` at `0` unless the application that calls Ollama exports request-level token telemetry through another integration.
 
@@ -206,7 +218,7 @@ The container must be able to access USB. The compose file uses:
 - `privileged: true`
 - `/dev/bus/usb:/dev/bus/usb`
 
-The controller and Ollama services also request `gpus: all` so the NVIDIA runtime can expose `nvidia-smi` and CUDA devices.
+The controller requests `gpus: all` so the NVIDIA runtime can expose `nvidia-smi`. Each Ollama service reserves a specific GPU with Compose `device_ids`.
 
 `node-exporter` runs in the host network namespace. Without this, Linux network metrics would show the exporter container interface instead of the host NIC.
 

@@ -10,7 +10,7 @@ Octofan AI Server is a small container stack around the original Octominer USB c
 - `prometheus`: scrapes `octofan-controller:8000/metrics`.
 - `node-exporter`: exposes host CPU, memory, disk, filesystem and network metrics. It runs with `network_mode: host` so network counters come from the host namespace instead of the exporter container.
 - `grafana`: loads the Prometheus datasource and the Octofan dashboard set.
-- `ollama`: separate inference container on the same Docker network when AI metrics are enabled.
+- `ollama-gpu0` through `ollama-gpu3`: GPU-pinned inference containers on the same Docker network when AI metrics are enabled.
 
 ## Data Flow
 
@@ -44,6 +44,6 @@ Supported controller surfaces include:
 
 ## Network Model
 
-The compose stack uses the Docker network `octofan-ai` by default. This gives the controller a stable way to reach the Ollama container at `http://ollama:11434`.
+The compose stack uses the Docker network `octofan-ai` by default. This gives the controller stable internal names for the GPU-pinned Ollama containers at `http://ollama-gpu0:11434` through `http://ollama-gpu3:11434`.
 
 If another compose project owns Ollama, connect the container or its compose network to `octofan-ai`.

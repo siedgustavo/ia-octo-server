@@ -67,20 +67,95 @@ services:
     depends_on:
       - prometheus
 
-  ollama:
+  # Ollama runs one instance per GPU so model placement can be controlled by
+  # selecting the endpoint. All instances share the same model volume.
+  ollama-gpu0:
     image: ${OLLAMA_IMAGE:-ollama/ollama:latest}
-    container_name: octofan-ollama
+    container_name: octofan-ollama-gpu0
     restart: unless-stopped
-    gpus: all
     environment:
       OLLAMA_HOST: 0.0.0.0:11434
-      OLLAMA_CONTEXT_LENGTH: "${OLLAMA_CONTEXT_LENGTH:-64000}"
+      OLLAMA_CONTEXT_LENGTH: "${OLLAMA_GPU0_CONTEXT_LENGTH:-49152}"
       OLLAMA_KEEP_ALIVE: "${OLLAMA_KEEP_ALIVE:--1}"
       OLLAMA_SCHED_SPREAD: "${OLLAMA_SCHED_SPREAD:-false}"
+      OLLAMA_MAX_LOADED_MODELS: "${OLLAMA_MAX_LOADED_MODELS:-1}"
     volumes:
       - ollama-data:/root/.ollama
     ports:
-      - "${OLLAMA_PORT:-11434}:11434"
+      - "${OLLAMA_GPU0_PORT:-11434}:11434"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["${OLLAMA_GPU0_DEVICE:-0}"]
+              capabilities: [gpu]
+
+  ollama-gpu1:
+    image: ${OLLAMA_IMAGE:-ollama/ollama:latest}
+    container_name: octofan-ollama-gpu1
+    restart: unless-stopped
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+      OLLAMA_CONTEXT_LENGTH: "${OLLAMA_GPU1_CONTEXT_LENGTH:-40960}"
+      OLLAMA_KEEP_ALIVE: "${OLLAMA_KEEP_ALIVE:--1}"
+      OLLAMA_SCHED_SPREAD: "${OLLAMA_SCHED_SPREAD:-false}"
+      OLLAMA_MAX_LOADED_MODELS: "${OLLAMA_MAX_LOADED_MODELS:-1}"
+    volumes:
+      - ollama-data:/root/.ollama
+    ports:
+      - "${OLLAMA_GPU1_PORT:-11435}:11434"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["${OLLAMA_GPU1_DEVICE:-1}"]
+              capabilities: [gpu]
+
+  ollama-gpu2:
+    image: ${OLLAMA_IMAGE:-ollama/ollama:latest}
+    container_name: octofan-ollama-gpu2
+    restart: unless-stopped
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+      OLLAMA_CONTEXT_LENGTH: "${OLLAMA_GPU2_CONTEXT_LENGTH:-32768}"
+      OLLAMA_KEEP_ALIVE: "${OLLAMA_KEEP_ALIVE:--1}"
+      OLLAMA_SCHED_SPREAD: "${OLLAMA_SCHED_SPREAD:-false}"
+      OLLAMA_MAX_LOADED_MODELS: "${OLLAMA_MAX_LOADED_MODELS:-1}"
+    volumes:
+      - ollama-data:/root/.ollama
+    ports:
+      - "${OLLAMA_GPU2_PORT:-11436}:11434"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["${OLLAMA_GPU2_DEVICE:-2}"]
+              capabilities: [gpu]
+
+  ollama-gpu3:
+    image: ${OLLAMA_IMAGE:-ollama/ollama:latest}
+    container_name: octofan-ollama-gpu3
+    restart: unless-stopped
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+      OLLAMA_CONTEXT_LENGTH: "${OLLAMA_GPU3_CONTEXT_LENGTH:-32768}"
+      OLLAMA_KEEP_ALIVE: "${OLLAMA_KEEP_ALIVE:--1}"
+      OLLAMA_SCHED_SPREAD: "${OLLAMA_SCHED_SPREAD:-false}"
+      OLLAMA_MAX_LOADED_MODELS: "${OLLAMA_MAX_LOADED_MODELS:-1}"
+    volumes:
+      - ollama-data:/root/.ollama
+    ports:
+      - "${OLLAMA_GPU3_PORT:-11437}:11434"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["${OLLAMA_GPU3_DEVICE:-3}"]
+              capabilities: [gpu]
 
 volumes:
   prometheus-data:

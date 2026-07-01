@@ -115,14 +115,21 @@ Enable `ollama.enabled` in `config/octofan.yaml` and point `ollama.base_url` to 
 
 Tokens per second remain unavailable from controller-side polling because Ollama only reports evaluation counts and durations in individual generation responses. To expose exact token throughput without changing traffic flow, instrument the application that calls Ollama and export that data separately.
 
-The compose stack includes an `ollama` service on the same Docker network. Enable controller-side polling with:
+The compose stack includes one Ollama service per GPU on the same Docker network. The controller polls all instances for model inventory and loaded models:
 
 ```yaml
 ollama:
   enabled: true
-  base_url: http://ollama:11434
+  base_url: http://ollama-gpu0:11434
+  base_urls:
+  - http://ollama-gpu0:11434
+  - http://ollama-gpu1:11434
+  - http://ollama-gpu2:11434
+  - http://ollama-gpu3:11434
   timeout_seconds: 2.0
 ```
+
+Externally, the GPU-pinned instances are exposed as `11434` through `11437`.
 
 The compose stack creates/uses the `octofan-ai` network by default. If Ollama is managed by another compose project instead, attach that container to the network:
 
@@ -130,9 +137,9 @@ The compose stack creates/uses the `octofan-ai` network by default. If Ollama is
 docker network connect octofan-ai ollama
 ```
 
-The Ollama service uses `gpus: all`, so NVIDIA Container Toolkit must be available on the host.
+Each Ollama service reserves one NVIDIA device with Docker Compose `device_ids`, so NVIDIA Container Toolkit must be available on the host.
 
-The compose service sets `OLLAMA_CONTEXT_LENGTH` to `64000` by default. It also sets `OLLAMA_KEEP_ALIVE` to `-1` so the last used model remains loaded in memory instead of expiring after the default idle window. `OLLAMA_SCHED_SPREAD` defaults to `false`, so Ollama tries to place a model on the fewest GPUs possible and only splits it when it cannot fit on one GPU. Override these values with environment variables before starting the stack if a different context window, unload policy or GPU scheduling policy is needed.
+The compose services set per-GPU context windows by default: GPU 0 uses `49152`, GPU 1 uses `40960`, and GPUs 2-3 use `32768`. They also set `OLLAMA_KEEP_ALIVE` to `-1`, `OLLAMA_MAX_LOADED_MODELS` to `1`, and `OLLAMA_SCHED_SPREAD` to `false`. Override these values with environment variables before starting the stack if a different context window, unload policy or GPU scheduling policy is needed.
 
 ## Validation
 

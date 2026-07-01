@@ -48,5 +48,10 @@ leds:
   gpu_activity_power_watts: 40.0
 ollama:
   enabled: true
-  base_url: http://ollama:11434
+  base_url: http://ollama-gpu0:11434
+  base_urls:
+  - http://ollama-gpu0:11434
+  - http://ollama-gpu1:11434
+  - http://ollama-gpu2:11434
+  - http://ollama-gpu3:11434
   timeout_seconds: 2.0

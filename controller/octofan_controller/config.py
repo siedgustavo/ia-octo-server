@@ -69,6 +69,7 @@ class LedConfig(BaseModel):
 class OllamaConfig(BaseModel):
     enabled: bool = False
     base_url: str = "http://host.docker.internal:11434"
+    base_urls: list[str] = Field(default_factory=list)
     timeout_seconds: float = Field(default=2.0, ge=0.2, le=30.0)
 
 
