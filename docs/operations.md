@@ -11,9 +11,10 @@ Open:
 - Controller: `http://localhost:8000`
 - Prometheus: `http://localhost:9090`
 - Grafana: `http://localhost:3000`
-- qwen3coder: `http://localhost:8080/v1`
-- qwen3.6 uncensored: `http://localhost:8081/v1`
-- llama3.1 pro: `http://localhost:8082/v1`
+- RPC GPU 0: `localhost:5000`
+- RPC GPU 1: `localhost:5001`
+- RPC GPU 2: `localhost:5002`
+- RPC GPU 3: `localhost:5003`
 
 Grafana login is `admin` / `octofan`.
 
@@ -51,20 +52,27 @@ or for one command:
 sg docker -c 'docker compose ps'
 ```
 
-## Connect llama.cpp
+## llama.cpp RPC Bridge
 
-The compose file includes one prebuilt `llama-server` container per model. To enable controller polling across production instances:
+This stack is the RPC server side on `octoserver.core.sied.ar`. It does not load models and does not query model APIs. The controller only checks that the four RPC TCP ports are reachable:
 
 ```yaml
-ai:
+rpc:
   enabled: true
-  source: llamacpp
-  base_url: http://llama-server-qwen3coder:8080
-  base_urls:
-  - http://llama-server-qwen3coder:8080
-  - http://llama-server-qwen36-uncensored:8080
-  - http://llama-server-llama31-pro:8080
-  timeout_seconds: 2.0
+  timeout_seconds: 1.0
+  backends:
+  - name: gpu0
+    gpu: 0
+    target: llamacpp-rpc-gpu0:5000
+  - name: gpu1
+    gpu: 1
+    target: llamacpp-rpc-gpu1:5001
+  - name: gpu2
+    gpu: 2
+    target: llamacpp-rpc-gpu2:5002
+  - name: gpu3
+    gpu: 3
+    target: llamacpp-rpc-gpu3:5003
 ```
 
 Restart the controller:
@@ -73,40 +81,26 @@ Restart the controller:
 docker compose restart octofan-controller
 ```
 
-Default model paths can be overridden with environment variables:
-
-```env
-MODELS_DIR=/modelos
-QWEN3CODER_GGUF=/modelos/qwen3coder-35b.gguf
-QWEN36_UNCENSORED_GGUF=/modelos/qwen3.6-uncensored.gguf
-LLAMA31_PRO_GGUF=/modelos/llama3.1-pro.gguf
-```
-
-Check llama.cpp:
-
-```bash
-curl -fsS http://localhost:8080/v1/models
-curl -fsS http://localhost:8081/v1/models
-curl -fsS http://localhost:8082/v1/models
-```
-
-The production mapping is:
+The RPC containers are exposed externally as:
 
 ```text
-8080 -> qwen3coder 35b -> GPU 0
-8081 -> qwen3.6 uncensored -> GPU 1
-8082 -> llama3.1 pro -> GPU 2
+octoserver.core.sied.ar:5000 -> GPU 0
+octoserver.core.sied.ar:5001 -> GPU 1
+octoserver.core.sied.ar:5002 -> GPU 2
+octoserver.core.sied.ar:5003 -> GPU 3
 ```
 
-GPU 3 is reserved for playground. Start it explicitly with:
+Check RPC:
 
 ```bash
-docker compose --profile playground up -d llama-server-playground
+docker compose ps
+nc -vz octoserver.core.sied.ar 5000
+curl -fsS http://localhost:8000/metrics | grep octofan_rpc
 ```
 
-Each service is pinned to one NVIDIA device with Compose `device_ids`, so selecting ports `8080` through `8083` selects the intended GPU-backed model. Set `QWEN3CODER_CTX_SIZE`, `QWEN36_UNCENSORED_CTX_SIZE`, `LLAMA31_PRO_CTX_SIZE` or `PLAYGROUND_CTX_SIZE` in the shell or `.env` before `docker compose up` to override context windows.
+The model APIs live on `aiworker.core.sied.ar` and are managed by `poc/llamacpp-rpc/node1/docker-compose.yml`.
 
-llama.cpp token throughput is not available from controller polling. The controller keeps `octofan_ai_tokens_per_second_available` at `0` unless the application that calls the OpenAI-compatible APIs exports request-level token telemetry through another integration.
+Each RPC backend is pinned to one NVIDIA device with Compose `device_ids`. Set `LLAMACPP_RPC_GPU*_DEVICE`, `LLAMACPP_RPC_GPU*_PORT` or `LLAMACPP_RPC_GPU*_MEM` in the shell or `.env` before `docker compose up` to override mappings.
 
 ## Front LEDs
 
@@ -115,7 +109,7 @@ The controller can drive the Octofan front LEDs through `fan_controller_cli -l`.
 Default mapping:
 
 - LED `0`: orange warning/error.
-- LED `1`: blue AI backend online.
+- LED `1`: blue RPC/controller online.
 - LED `2`: white GPU activity.
 
 Enable LED control with:
@@ -183,7 +177,7 @@ fans:
   gpu_idle_max_intake_temp_c: 35.0
 ```
 
-The controller only enters idle mode when `nvidia-smi` is healthy, all GPUs are below the configured utilization, power and temperature thresholds, no AI backend reports generation, and intake temperature is below the configured limit. Manual and automatic targets are clamped to `min_percent..max_percent`, so requests below the known active range do not produce misleading PWM targets. Any load, hotter temperature, missing GPU reading or controller read failure returns to the normal fan curve or fail-safe behavior.
+The controller only enters idle mode when `nvidia-smi` is healthy, all GPUs are below the configured utilization, power and temperature thresholds, and intake temperature is below the configured limit. Manual and automatic targets are clamped to `min_percent..max_percent`, so requests below the known active range do not produce misleading PWM targets. Any load, hotter temperature, missing GPU reading or controller read failure returns to the normal fan curve or fail-safe behavior.
 
 ## OLED Display
 

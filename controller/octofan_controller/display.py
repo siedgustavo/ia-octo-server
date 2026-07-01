@@ -5,8 +5,8 @@ from pathlib import Path
 import socket
 
 from .config import DisplayConfig
-from .ai import AiStatus
 from .parser import ControllerStatus
+from .rpc import RpcStatus
 
 
 WIDTH = 20
@@ -19,7 +19,7 @@ def fit(text: str, width: int = WIDTH) -> str:
     return text[:width].ljust(width)
 
 
-def render_display(status: ControllerStatus, cfg: DisplayConfig, fan_percent: int | None, ai: AiStatus) -> list[str]:
+def render_display(status: ControllerStatus, cfg: DisplayConfig, fan_percent: int | None, rpc: RpcStatus) -> list[str]:
     lines = [fit(resolve_display_title(cfg), BIG_WIDTH), fit("")]
     host = socket.gethostname()
     intake = _fmt_temp(status.intake_temp_c)
@@ -30,14 +30,9 @@ def render_display(status: ControllerStatus, cfg: DisplayConfig, fan_percent: in
         lines += [fit(f"In {intake} Out {exhaust}"), fit(f"Fan {fan_percent or 0}%"), fit(f"BME {len(status.bme280)} PSU {len(status.psus)}")]
     elif cfg.profile == "power":
         lines += [fit(f"Power {power}"), fit(f"PSUs {len(status.psus)}"), fit(f"FW {status.version_fw or '-'} HW {status.version_hw or '-'}")]
-    elif cfg.profile == "ai":
-        if not ai.ok:
-            tps = "AI offline"
-        elif ai.tokens_per_second_available and ai.tokens_per_second is not None:
-            tps = f"{ai.tokens_per_second:.1f} tok/s"
-        else:
-            tps = "TPS n/a"
-        lines += [fit(tps), fit(f"Models {ai.available_models}/{ai.running_models}"), fit(f"In {intake} Fan {fan_percent or 0}%"), fit(f"Power {power}")]
+    elif cfg.profile in ("ai", "rpc"):
+        rpc_line = "RPC OK" if rpc.ok else "RPC DOWN"
+        lines += [fit(rpc_line), fit(f"Backends {rpc.up}/{rpc.total}"), fit(f"In {intake} Fan {fan_percent or 0}%"), fit(f"Power {power}")]
     else:
         lines += [fit(host), fit(f"FW {status.version_fw or '-'} HW {status.version_hw or '-'}"), fit(f"In {intake} Out {exhaust}"), fit(f"Fan {fan_percent or 0}%")]
 

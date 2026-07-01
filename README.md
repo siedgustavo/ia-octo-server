@@ -14,10 +14,10 @@ The original HiveOS package files are preserved only as reference material under
 - Adds NVIDIA GPU telemetry from `nvidia-smi`.
 - Adds host CPU, memory, disk and network telemetry through node exporter.
 - Ships Grafana dashboards for overview, PSUs, environment, cooling, GPUs, host/network, watchdog and AI metrics.
-- Updates the controller OLED with host, thermal, power and AI status.
-- Drives the front-panel LEDs for llama.cpp health and GPU activity.
+- Updates the controller OLED with host, thermal, power and RPC backend status.
+- Drives the front-panel LEDs for RPC health and GPU activity.
 - Feeds the hardware watchdog only when configured host checks pass.
-- Integrates with GPU-pinned llama.cpp containers over Docker networking.
+- Runs GPU-pinned llama.cpp RPC backend containers over Docker networking.
 
 ## Services
 
@@ -25,7 +25,7 @@ The original HiveOS package files are preserved only as reference material under
 - `prometheus`: metrics storage.
 - `node-exporter`: host system and network metrics, running in the host network namespace.
 - `grafana`: dashboard at `http://localhost:3000` (`admin` / `octofan`).
-- `llama-server-*`: OpenAI-compatible llama.cpp APIs at `http://localhost:8080` through `http://localhost:8083`.
+- `llamacpp-rpc-gpu*`: llama.cpp RPC GPU backends at `5000` through `5003`.
 
 ## Repository Layout
 
@@ -91,7 +91,7 @@ Important sections:
 - `watchdog`: hardware watchdog timeouts and HTTP/TCP health checks.
 - `display`: OLED profile and refresh interval.
 - `leds`: front-panel LED policy. By default LED `0` is orange warning, LED `1` is blue online and LED `2` is white activity.
-- `ai`: llama.cpp/OpenAI-compatible inference endpoints.
+- `rpc`: TCP health checks for the llama.cpp RPC backend containers.
 
 The fan controller uses BME280 sensor `0` as intake/internal temperature when available, then falls back to `Temperature No. 0`.
 
@@ -109,41 +109,50 @@ The fan controller uses BME280 sensor `0` as intake/internal temperature when av
 - `POST /api/calibrate-fans`
 - `GET /metrics`
 
-## llama.cpp
+## llama.cpp RPC
 
-Enable `ai.enabled` in `config/octofan.yaml` and point `ai.base_urls` to the llama.cpp servers. The OLED and Grafana dashboard include model inventory from `/v1/models`.
+This stack runs only the GPU bridge side on `octoserver.core.sied.ar` (`172.16.1.39`). It does not load GGUF models and does not expose OpenAI-compatible model APIs.
 
-Tokens per second remain unavailable from controller-side polling. To expose exact token throughput without changing traffic flow, instrument the application that calls the OpenAI-compatible APIs and export that data separately.
+The model host/client lives on `aiworker.core.sied.ar` (`172.16.1.40`) and connects to these RPC endpoints:
 
-The compose stack includes one prebuilt `llama-server` container per model. Production uses GPUs 0-2; GPU 3 is reserved for the optional `playground` profile:
+```text
+octoserver.core.sied.ar:5000 -> GPU 0
+octoserver.core.sied.ar:5001 -> GPU 1
+octoserver.core.sied.ar:5002 -> GPU 2
+octoserver.core.sied.ar:5003 -> GPU 3
+```
+
+Enable `rpc.enabled` in `config/octofan.yaml` to let the controller check that the four RPC ports are reachable. The controller does not query `/v1/models`, tokens, loaded model names or model throughput.
 
 ```yaml
-ai:
+rpc:
   enabled: true
-  source: llamacpp
-  base_url: http://llama-server-qwen3coder:8080
-  base_urls:
-  - http://llama-server-qwen3coder:8080
-  - http://llama-server-qwen36-uncensored:8080
-  - http://llama-server-llama31-pro:8080
-  timeout_seconds: 2.0
+  timeout_seconds: 1.0
+  backends:
+  - name: gpu0
+    gpu: 0
+    target: llamacpp-rpc-gpu0:5000
+  - name: gpu1
+    gpu: 1
+    target: llamacpp-rpc-gpu1:5001
+  - name: gpu2
+    gpu: 2
+    target: llamacpp-rpc-gpu2:5002
+  - name: gpu3
+    gpu: 3
+    target: llamacpp-rpc-gpu3:5003
 ```
 
-Externally, the model servers are exposed as `8080` through `8082`; `8083` is reserved for playground.
-
-Default model paths are configurable through environment variables:
+RPC container memory and GPU mapping are configurable through environment variables:
 
 ```env
-MODELS_DIR=/modelos
-QWEN3CODER_GGUF=/modelos/qwen3coder-35b.gguf
-QWEN36_UNCENSORED_GGUF=/modelos/qwen3.6-uncensored.gguf
-LLAMA31_PRO_GGUF=/modelos/llama3.1-pro.gguf
-PLAYGROUND_GGUF=/modelos/playground.gguf
+LLAMACPP_RPC_IMAGE=evilfreelancer/llama.cpp-rpc:latest-cuda
+LLAMACPP_RPC_GPU0_DEVICE=0
+LLAMACPP_RPC_GPU0_PORT=5000
+LLAMACPP_RPC_GPU0_MEM=22000
 ```
 
-Each llama.cpp service reserves one NVIDIA device with Docker Compose `device_ids`, so NVIDIA Container Toolkit must be available on the host.
-
-The compose services set per-model context windows to `32768` by default. Override `QWEN3CODER_CTX_SIZE`, `QWEN36_UNCENSORED_CTX_SIZE`, `LLAMA31_PRO_CTX_SIZE` or `PLAYGROUND_CTX_SIZE` before starting the stack if a different context window is needed.
+Each RPC service reserves one NVIDIA device with Docker Compose `device_ids`, so NVIDIA Container Toolkit must be available on the host.
 
 ## Validation
 

@@ -15,8 +15,6 @@ class FanConfig(BaseModel):
     max_percent: int = Field(default=100, ge=1, le=100)
     manual_percent: int = Field(default=70, ge=1, le=100)
     max_step_percent: int = Field(default=8, ge=1, le=100)
-    ai_load_assist: bool = True
-    ai_load_boost_percent: int = Field(default=10, ge=0, le=50)
     fail_safe_percent: int = Field(default=100, ge=1, le=100)
     fail_safe_ramp: bool = True
     poll_interval_seconds: float = Field(default=5.0, ge=1.0, le=300.0)
@@ -47,7 +45,7 @@ class WatchdogConfig(BaseModel):
 
 class DisplayConfig(BaseModel):
     enabled: bool = True
-    profile: Literal["system", "thermal", "power", "ai"] = "ai"
+    profile: Literal["system", "thermal", "power", "ai", "rpc"] = "rpc"
     refresh_interval_seconds: float = Field(default=15.0, ge=5.0, le=3600.0)
     title: str | None = None
     persist_to_eeprom: bool = True
@@ -67,12 +65,25 @@ class LedConfig(BaseModel):
     gpu_activity_power_watts: float = Field(default=40.0, ge=0.0, le=1000.0)
 
 
-class AiConfig(BaseModel):
+class RpcBackendConfig(BaseModel):
+    name: str
+    gpu: int = Field(ge=0)
+    target: str
+
+
+def _default_rpc_backends() -> list[RpcBackendConfig]:
+    return [
+        RpcBackendConfig(name="gpu0", gpu=0, target="llamacpp-rpc-gpu0:5000"),
+        RpcBackendConfig(name="gpu1", gpu=1, target="llamacpp-rpc-gpu1:5001"),
+        RpcBackendConfig(name="gpu2", gpu=2, target="llamacpp-rpc-gpu2:5002"),
+        RpcBackendConfig(name="gpu3", gpu=3, target="llamacpp-rpc-gpu3:5003"),
+    ]
+
+
+class RpcConfig(BaseModel):
     enabled: bool = False
-    source: str = "llamacpp"
-    base_url: str = "http://host.docker.internal:8080"
-    base_urls: list[str] = Field(default_factory=list)
-    timeout_seconds: float = Field(default=2.0, ge=0.2, le=30.0)
+    timeout_seconds: float = Field(default=1.0, ge=0.2, le=30.0)
+    backends: list[RpcBackendConfig] = Field(default_factory=_default_rpc_backends)
 
 
 class AppConfig(BaseModel):
@@ -80,7 +91,7 @@ class AppConfig(BaseModel):
     watchdog: WatchdogConfig = Field(default_factory=WatchdogConfig)
     display: DisplayConfig = Field(default_factory=DisplayConfig)
     leds: LedConfig = Field(default_factory=LedConfig)
-    ai: AiConfig = Field(default_factory=AiConfig)
+    rpc: RpcConfig = Field(default_factory=RpcConfig)
 
 
 def load_config(path: Path) -> AppConfig:

@@ -6,8 +6,6 @@ fans:
   max_percent: 100
   manual_percent: 10
   max_step_percent: 8
-  ai_load_assist: false
-  ai_load_boost_percent: 10
   fail_safe_percent: 100
   fail_safe_ramp: true
   poll_interval_seconds: 5.0
@@ -31,7 +29,7 @@ watchdog:
     timeout_seconds: 1.0
 display:
   enabled: true
-  profile: ai
+  profile: rpc
   refresh_interval_seconds: 15.0
   title: null
   persist_to_eeprom: true
@@ -47,12 +45,19 @@ leds:
   slow_blink_mode: 3
   gpu_activity_utilization_percent: 15.0
   gpu_activity_power_watts: 40.0
-ai:
+rpc:
   enabled: true
-  source: llamacpp
-  base_url: http://llama-server-qwen3coder:8080
-  base_urls:
-  - http://llama-server-qwen3coder:8080
-  - http://llama-server-qwen36-uncensored:8080
-  - http://llama-server-llama31-pro:8080
-  timeout_seconds: 2.0
+  timeout_seconds: 1.0
+  backends:
+  - name: gpu0
+    gpu: 0
+    target: llamacpp-rpc-gpu0:5000
+  - name: gpu1
+    gpu: 1
+    target: llamacpp-rpc-gpu1:5001
+  - name: gpu2
+    gpu: 2
+    target: llamacpp-rpc-gpu2:5002
+  - name: gpu3
+    gpu: 3
+    target: llamacpp-rpc-gpu3:5003

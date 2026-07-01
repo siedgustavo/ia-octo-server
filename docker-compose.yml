@@ -67,129 +67,88 @@ services:
     depends_on:
       - prometheus
 
-  llama-server-qwen3coder:
-    image: ${LLAMACPP_IMAGE:-ghcr.io/ggml-org/llama.cpp:server-cuda}
-    container_name: octofan-llama-qwen3coder
+  llamacpp-rpc-gpu0:
+    image: ${LLAMACPP_RPC_IMAGE:-evilfreelancer/llama.cpp-rpc:latest-cuda}
+    container_name: octofan-llamacpp-rpc-gpu0
     restart: unless-stopped
-    command:
-      - --host
-      - 0.0.0.0
-      - --port
-      - "8080"
-      - -m
-      - ${QWEN3CODER_GGUF:-/modelos/qwen3coder-35b.gguf}
-      - -ngl
-      - "${QWEN3CODER_N_GPU_LAYERS:-99}"
-      - --ctx-size
-      - "${QWEN3CODER_CTX_SIZE:-32768}"
     environment:
-      QWEN3CODER_GGUF: ${QWEN3CODER_GGUF:-/modelos/qwen3coder-35b.gguf}
-      QWEN3CODER_CTX_SIZE: ${QWEN3CODER_CTX_SIZE:-32768}
-      QWEN3CODER_N_GPU_LAYERS: ${QWEN3CODER_N_GPU_LAYERS:-99}
-    volumes:
-      - ${MODELS_DIR:-/modelos}:/modelos:ro
+      APP_MODE: backend
+      APP_BIND: 0.0.0.0
+      APP_PORT: "${LLAMACPP_RPC_GPU0_PORT:-5000}"
+      APP_MEM: "${LLAMACPP_RPC_GPU0_MEM:-22000}"
+      NVIDIA_VISIBLE_DEVICES: "${LLAMACPP_RPC_GPU0_DEVICE:-0}"
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
     ports:
-      - "${QWEN3CODER_PORT:-8080}:8080"
+      - "${LLAMACPP_RPC_GPU0_PORT:-5000}:${LLAMACPP_RPC_GPU0_PORT:-5000}"
     deploy:
       resources:
         reservations:
           devices:
             - driver: nvidia
-              device_ids: ["${LLAMACPP_GPU0_DEVICE:-0}"]
+              device_ids: ["${LLAMACPP_RPC_GPU0_DEVICE:-0}"]
               capabilities: [gpu]
 
-  llama-server-qwen36-uncensored:
-    image: ${LLAMACPP_IMAGE:-ghcr.io/ggml-org/llama.cpp:server-cuda}
-    container_name: octofan-llama-qwen36-uncensored
+  llamacpp-rpc-gpu1:
+    image: ${LLAMACPP_RPC_IMAGE:-evilfreelancer/llama.cpp-rpc:latest-cuda}
+    container_name: octofan-llamacpp-rpc-gpu1
     restart: unless-stopped
-    command:
-      - --host
-      - 0.0.0.0
-      - --port
-      - "8080"
-      - -m
-      - ${QWEN36_UNCENSORED_GGUF:-/modelos/qwen3.6-uncensored.gguf}
-      - -ngl
-      - "${QWEN36_UNCENSORED_N_GPU_LAYERS:-99}"
-      - --ctx-size
-      - "${QWEN36_UNCENSORED_CTX_SIZE:-32768}"
     environment:
-      QWEN36_UNCENSORED_GGUF: ${QWEN36_UNCENSORED_GGUF:-/modelos/qwen3.6-uncensored.gguf}
-      QWEN36_UNCENSORED_CTX_SIZE: ${QWEN36_UNCENSORED_CTX_SIZE:-32768}
-      QWEN36_UNCENSORED_N_GPU_LAYERS: ${QWEN36_UNCENSORED_N_GPU_LAYERS:-99}
-    volumes:
-      - ${MODELS_DIR:-/modelos}:/modelos:ro
+      APP_MODE: backend
+      APP_BIND: 0.0.0.0
+      APP_PORT: "${LLAMACPP_RPC_GPU1_PORT:-5001}"
+      APP_MEM: "${LLAMACPP_RPC_GPU1_MEM:-22000}"
+      NVIDIA_VISIBLE_DEVICES: "${LLAMACPP_RPC_GPU1_DEVICE:-1}"
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
     ports:
-      - "${QWEN36_UNCENSORED_PORT:-8081}:8080"
+      - "${LLAMACPP_RPC_GPU1_PORT:-5001}:${LLAMACPP_RPC_GPU1_PORT:-5001}"
     deploy:
       resources:
         reservations:
           devices:
             - driver: nvidia
-              device_ids: ["${LLAMACPP_GPU1_DEVICE:-1}"]
+              device_ids: ["${LLAMACPP_RPC_GPU1_DEVICE:-1}"]
               capabilities: [gpu]
 
-  llama-server-llama31-pro:
-    image: ${LLAMACPP_IMAGE:-ghcr.io/ggml-org/llama.cpp:server-cuda}
-    container_name: octofan-llama-llama31-pro
+  llamacpp-rpc-gpu2:
+    image: ${LLAMACPP_RPC_IMAGE:-evilfreelancer/llama.cpp-rpc:latest-cuda}
+    container_name: octofan-llamacpp-rpc-gpu2
     restart: unless-stopped
-    command:
-      - --host
-      - 0.0.0.0
-      - --port
-      - "8080"
-      - -m
-      - ${LLAMA31_PRO_GGUF:-/modelos/llama3.1-pro.gguf}
-      - -ngl
-      - "${LLAMA31_PRO_N_GPU_LAYERS:-99}"
-      - --ctx-size
-      - "${LLAMA31_PRO_CTX_SIZE:-32768}"
     environment:
-      LLAMA31_PRO_GGUF: ${LLAMA31_PRO_GGUF:-/modelos/llama3.1-pro.gguf}
-      LLAMA31_PRO_CTX_SIZE: ${LLAMA31_PRO_CTX_SIZE:-32768}
-      LLAMA31_PRO_N_GPU_LAYERS: ${LLAMA31_PRO_N_GPU_LAYERS:-99}
-    volumes:
-      - ${MODELS_DIR:-/modelos}:/modelos:ro
+      APP_MODE: backend
+      APP_BIND: 0.0.0.0
+      APP_PORT: "${LLAMACPP_RPC_GPU2_PORT:-5002}"
+      APP_MEM: "${LLAMACPP_RPC_GPU2_MEM:-10500}"
+      NVIDIA_VISIBLE_DEVICES: "${LLAMACPP_RPC_GPU2_DEVICE:-2}"
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
     ports:
-      - "${LLAMA31_PRO_PORT:-8082}:8080"
+      - "${LLAMACPP_RPC_GPU2_PORT:-5002}:${LLAMACPP_RPC_GPU2_PORT:-5002}"
     deploy:
       resources:
         reservations:
           devices:
             - driver: nvidia
-              device_ids: ["${LLAMACPP_GPU2_DEVICE:-2}"]
+              device_ids: ["${LLAMACPP_RPC_GPU2_DEVICE:-2}"]
               capabilities: [gpu]
 
-  llama-server-playground:
-    image: ${LLAMACPP_IMAGE:-ghcr.io/ggml-org/llama.cpp:server-cuda}
-    container_name: octofan-llama-playground
+  llamacpp-rpc-gpu3:
+    image: ${LLAMACPP_RPC_IMAGE:-evilfreelancer/llama.cpp-rpc:latest-cuda}
+    container_name: octofan-llamacpp-rpc-gpu3
     restart: unless-stopped
-    profiles: ["playground"]
-    command:
-      - --host
-      - 0.0.0.0
-      - --port
-      - "8080"
-      - -m
-      - ${PLAYGROUND_GGUF:-/modelos/playground.gguf}
-      - -ngl
-      - "${PLAYGROUND_N_GPU_LAYERS:-99}"
-      - --ctx-size
-      - "${PLAYGROUND_CTX_SIZE:-32768}"
     environment:
-      PLAYGROUND_GGUF: ${PLAYGROUND_GGUF:-/modelos/playground.gguf}
-      PLAYGROUND_CTX_SIZE: ${PLAYGROUND_CTX_SIZE:-32768}
-      PLAYGROUND_N_GPU_LAYERS: ${PLAYGROUND_N_GPU_LAYERS:-99}
-    volumes:
-      - ${MODELS_DIR:-/modelos}:/modelos:ro
+      APP_MODE: backend
+      APP_BIND: 0.0.0.0
+      APP_PORT: "${LLAMACPP_RPC_GPU3_PORT:-5003}"
+      APP_MEM: "${LLAMACPP_RPC_GPU3_MEM:-10500}"
+      NVIDIA_VISIBLE_DEVICES: "${LLAMACPP_RPC_GPU3_DEVICE:-3}"
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
     ports:
-      - "${PLAYGROUND_PORT:-8083}:8080"
+      - "${LLAMACPP_RPC_GPU3_PORT:-5003}:${LLAMACPP_RPC_GPU3_PORT:-5003}"
     deploy:
       resources:
         reservations:
           devices:
             - driver: nvidia
-              device_ids: ["${LLAMACPP_GPU3_DEVICE:-3}"]
+              device_ids: ["${LLAMACPP_RPC_GPU3_DEVICE:-3}"]
               capabilities: [gpu]
 
 volumes:

@@ -1,19 +1,65 @@
 services:
-  llama-server:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        LLAMA_CPP_REF: ${LLAMA_CPP_REF:-master}
-    image: local/llamacpp-rpc-server:${LLAMA_CPP_REF:-master}
-    container_name: llamacpp-rpc-server
+  llama-qwen3coder:
+    image: ${LLAMACPP_RPC_IMAGE:-evilfreelancer/llama.cpp-rpc:latest-cuda}
+    container_name: aiworker-llama-qwen3coder
     restart: unless-stopped
     environment:
-      MODEL_PATH: ${MODEL_PATH:-/models/modelo.gguf}
-      CTX_SIZE: ${CTX_SIZE:-8192}
-      N_GPU_LAYERS: ${N_GPU_LAYERS:-99}
-      RPC_ENDPOINTS: ${RPC_ENDPOINTS:-172.16.1.39:5000,172.16.1.39:5001,172.16.1.39:5002,172.16.1.39:5003}
+      APP_MODE: server
+      APP_MODEL: ${QWEN3CODER_GGUF:-/models/qwen3coder-35b.gguf}
+      APP_HOST: 0.0.0.0
+      APP_PORT: 8080
+      APP_GPU_LAYERS: ${QWEN3CODER_GPU_LAYERS:-99}
+      APP_RPC_BACKENDS: ${QWEN3CODER_RPC_BACKENDS:-octoserver.core.sied.ar:5000}
     volumes:
       - ${MODELS_DIR:-/opt/llamacpp-rpc/models}:/models:ro
     ports:
-      - "8080:8080"
+      - "${QWEN3CODER_PORT:-8080}:8080"
+
+  llama-qwen36-uncensored:
+    image: ${LLAMACPP_RPC_IMAGE:-evilfreelancer/llama.cpp-rpc:latest-cuda}
+    container_name: aiworker-llama-qwen36-uncensored
+    restart: unless-stopped
+    environment:
+      APP_MODE: server
+      APP_MODEL: ${QWEN36_UNCENSORED_GGUF:-/models/qwen3.6-uncensored.gguf}
+      APP_HOST: 0.0.0.0
+      APP_PORT: 8080
+      APP_GPU_LAYERS: ${QWEN36_UNCENSORED_GPU_LAYERS:-99}
+      APP_RPC_BACKENDS: ${QWEN36_UNCENSORED_RPC_BACKENDS:-octoserver.core.sied.ar:5001}
+    volumes:
+      - ${MODELS_DIR:-/opt/llamacpp-rpc/models}:/models:ro
+    ports:
+      - "${QWEN36_UNCENSORED_PORT:-8081}:8080"
+
+  llama-llama31-pro:
+    image: ${LLAMACPP_RPC_IMAGE:-evilfreelancer/llama.cpp-rpc:latest-cuda}
+    container_name: aiworker-llama-llama31-pro
+    restart: unless-stopped
+    environment:
+      APP_MODE: server
+      APP_MODEL: ${LLAMA31_PRO_GGUF:-/models/llama3.1-pro.gguf}
+      APP_HOST: 0.0.0.0
+      APP_PORT: 8080
+      APP_GPU_LAYERS: ${LLAMA31_PRO_GPU_LAYERS:-99}
+      APP_RPC_BACKENDS: ${LLAMA31_PRO_RPC_BACKENDS:-octoserver.core.sied.ar:5002}
+    volumes:
+      - ${MODELS_DIR:-/opt/llamacpp-rpc/models}:/models:ro
+    ports:
+      - "${LLAMA31_PRO_PORT:-8082}:8080"
+
+  llama-playground:
+    image: ${LLAMACPP_RPC_IMAGE:-evilfreelancer/llama.cpp-rpc:latest-cuda}
+    container_name: aiworker-llama-playground
+    restart: unless-stopped
+    profiles: ["playground"]
+    environment:
+      APP_MODE: server
+      APP_MODEL: ${PLAYGROUND_GGUF:-/models/playground.gguf}
+      APP_HOST: 0.0.0.0
+      APP_PORT: 8080
+      APP_GPU_LAYERS: ${PLAYGROUND_GPU_LAYERS:-99}
+      APP_RPC_BACKENDS: ${PLAYGROUND_RPC_BACKENDS:-octoserver.core.sied.ar:5003}
+    volumes:
+      - ${MODELS_DIR:-/opt/llamacpp-rpc/models}:/models:ro
+    ports:
+      - "${PLAYGROUND_PORT:-8083}:8080"

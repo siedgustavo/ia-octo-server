@@ -43,7 +43,6 @@ hostnamectl set-hostname "${TARGET_HOSTNAME}"
 install_docker_almalinux
 
 mkdir -p "${INSTALL_DIR}" "${MODELS_DIR}"
-install -m 0644 "${SCRIPT_DIR}/Dockerfile" "${INSTALL_DIR}/Dockerfile"
 install -m 0644 "${SCRIPT_DIR}/docker-compose.yml" "${INSTALL_DIR}/docker-compose.yml"
 if [[ ! -f "${INSTALL_DIR}/.env" ]]; then
   install -m 0644 "${SCRIPT_DIR}/.env.example" "${INSTALL_DIR}/.env"
@@ -56,10 +55,11 @@ Hostname: ${TARGET_HOSTNAME}
 Compose dir: ${INSTALL_DIR}
 Modelos: ${MODELS_DIR}
 
-Edita ${INSTALL_DIR}/.env y apunta MODEL_PATH a un GGUF existente dentro de /models.
+Edita ${INSTALL_DIR}/.env y apunta cada *_GGUF a un GGUF existente dentro de /models.
 Luego:
 
   cd ${INSTALL_DIR}
-  docker compose up --build -d
-  docker compose logs -f llama-server
+  docker compose pull
+  docker compose up -d
+  docker compose logs -f
 EOF

@@ -8,7 +8,6 @@ def calculate_target_fan_percent(
     status: ControllerStatus,
     cfg: FanConfig,
     previous_percent: int | None,
-    ai_generating: bool = False,
     gpu_idle_stop_active: bool = False,
 ) -> int:
     if cfg.mode == "manual":
@@ -34,9 +33,6 @@ def calculate_target_fan_percent(
         target = round(cfg.min_percent + (cfg.max_percent - cfg.min_percent) * ratio)
     else:
         target = previous
-
-    if cfg.ai_load_assist and ai_generating:
-        target += cfg.ai_load_boost_percent
 
     target = max(cfg.min_percent, min(cfg.max_percent, target))
     if target > previous:

@@ -4,7 +4,7 @@
 
 ### `GET /api/status`
 
-Returns current controller status, fan data, PSU data, BME280 readings, watchdog result, AI backend status and recent events.
+Returns current controller status, fan data, PSU data, BME280 readings, watchdog result, RPC backend status and recent events.
 
 When GPU idle stop is enabled, the response also includes `gpu_idle_seconds` and `gpu_idle_stop_active`.
 
@@ -98,12 +98,11 @@ NVIDIA:
 
 Common NVIDIA metric values include `temperature_gpu_c`, `temperature_memory_c`, `fan_speed_percent`, `utilization_gpu_percent`, `utilization_memory_percent`, `memory_total_mib`, `memory_used_mib`, `memory_free_mib`, `power_draw_watts`, `power_limit_watts`, `clock_graphics_mhz`, `clock_memory_mhz`, `pcie_link_gen_current`, `pcie_link_width_current`, `encoder_sessions` and `decoder_sessions`.
 
-AI:
+RPC:
 
-- `octofan_ai_tokens_per_second{source="llamacpp"}`
-- `octofan_ai_tokens_per_second_available{source="llamacpp"}`
-- `octofan_ai_available_models{source="llamacpp"}`
-- `octofan_ai_running_models{source="llamacpp"}`
+- `octofan_rpc_backends_up`
+- `octofan_rpc_backends_total`
+- `octofan_rpc_backend_up{name,gpu,target}`
 
 Host and network:
 
@@ -113,7 +112,7 @@ The stack includes `node_exporter`, scraped by Prometheus as `node-exporter:9100
 
 Grafana provisions these dashboards under the `Octofan` folder:
 
-- `Octofan - Overview`: operating view for controller health, thermal envelope, power, fans, GPU load, host CPU/memory and AI throughput.
+- `Octofan - Overview`: operating view for controller health, thermal envelope, power, fans, GPU load, host CPU/memory and RPC backend health.
 - `Octofan - Power Supplies`: AC/DC rails, watts, current, PSU temperatures, PSU fan RPM, peaks and accumulated AC energy.
 - `Octofan - Environment`: selected sane intake/exhaust temperatures, raw sensor channels, BME280 humidity/pressure and controller voltage inputs.
 - `Octofan - Cooling`: chassis fan RPM, PWM, target percent, PSU fans and cooling result versus heat sources.
@@ -122,4 +121,4 @@ Grafana provisions these dashboards under the `Octofan` folder:
 
 ## Notes
 
-llama.cpp model inventory is read from `/v1/models`. Controller-side polling does not provide live token counters, so `octofan_ai_tokens_per_second_available` remains `0` unless the application that calls the model APIs exports request-level token telemetry separately.
+The controller does not query model APIs, loaded model names or token throughput. It only checks RPC backend TCP reachability and exports GPU telemetry from `nvidia-smi`.

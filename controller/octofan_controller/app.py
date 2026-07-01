@@ -12,13 +12,13 @@ from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel
 
 from .cli import OctofanCli, percent_to_pwm
-from .ai import AiClient, AiStatus
 from .config import AppConfig, load_config, save_config
 from .control import calculate_target_fan_percent, clamp_active_fan_percent
 from .display import render_display, resolve_display_title
 from .metrics import metrics_payload, update_metrics
 from .nvidia import NvidiaSmi, NvidiaStatus
 from .parser import ControllerStatus
+from .rpc import RpcMonitor, RpcStatus
 from .watchdog import run_watchdog_checks
 
 
@@ -44,12 +44,12 @@ async def lifespan(_app: FastAPI):
 
 app = FastAPI(title="Octofan AI Controller", version="0.1.0", lifespan=lifespan)
 cli = OctofanCli(BIN_PATH)
-ai_client = AiClient()
+rpc_monitor = RpcMonitor()
 nvidia_smi = NvidiaSmi()
 state: dict[str, Any] = {
     "config": load_config(CONFIG_PATH),
     "status": ControllerStatus(ok=False, error="not polled yet"),
-    "ai": AiStatus(),
+    "rpc": RpcStatus(),
     "nvidia": NvidiaStatus(ok=False, gpus=[], error="not polled yet"),
     "target_fan": None,
     "applied_fan_target": None,
@@ -75,14 +75,13 @@ async def poll_loop() -> None:
     while True:
         cfg: AppConfig = state["config"]
         status = cli.status()
-        ai = await ai_client.status(cfg.ai)
+        rpc = await rpc_monitor.status(cfg.rpc)
         nvidia = nvidia_smi.status()
-        gpu_idle_stop_active = _gpu_idle_stop_active(cfg, status, nvidia, ai)
+        gpu_idle_stop_active = _gpu_idle_stop_active(cfg, status, nvidia)
         target = calculate_target_fan_percent(
             status,
             cfg.fans,
             state["target_fan"],
-            ai.generating,
             gpu_idle_stop_active,
         )
         fan_ids = sorted(status.fans.keys()) if status.ok and status.fans else list(range(12))
@@ -100,12 +99,12 @@ async def poll_loop() -> None:
                 _event(f"failed to set fans: {exc}")
         state.update(
             status=status,
-            ai=ai,
+            rpc=rpc,
             nvidia=nvidia,
             target_fan=target,
             gpu_idle_stop_active=gpu_idle_stop_active,
         )
-        update_metrics(status, ai, target, nvidia)
+        update_metrics(status, target, nvidia, rpc)
         await asyncio.sleep(cfg.fans.poll_interval_seconds)
 
 
@@ -172,7 +171,7 @@ async def led_loop() -> None:
         cfg: AppConfig = state["config"]
         try:
             if cfg.leds.enabled:
-                desired = _desired_led_modes(cfg, state["status"], state["ai"], state["nvidia"])
+                desired = _desired_led_modes(cfg, state["status"], state["rpc"], state["nvidia"])
                 _apply_led_modes(desired)
         except Exception as exc:
             _event(f"failed to update leds: {exc}")
@@ -267,7 +266,7 @@ async def api_calibrate_fans() -> dict[str, Any]:
 async def _write_display(profile: str | None, force_eeprom: bool = False) -> list[str]:
     cfg: AppConfig = state["config"]
     display_cfg = cfg.display.model_copy(update={"profile": profile or cfg.display.profile})
-    lines = render_display(state["status"], display_cfg, state["target_fan"], state["ai"])
+    lines = render_display(state["status"], display_cfg, state["target_fan"], state["rpc"])
     try:
         signature = (resolve_display_title(display_cfg), display_cfg.profile)
         title_written = False
@@ -315,7 +314,7 @@ def serialize_status() -> dict[str, Any]:
         "psus": {k: vars(v) for k, v in status.psus.items()},
         "bme280": {k: vars(v) for k, v in status.bme280.items()},
         "watchdog": None if watchdog is None else vars(watchdog),
-        "ai": vars(state["ai"]),
+        "rpc": state["rpc"].to_dict(),
         "nvidia": state["nvidia"].to_dict(),
         "leds": {
             "enabled": state["config"].leds.enabled,
@@ -336,17 +335,17 @@ def _event(message: str) -> None:
 def _desired_led_modes(
     cfg: AppConfig,
     status: ControllerStatus,
-    ai: AiStatus,
+    rpc: RpcStatus,
     nvidia: NvidiaStatus,
 ) -> dict[int, int]:
     leds = cfg.leds
     controlled_ids = {leds.warning_led_id, leds.online_led_id, leds.activity_led_id}
     desired = {led_id: leds.off_mode for led_id in controlled_ids}
-    if ai.ok:
+    if status.ok and rpc.ok:
         desired[leds.online_led_id] = leds.on_mode
     if _led_activity_active(cfg, nvidia):
         desired[leds.activity_led_id] = leds.fast_blink_mode
-    if not status.ok or (cfg.ai.enabled and not ai.ok):
+    if not status.ok or (cfg.rpc.enabled and not rpc.ok):
         desired[leds.warning_led_id] = leds.slow_blink_mode
     return desired
 
@@ -381,11 +380,10 @@ def _gpu_idle_stop_active(
     cfg: AppConfig,
     status: ControllerStatus,
     nvidia: NvidiaStatus,
-    ai: AiStatus,
 ) -> bool:
     fans = cfg.fans
     now = time.monotonic()
-    if not _gpu_idle_stop_candidate(cfg, status, nvidia, ai):
+    if not _gpu_idle_stop_candidate(cfg, status, nvidia):
         state["gpu_idle_since"] = None
         return False
 
@@ -398,7 +396,6 @@ def _gpu_idle_stop_candidate(
     cfg: AppConfig,
     status: ControllerStatus,
     nvidia: NvidiaStatus,
-    ai: AiStatus,
 ) -> bool:
     fans = cfg.fans
     intake_temp = status.intake_temp_c
@@ -408,7 +405,6 @@ def _gpu_idle_stop_candidate(
         or not status.ok
         or intake_temp is None
         or intake_temp > fans.gpu_idle_max_intake_temp_c
-        or ai.generating
         or not nvidia.ok
         or not nvidia.gpus
     ):
@@ -461,7 +457,7 @@ UI_HTML = """
   </section>
   <section>
     <h2>Display</h2>
-    <label>Profile <select id="displayProfile"><option>ai</option><option>system</option><option>thermal</option><option>power</option></select></label>
+    <label>Profile <select id="displayProfile"><option>rpc</option><option>system</option><option>thermal</option><option>power</option></select></label>
     <button onclick="renderDisplay()">Render now</button>
     <pre id="display"></pre>
   </section>
@@ -492,8 +488,8 @@ async function refresh(){
     ['Exhaust', st.controller.exhaust_temp_c+' C'],
     ['Target fan', st.target_fan_percent+' %'],
     ['Power', st.controller.power_ac_total_w+' W'],
-    ['AI', st.ai.available_models+' available / '+st.ai.running_models+' loaded'],
-    ['AI activity', (st.nvidia.gpus||[]).some(g=>g.utilization_gpu_percent>=cfg.leds.gpu_activity_utilization_percent || g.power_draw_watts>=cfg.leds.gpu_activity_power_watts) ? 'GPU active' : 'idle'],
+    ['RPC', st.rpc.up+' / '+st.rpc.total+' up'],
+    ['GPU activity', (st.nvidia.gpus||[]).some(g=>g.utilization_gpu_percent>=cfg.leds.gpu_activity_utilization_percent || g.power_draw_watts>=cfg.leds.gpu_activity_power_watts) ? 'GPU active' : 'idle'],
     ['LEDs', st.leds.enabled ? JSON.stringify(st.leds.modes) : 'disabled'],
     ['GPUs', (st.nvidia.gpus||[]).length],
     ['GPU temp', (st.nvidia.gpus||[]).map(g=>g.temperature_gpu_c+' C').join(' / ') || '--']

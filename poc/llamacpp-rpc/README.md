@@ -5,99 +5,67 @@ Esta prueba separa el host de modelos del host GPU usando el backend RPC de
 
 ## Topologia
 
-- Nodo 1, orquestador: `172.16.1.40`, hostname objetivo `aiworker.core.sied.ar`.
-- Nodo 2, GPU bridge: `172.16.1.39`, hostname objetivo `gpubridge.core.sied.ar`.
-- RPC: `172.16.1.39:5000,5001,5002,5003`.
-- API OpenAI-compatible: `http://172.16.1.40:8080/v1`.
+- Cliente RPC / host de modelos: `aiworker.core.sied.ar` (`172.16.1.40`).
+- Servidor RPC / Octofan GPU bridge: `octoserver.core.sied.ar` (`172.16.1.39`).
+- RPC: `octoserver.core.sied.ar:5000,5001,5002,5003`.
+- APIs OpenAI-compatible: `http://aiworker.core.sied.ar:8080/v1` a `:8083/v1`.
 
-El RPC de `llama.cpp` es experimental e inseguro para redes abiertas. En este
-POC el script del Nodo 2 desactiva `firewalld` por decision explicita.
+El RPC de `llama.cpp` es experimental e inseguro para redes abiertas. Usarlo
+solo en LAN privada o detras de VPN/firewall.
 
-## Nodo 2: GPU bridge
+## octoserver: RPC bridge
 
-El script corre `rpc-server` nativo por systemd y detiene Docker para liberar
-recursos. Antes de apagar el stack Octofan intenta fijar los ventiladores en
-PWM 26 con el CLI nativo. Luego instala `octofan-poc-safety.service`, un loop
-nativo temporal que alimenta el watchdog y reaplica PWM 26 cada 30 segundos.
-Tambien desactiva `firewalld` para dejar accesibles los puertos RPC.
+`octoserver` corre el stack Octofan normal y cuatro containers RPC, uno por
+GPU. No carga modelos GGUF y no corre `llama-server`.
 
 ```bash
-scp -r poc/llamacpp-rpc/node2 root@172.16.1.39:/root/llamacpp-rpc-node2
-ssh root@172.16.1.39 'bash /root/llamacpp-rpc-node2/setup-gpubridge.sh'
+ssh root@octoserver.core.sied.ar 'cd /opt/ia-octo-server && ./poc/llamacpp-rpc/node2/setup-octoserver.sh'
 ```
 
 Verificar:
 
 ```bash
-ssh root@172.16.1.39 'hostnamectl; nvidia-smi'
-ssh root@172.16.1.39 'systemctl status octofan-poc-safety.service'
-ssh root@172.16.1.39 'systemctl status llama-rpc@0 llama-rpc@1 llama-rpc@2 llama-rpc@3'
-ssh root@172.16.1.39 "ss -ltnp | grep -E ':5000|:5001|:5002|:5003'"
-ssh root@172.16.1.39 "journalctl -u 'llama-rpc@*' -f"
+ssh root@octoserver.core.sied.ar 'cd /opt/ia-octo-server && docker compose ps'
+nc -vz octoserver.core.sied.ar 5000
+nc -vz octoserver.core.sied.ar 5001
+nc -vz octoserver.core.sied.ar 5002
+nc -vz octoserver.core.sied.ar 5003
 ```
 
-## Nodo 1: orquestador Docker
+## aiworker: cliente RPC y modelos
+
+`aiworker` corre los `llama-server` en Docker. Los modelos GGUF viven en
+`/opt/llamacpp-rpc/models` dentro de `aiworker`.
 
 ```bash
-scp -r poc/llamacpp-rpc/node1 root@172.16.1.40:/root/llamacpp-rpc-node1
-ssh root@172.16.1.40 'bash /root/llamacpp-rpc-node1/setup-node1.sh'
+scp -r poc/llamacpp-rpc/node1 root@aiworker.core.sied.ar:/root/llamacpp-rpc-node1
+ssh root@aiworker.core.sied.ar 'bash /root/llamacpp-rpc-node1/setup-node1.sh'
+ssh root@aiworker.core.sied.ar 'cd /opt/llamacpp-rpc/server && docker compose pull && docker compose up -d'
 ```
 
-Copiar el GGUF a `/opt/llamacpp-rpc/models/` y editar:
+Mapeo por defecto:
+
+```text
+qwen3coder           -> octoserver.core.sied.ar:5000 -> GPU 0 -> API :8080
+qwen3.6-uncensored   -> octoserver.core.sied.ar:5001 -> GPU 1 -> API :8081
+llama3.1-pro         -> octoserver.core.sied.ar:5002 -> GPU 2 -> API :8082
+playground           -> octoserver.core.sied.ar:5003 -> GPU 3 -> API :8083
+```
+
+## Validacion
+
+En `octoserver`, el controller solo monitorea puertos RPC:
 
 ```bash
-ssh root@172.16.1.40 'cd /opt/llamacpp-rpc/server && vi .env'
+curl -fsS http://octoserver.core.sied.ar:8000/api/status | python3 -m json.tool
+curl -fsS http://octoserver.core.sied.ar:8000/metrics | grep octofan_rpc
 ```
 
-Ejemplo minimo de `.env`:
-
-```env
-LLAMA_CPP_REF=master
-MODELS_DIR=/opt/llamacpp-rpc/models
-MODEL_PATH=/models/modelo.gguf
-CTX_SIZE=8192
-N_GPU_LAYERS=99
-RPC_ENDPOINTS=172.16.1.39:5000,172.16.1.39:5001,172.16.1.39:5002,172.16.1.39:5003
-```
-
-Levantar:
+En `aiworker`, probar la API de modelos:
 
 ```bash
-ssh root@172.16.1.40 'cd /opt/llamacpp-rpc/server && docker compose up --build -d'
-ssh root@172.16.1.40 'cd /opt/llamacpp-rpc/server && docker compose logs -f llama-server'
-```
-
-## Prueba de API
-
-```bash
-curl -sS http://172.16.1.40:8080/v1/models
-curl -sS http://172.16.1.40:8080/v1/chat/completions \
+curl -fsS http://aiworker.core.sied.ar:8080/v1/models
+curl -fsS http://aiworker.core.sied.ar:8080/v1/chat/completions \
   -H 'Content-Type: application/json' \
-  -d '{
-    "model": "modelo",
-    "messages": [{"role": "user", "content": "Responde en una frase: estas usando RPC?"}],
-    "max_tokens": 64
-  }'
-```
-
-## Senales de exito
-
-En Nodo 1:
-
-- `docker compose logs llama-server` muestra `--rpc` con los cuatro endpoints.
-- La API responde en `:8080`.
-
-En Nodo 2:
-
-- `journalctl -u 'llama-rpc@*' -f` muestra endpoints en `0.0.0.0:5000-5003` y conexiones desde `172.16.1.40`.
-- `nvidia-smi` muestra VRAM ocupada durante carga/inferencia.
-- Los cuatro puertos `5000-5003` estan escuchando.
-
-## Revertir el POC en Nodo 2
-
-```bash
-ssh root@172.16.1.39 'systemctl disable --now llama-rpc@0 llama-rpc@1 llama-rpc@2 llama-rpc@3'
-ssh root@172.16.1.39 'systemctl disable --now octofan-poc-safety.service'
-ssh root@172.16.1.39 'systemctl enable --now docker'
-ssh root@172.16.1.39 'cd /opt/ia-octo-server && docker compose up -d'
+  -d '{"model":"qwen3coder","messages":[{"role":"user","content":"Responde OK"}],"max_tokens":8}'
 ```

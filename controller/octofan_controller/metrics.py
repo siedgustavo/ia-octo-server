@@ -3,9 +3,9 @@ from __future__ import annotations
 from prometheus_client import Gauge, generate_latest
 from prometheus_client.core import REGISTRY
 
-from .ai import AiStatus
 from .nvidia import NvidiaStatus
 from .parser import ControllerStatus
+from .rpc import RpcStatus
 
 
 controller_up = Gauge("octofan_controller_up", "Controller read success")
@@ -22,17 +22,16 @@ psu_metric = Gauge("octofan_psu_metric", "PSU metrics", ["id", "model", "metric"
 watchdog_metric = Gauge("octofan_watchdog", "Watchdog values", ["metric"])
 version_metric = Gauge("octofan_controller_version", "Controller versions", ["type"])
 power_total = Gauge("octofan_power_ac_total_watts", "Total AC power")
-ai_tps = Gauge("octofan_ai_tokens_per_second", "AI tokens per second", ["source"])
-ai_tps_available = Gauge("octofan_ai_tokens_per_second_available", "Whether AI tokens per second is available", ["source"])
-ai_available_models = Gauge("octofan_ai_available_models", "AI models available locally", ["source"])
-ai_models = Gauge("octofan_ai_running_models", "AI running models", ["source"])
+rpc_up = Gauge("octofan_rpc_backends_up", "llama.cpp RPC backends up")
+rpc_total = Gauge("octofan_rpc_backends_total", "llama.cpp RPC backends configured")
+rpc_backend_up = Gauge("octofan_rpc_backend_up", "llama.cpp RPC backend TCP health", ["name", "gpu", "target"])
 target_fan = Gauge("octofan_target_fan_percent", "Last target case fan percent")
 nvidia_up = Gauge("octofan_nvidia_smi_up", "nvidia-smi read success")
 nvidia_info = Gauge("octofan_nvidia_gpu_info", "NVIDIA GPU info", ["index", "uuid", "name", "pci_bus_id", "driver_version", "vbios_version"])
 nvidia_metric = Gauge("octofan_nvidia_gpu_metric", "NVIDIA GPU metric from nvidia-smi", ["index", "uuid", "name", "metric"])
 
 
-def update_metrics(status: ControllerStatus, ai: AiStatus, current_target_fan: int | None, nvidia: NvidiaStatus | None = None) -> None:
+def update_metrics(status: ControllerStatus, current_target_fan: int | None, nvidia: NvidiaStatus | None = None, rpc: RpcStatus | None = None) -> None:
     controller_up.set(1 if status.ok else 0)
     if current_target_fan is not None:
         target_fan.set(current_target_fan)
@@ -91,11 +90,11 @@ def update_metrics(status: ControllerStatus, ai: AiStatus, current_target_fan: i
         watchdog_metric.labels("mode").set(status.watchdog_mode)
     if status.watchdog_resets is not None:
         watchdog_metric.labels("resets").set(status.watchdog_resets)
-    source = "llamacpp"
-    ai_tps.labels(source).set(ai.tokens_per_second or 0)
-    ai_tps_available.labels(source).set(1 if ai.tokens_per_second_available else 0)
-    ai_available_models.labels(source).set(ai.available_models)
-    ai_models.labels(source).set(ai.running_models)
+    if rpc is not None:
+        rpc_up.set(rpc.up)
+        rpc_total.set(rpc.total)
+        for backend in rpc.backends:
+            rpc_backend_up.labels(backend.name, str(backend.gpu), backend.target).set(1 if backend.ok else 0)
     if nvidia is not None:
         nvidia_up.set(1 if nvidia.ok else 0)
         for gpu in nvidia.gpus:

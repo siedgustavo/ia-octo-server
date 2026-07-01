@@ -10,7 +10,7 @@ Octofan AI Server is a small container stack around the original Octominer USB c
 - `prometheus`: scrapes `octofan-controller:8000/metrics`.
 - `node-exporter`: exposes host CPU, memory, disk, filesystem and network metrics. It runs with `network_mode: host` so network counters come from the host namespace instead of the exporter container.
 - `grafana`: loads the Prometheus datasource and the Octofan dashboard set.
-- `llama-server-*`: OpenAI-compatible llama.cpp model servers, each pinned to one GPU.
+- `llamacpp-rpc-gpu*`: llama.cpp RPC GPU backends, each pinned to one GPU.
 
 ## Data Flow
 
@@ -23,7 +23,7 @@ Octofan AI Server is a small container stack around the original Octominer USB c
 7. Prometheus scrapes the controller and node exporter metrics.
 8. Grafana visualizes overview, PSU, environment, cooling, GPU and host/network dashboards.
 9. The OLED loop renders an 8-line, 20-character layout through `fan_controller_cli -o`.
-10. The LED loop maps AI backend health and NVIDIA activity to front-panel LEDs through `fan_controller_cli -l`.
+10. The LED loop maps RPC backend health and NVIDIA activity to front-panel LEDs through `fan_controller_cli -l`.
 11. The watchdog loop runs configured checks and feeds the watchdog with `fan_controller_cli -s` only when healthy.
 
 ## Hardware Interface
@@ -44,6 +44,6 @@ Supported controller surfaces include:
 
 ## Network Model
 
-The compose stack uses the Docker network `octofan-ai` by default. This gives the controller stable internal names for the llama.cpp servers at `http://llama-server-qwen3coder:8080`, `http://llama-server-qwen36-uncensored:8080` and `http://llama-server-llama31-pro:8080`.
+The compose stack uses the Docker network `octofan-ai` by default. This gives the controller stable internal names for RPC health checks: `llamacpp-rpc-gpu0:5000` through `llamacpp-rpc-gpu3:5003`.
 
-Production model APIs are exposed on host ports `8080` through `8082`; `8083` is reserved for the optional playground profile.
+Production RPC backends are exposed from `octoserver.core.sied.ar` on host ports `5000` through `5003`. Model APIs run separately on `aiworker.core.sied.ar`.
