@@ -75,6 +75,13 @@ stop_existing_docker_stack() {
   fi
 }
 
+disable_firewall_for_poc() {
+  if systemctl list-unit-files firewalld.service >/dev/null 2>&1; then
+    echo "Disabling firewalld for RPC POC."
+    systemctl disable --now firewalld || true
+  fi
+}
+
 install_octofan_safety_service() {
   if [[ ! -x "${FAN_CLI}" ]]; then
     echo "Fan CLI not found at ${FAN_CLI}; skipping native Octofan safety service." >&2
@@ -242,6 +249,7 @@ fi
 hostnamectl set-hostname "${TARGET_HOSTNAME}"
 force_fans_low
 stop_existing_docker_stack
+disable_firewall_for_poc
 install_octofan_safety_service
 install_build_deps
 install_cuda_if_needed

@@ -11,7 +11,7 @@ Esta prueba separa el host de modelos del host GPU usando el backend RPC de
 - API OpenAI-compatible: `http://172.16.1.40:8080/v1`.
 
 El RPC de `llama.cpp` es experimental e inseguro para redes abiertas. En este
-POC no se configura firewall por decision explicita.
+POC el script del Nodo 2 desactiva `firewalld` por decision explicita.
 
 ## Nodo 2: GPU bridge
 
@@ -19,6 +19,7 @@ El script corre `rpc-server` nativo por systemd y detiene Docker para liberar
 recursos. Antes de apagar el stack Octofan intenta fijar los ventiladores en
 PWM 26 con el CLI nativo. Luego instala `octofan-poc-safety.service`, un loop
 nativo temporal que alimenta el watchdog y reaplica PWM 26 cada 30 segundos.
+Tambien desactiva `firewalld` para dejar accesibles los puertos RPC.
 
 ```bash
 scp -r poc/llamacpp-rpc/node2 root@172.16.1.39:/root/llamacpp-rpc-node2
