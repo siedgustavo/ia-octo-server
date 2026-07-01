@@ -90,7 +90,13 @@ It also keeps the last used model loaded by default:
 OLLAMA_KEEP_ALIVE: "-1"
 ```
 
-Set `OLLAMA_CONTEXT_LENGTH` or `OLLAMA_KEEP_ALIVE` in the shell or `.env` before `docker compose up` to override those defaults.
+It also keeps Ollama in pack scheduling mode:
+
+```yaml
+OLLAMA_SCHED_SPREAD: "false"
+```
+
+With that setting, Ollama tries to load each model on the fewest GPUs possible and only splits it when the model does not fit on one GPU. Set `OLLAMA_CONTEXT_LENGTH`, `OLLAMA_KEEP_ALIVE` or `OLLAMA_SCHED_SPREAD` in the shell or `.env` before `docker compose up` to override those defaults.
 
 Ollama token throughput is not available from `/api/tags` or `/api/ps`. The controller keeps `octofan_ai_tokens_per_second_available` at `0` unless the application that calls Ollama exports request-level token telemetry through another integration.
 
