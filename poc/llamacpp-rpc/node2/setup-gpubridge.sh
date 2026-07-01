@@ -71,7 +71,7 @@ stop_existing_docker_stack() {
 
   if systemctl list-unit-files docker.service >/dev/null 2>&1; then
     echo "Disabling Docker temporarily for RPC POC."
-    systemctl disable --now docker || true
+    systemctl disable --now docker.service docker.socket || true
   fi
 }
 
