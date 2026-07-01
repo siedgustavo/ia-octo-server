@@ -69,14 +69,15 @@ class RpcBackendConfig(BaseModel):
     name: str
     gpu: int = Field(ge=0)
     target: str
+    container: str | None = None
 
 
 def _default_rpc_backends() -> list[RpcBackendConfig]:
     return [
-        RpcBackendConfig(name="gpu0", gpu=0, target="llamacpp-rpc-gpu0:5000"),
-        RpcBackendConfig(name="gpu1", gpu=1, target="llamacpp-rpc-gpu1:5001"),
-        RpcBackendConfig(name="gpu2", gpu=2, target="llamacpp-rpc-gpu2:5002"),
-        RpcBackendConfig(name="gpu3", gpu=3, target="llamacpp-rpc-gpu3:5003"),
+        RpcBackendConfig(name="gpu0", gpu=0, target="llamacpp-rpc-gpu0:5000", container="octofan-llamacpp-rpc-gpu0"),
+        RpcBackendConfig(name="gpu1", gpu=1, target="llamacpp-rpc-gpu1:5001", container="octofan-llamacpp-rpc-gpu1"),
+        RpcBackendConfig(name="gpu2", gpu=2, target="llamacpp-rpc-gpu2:5002", container="octofan-llamacpp-rpc-gpu2"),
+        RpcBackendConfig(name="gpu3", gpu=3, target="llamacpp-rpc-gpu3:5003", container="octofan-llamacpp-rpc-gpu3"),
     ]
 
 

@@ -52,12 +52,16 @@ rpc:
   - name: gpu0
     gpu: 0
     target: llamacpp-rpc-gpu0:5000
+    container: octofan-llamacpp-rpc-gpu0
   - name: gpu1
     gpu: 1
     target: llamacpp-rpc-gpu1:5001
+    container: octofan-llamacpp-rpc-gpu1
   - name: gpu2
     gpu: 2
     target: llamacpp-rpc-gpu2:5002
+    container: octofan-llamacpp-rpc-gpu2
   - name: gpu3
     gpu: 3
     target: llamacpp-rpc-gpu3:5003
+    container: octofan-llamacpp-rpc-gpu3
