@@ -3,17 +3,19 @@ services:
     image: ${LLAMACPP_SERVER_IMAGE:-evilfreelancer/llama.cpp-rpc:latest}
     container_name: aiworker-llama-qwen3coder
     restart: unless-stopped
-    entrypoint: ["/bin/bash", "-lc"]
-    command: >
-      cd /usr/lib/x86_64-linux-gnu;
-      for lib in libllama libggml libggml-base libggml-cpu libggml-rpc libmtmd; do
-        [ -e "$$lib.so.0" ] || ln -s "$$lib.so" "$$lib.so.0";
-      done;
-      exec /app/llama-server --host 0.0.0.0 --port 8080
-      -m ${QWEN3CODER_GGUF:-/models/qwen3coder-35b.gguf}
-      -ngl ${QWEN3CODER_GPU_LAYERS:-99}
-      --ctx-size ${QWEN3CODER_CTX_SIZE:-8192}
-      --rpc ${QWEN3CODER_RPC_BACKENDS:-octoserver.core.sied.ar:5000}
+    entrypoint: ["/bin/bash"]
+    command:
+      - -lc
+      - >
+        cd /usr/lib/x86_64-linux-gnu;
+        for lib in libllama libggml libggml-base libggml-cpu libggml-rpc libmtmd; do
+          [ -e "$$lib.so.0" ] || ln -s "$$lib.so" "$$lib.so.0";
+        done;
+        exec /app/llama-server --host 0.0.0.0 --port 8080
+        -m ${QWEN3CODER_GGUF:-/models/qwen3coder-35b.gguf}
+        -ngl ${QWEN3CODER_GPU_LAYERS:-99}
+        --ctx-size ${QWEN3CODER_CTX_SIZE:-8192}
+        --rpc ${QWEN3CODER_RPC_BACKENDS:-octoserver.core.sied.ar:5000}
     volumes:
       - ${MODELS_DIR:-/opt/llamacpp-rpc/models}:/models:ro
     ports:
@@ -23,17 +25,19 @@ services:
     image: ${LLAMACPP_SERVER_IMAGE:-evilfreelancer/llama.cpp-rpc:latest}
     container_name: aiworker-llama-qwen36-uncensored
     restart: unless-stopped
-    entrypoint: ["/bin/bash", "-lc"]
-    command: >
-      cd /usr/lib/x86_64-linux-gnu;
-      for lib in libllama libggml libggml-base libggml-cpu libggml-rpc libmtmd; do
-        [ -e "$$lib.so.0" ] || ln -s "$$lib.so" "$$lib.so.0";
-      done;
-      exec /app/llama-server --host 0.0.0.0 --port 8080
-      -m ${QWEN36_UNCENSORED_GGUF:-/models/qwen3.6-uncensored.gguf}
-      -ngl ${QWEN36_UNCENSORED_GPU_LAYERS:-99}
-      --ctx-size ${QWEN36_UNCENSORED_CTX_SIZE:-8192}
-      --rpc ${QWEN36_UNCENSORED_RPC_BACKENDS:-octoserver.core.sied.ar:5001}
+    entrypoint: ["/bin/bash"]
+    command:
+      - -lc
+      - >
+        cd /usr/lib/x86_64-linux-gnu;
+        for lib in libllama libggml libggml-base libggml-cpu libggml-rpc libmtmd; do
+          [ -e "$$lib.so.0" ] || ln -s "$$lib.so" "$$lib.so.0";
+        done;
+        exec /app/llama-server --host 0.0.0.0 --port 8080
+        -m ${QWEN36_UNCENSORED_GGUF:-/models/qwen3.6-uncensored.gguf}
+        -ngl ${QWEN36_UNCENSORED_GPU_LAYERS:-99}
+        --ctx-size ${QWEN36_UNCENSORED_CTX_SIZE:-8192}
+        --rpc ${QWEN36_UNCENSORED_RPC_BACKENDS:-octoserver.core.sied.ar:5001}
     volumes:
       - ${MODELS_DIR:-/opt/llamacpp-rpc/models}:/models:ro
     ports:
@@ -43,17 +47,19 @@ services:
     image: ${LLAMACPP_SERVER_IMAGE:-evilfreelancer/llama.cpp-rpc:latest}
     container_name: aiworker-llama-llama31-pro
     restart: unless-stopped
-    entrypoint: ["/bin/bash", "-lc"]
-    command: >
-      cd /usr/lib/x86_64-linux-gnu;
-      for lib in libllama libggml libggml-base libggml-cpu libggml-rpc libmtmd; do
-        [ -e "$$lib.so.0" ] || ln -s "$$lib.so" "$$lib.so.0";
-      done;
-      exec /app/llama-server --host 0.0.0.0 --port 8080
-      -m ${LLAMA31_PRO_GGUF:-/models/llama3.1-pro.gguf}
-      -ngl ${LLAMA31_PRO_GPU_LAYERS:-99}
-      --ctx-size ${LLAMA31_PRO_CTX_SIZE:-8192}
-      --rpc ${LLAMA31_PRO_RPC_BACKENDS:-octoserver.core.sied.ar:5002}
+    entrypoint: ["/bin/bash"]
+    command:
+      - -lc
+      - >
+        cd /usr/lib/x86_64-linux-gnu;
+        for lib in libllama libggml libggml-base libggml-cpu libggml-rpc libmtmd; do
+          [ -e "$$lib.so.0" ] || ln -s "$$lib.so" "$$lib.so.0";
+        done;
+        exec /app/llama-server --host 0.0.0.0 --port 8080
+        -m ${LLAMA31_PRO_GGUF:-/models/llama3.1-pro.gguf}
+        -ngl ${LLAMA31_PRO_GPU_LAYERS:-99}
+        --ctx-size ${LLAMA31_PRO_CTX_SIZE:-8192}
+        --rpc ${LLAMA31_PRO_RPC_BACKENDS:-octoserver.core.sied.ar:5002}
     volumes:
       - ${MODELS_DIR:-/opt/llamacpp-rpc/models}:/models:ro
     ports:
@@ -64,17 +70,19 @@ services:
     container_name: aiworker-llama-playground
     restart: unless-stopped
     profiles: ["playground"]
-    entrypoint: ["/bin/bash", "-lc"]
-    command: >
-      cd /usr/lib/x86_64-linux-gnu;
-      for lib in libllama libggml libggml-base libggml-cpu libggml-rpc libmtmd; do
-        [ -e "$$lib.so.0" ] || ln -s "$$lib.so" "$$lib.so.0";
-      done;
-      exec /app/llama-server --host 0.0.0.0 --port 8080
-      -m ${PLAYGROUND_GGUF:-/models/playground.gguf}
-      -ngl ${PLAYGROUND_GPU_LAYERS:-99}
-      --ctx-size ${PLAYGROUND_CTX_SIZE:-8192}
-      --rpc ${PLAYGROUND_RPC_BACKENDS:-octoserver.core.sied.ar:5003}
+    entrypoint: ["/bin/bash"]
+    command:
+      - -lc
+      - >
+        cd /usr/lib/x86_64-linux-gnu;
+        for lib in libllama libggml libggml-base libggml-cpu libggml-rpc libmtmd; do
+          [ -e "$$lib.so.0" ] || ln -s "$$lib.so" "$$lib.so.0";
+        done;
+        exec /app/llama-server --host 0.0.0.0 --port 8080
+        -m ${PLAYGROUND_GGUF:-/models/playground.gguf}
+        -ngl ${PLAYGROUND_GPU_LAYERS:-99}
+        --ctx-size ${PLAYGROUND_CTX_SIZE:-8192}
+        --rpc ${PLAYGROUND_RPC_BACKENDS:-octoserver.core.sied.ar:5003}
     volumes:
       - ${MODELS_DIR:-/opt/llamacpp-rpc/models}:/models:ro
     ports:
