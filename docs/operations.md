@@ -100,7 +100,7 @@ curl -fsS http://localhost:8000/metrics | grep octofan_rpc
 
 The model APIs live on `aiworker.core.sied.ar` and are managed by `poc/llamacpp-rpc/node1/docker-compose.yml`.
 
-Each RPC backend is pinned to one NVIDIA device with Compose `device_ids`. Set `LLAMACPP_RPC_GPU*_DEVICE`, `LLAMACPP_RPC_GPU*_PORT` or `LLAMACPP_RPC_GPU*_MEM` in the shell or `.env` before `docker compose up` to override mappings.
+Each RPC backend is pinned to one NVIDIA device with Compose `device_ids`. Set `LLAMACPP_RPC_GPU*_DEVICE` or `LLAMACPP_RPC_GPU*_PORT` in the shell or `.env` before `docker compose up` to override mappings.
 
 ## Front LEDs
 

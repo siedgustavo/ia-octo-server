@@ -143,13 +143,12 @@ rpc:
     target: llamacpp-rpc-gpu3:5003
 ```
 
-RPC container memory and GPU mapping are configurable through environment variables:
+RPC container GPU and port mapping are configurable through environment variables:
 
 ```env
 LLAMACPP_RPC_IMAGE=evilfreelancer/llama.cpp-rpc:latest-cuda
 LLAMACPP_RPC_GPU0_DEVICE=0
 LLAMACPP_RPC_GPU0_PORT=5000
-LLAMACPP_RPC_GPU0_MEM=22000
 ```
 
 Each RPC service reserves one NVIDIA device with Docker Compose `device_ids`, so NVIDIA Container Toolkit must be available on the host.
