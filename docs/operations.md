@@ -11,7 +11,7 @@ Open:
 - Controller: `http://localhost:8000`
 - Prometheus: `http://localhost:9090`
 - Grafana: `http://localhost:3000`
-- vLLM: `http://localhost:8001/v1`
+- Ollama: `http://localhost:11434`
 
 Grafana login is `admin` / `octofan`.
 
@@ -26,7 +26,7 @@ OCTOFAN_MOCK=1 docker compose up --build -d
 If ports are busy:
 
 ```bash
-OCTOFAN_MOCK=1 OCTOFAN_CONTROLLER_PORT=18000 PROMETHEUS_PORT=19090 GRAFANA_PORT=13000 VLLM_PORT=18001 docker compose up --build -d
+OCTOFAN_MOCK=1 OCTOFAN_CONTROLLER_PORT=18000 PROMETHEUS_PORT=19090 GRAFANA_PORT=13000 docker compose up --build -d
 ```
 
 ## Stop
@@ -49,16 +49,15 @@ or for one command:
 sg docker -c 'docker compose ps'
 ```
 
-## Connect vLLM
+## Connect Ollama
 
-The compose file includes a vLLM OpenAI-compatible server. To enable controller polling:
+The compose file includes an Ollama service. To enable controller polling:
 
 ```yaml
-ai:
+ollama:
   enabled: true
-  provider: vllm
-  base_url: http://vllm:8000
-  timeout_seconds: 5.0
+  base_url: http://ollama:11434
+  timeout_seconds: 2.0
 ```
 
 Restart the controller:
@@ -67,35 +66,33 @@ Restart the controller:
 docker compose restart octofan-controller
 ```
 
-If vLLM runs outside this compose project, connect that container to the stack network and set `ai.base_url` to its Docker-network URL.
-
-Check vLLM:
+If Ollama runs outside this compose project, connect that container to the stack network:
 
 ```bash
-curl -fsS http://localhost:8001/v1/models
-curl -fsS http://localhost:8001/metrics | grep 'vllm:num_requests_running' | head
+docker network connect octofan-ai ollama
 ```
 
-The vLLM service defaults to:
-
-```text
-VLLM_MODEL=Qwen/Qwen3-Coder-30B-A3B-Instruct-FP8
-VLLM_SERVED_MODEL_NAME=qwen3-coder:30b
-VLLM_TENSOR_PARALLEL_SIZE=2
-VLLM_MAX_MODEL_LEN=32768
-VLLM_CUDA_DEVICE_ORDER=PCI_BUS_ID
-VLLM_NVIDIA_VISIBLE_DEVICES=0,1
-```
-
-Override these in the shell or `.env` before `docker compose up`. Set `HF_TOKEN` when the selected Hugging Face model requires authentication.
-
-Legacy `ollama:` config is accepted and migrated in memory as provider `ollama`, but new deployments should use `ai:`.
-
-When migrating an existing stack from the old `ollama` service, recreate with orphans removed so the old Ollama container does not keep GPUs allocated:
+Check Ollama:
 
 ```bash
-docker compose up --build -d --remove-orphans
+curl -fsS http://localhost:11434/api/tags
 ```
+
+The Ollama container defaults to a 64k context window through:
+
+```yaml
+OLLAMA_CONTEXT_LENGTH: "64000"
+```
+
+It also keeps the last used model loaded by default:
+
+```yaml
+OLLAMA_KEEP_ALIVE: "-1"
+```
+
+Set `OLLAMA_CONTEXT_LENGTH` or `OLLAMA_KEEP_ALIVE` in the shell or `.env` before `docker compose up` to override those defaults.
+
+Ollama token throughput is not available from `/api/tags` or `/api/ps`. The controller keeps `octofan_ai_tokens_per_second_available` at `0` unless the application that calls Ollama exports request-level token telemetry through another integration.
 
 ## Front LEDs
 
@@ -104,7 +101,7 @@ The controller can drive the Octofan front LEDs through `fan_controller_cli -l`.
 Default mapping:
 
 - LED `0`: orange warning/error.
-- LED `1`: blue AI runtime online.
+- LED `1`: blue Ollama online.
 - LED `2`: white GPU activity.
 
 Enable LED control with:
@@ -117,7 +114,7 @@ leds:
   gpu_activity_power_watts: 40.0
 ```
 
-The white activity LED uses NVIDIA utilization or power as an external signal. The controller does not intercept vLLM requests.
+The white activity LED uses NVIDIA utilization or power as an external signal. The controller does not intercept Ollama requests.
 
 ## Watchdog
 
@@ -171,7 +168,7 @@ fans:
   gpu_idle_max_intake_temp_c: 35.0
 ```
 
-The controller only enters idle mode when `nvidia-smi` is healthy, all GPUs are below the configured utilization, power and temperature thresholds, the AI runtime is not generating, and intake temperature is below the configured limit. Manual and automatic targets are clamped to `min_percent..max_percent`, so requests below the known active range do not produce misleading PWM targets. Any load, hotter temperature, missing GPU reading or controller read failure returns to the normal fan curve or fail-safe behavior.
+The controller only enters idle mode when `nvidia-smi` is healthy, all GPUs are below the configured utilization, power and temperature thresholds, Ollama is not generating, and intake temperature is below the configured limit. Manual and automatic targets are clamped to `min_percent..max_percent`, so requests below the known active range do not produce misleading PWM targets. Any load, hotter temperature, missing GPU reading or controller read failure returns to the normal fan curve or fail-safe behavior.
 
 ## OLED Display
 
@@ -203,7 +200,7 @@ The container must be able to access USB. The compose file uses:
 - `privileged: true`
 - `/dev/bus/usb:/dev/bus/usb`
 
-The controller and vLLM services also request `gpus: all` so the NVIDIA runtime can expose `nvidia-smi` and CUDA devices.
+The controller and Ollama services also request `gpus: all` so the NVIDIA runtime can expose `nvidia-smi` and CUDA devices.
 
 `node-exporter` runs in the host network namespace. Without this, Linux network metrics would show the exporter container interface instead of the host NIC.
 

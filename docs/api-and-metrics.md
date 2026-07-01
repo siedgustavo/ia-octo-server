@@ -4,7 +4,7 @@
 
 ### `GET /api/status`
 
-Returns current controller status, fan data, PSU data, BME280 readings, watchdog result, AI runtime status and recent events. The response includes `ai`; `ollama` remains as a compatibility alias for older clients.
+Returns current controller status, fan data, PSU data, BME280 readings, watchdog result, Ollama status and recent events.
 
 When GPU idle stop is enabled, the response also includes `gpu_idle_seconds` and `gpu_idle_stop_active`.
 
@@ -100,12 +100,10 @@ Common NVIDIA metric values include `temperature_gpu_c`, `temperature_memory_c`,
 
 AI:
 
-- `octofan_ai_tokens_per_second{source="vllm"}`
-- `octofan_ai_tokens_per_second_available{source="vllm"}`
-- `octofan_ai_available_models{source="vllm"}`
-- `octofan_ai_running_models{source="vllm"}`
-
-When `ai.source_label` is set, the configured label replaces `vllm`. Legacy Ollama configs use `source="ollama"`.
+- `octofan_ai_tokens_per_second{source="ollama"}`
+- `octofan_ai_tokens_per_second_available{source="ollama"}`
+- `octofan_ai_available_models{source="ollama"}`
+- `octofan_ai_running_models{source="ollama"}`
 
 Host and network:
 
@@ -124,6 +122,4 @@ Grafana provisions these dashboards under the `Octofan` folder:
 
 ## Notes
 
-vLLM model inventory is read from `/v1/models`. Running/waiting request state and token counters are read from vLLM's `/metrics` endpoint. The controller exposes a compact `octofan_ai_*` view, while Prometheus also scrapes native `vllm:*` metrics directly.
-
-Legacy Ollama mode still reads `/api/tags` and `/api/ps`; token throughput remains unavailable from those polling APIs.
+Ollama model inventory is read from `/api/tags`; loaded/running models are read from `/api/ps`. Ollama does not expose a native Prometheus endpoint or live token counters through those polling APIs, so `octofan_ai_tokens_per_second_available` remains `0` unless the application that calls Ollama exports request-level token telemetry separately.

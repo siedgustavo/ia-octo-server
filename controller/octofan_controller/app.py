@@ -17,7 +17,7 @@ from .control import calculate_target_fan_percent, clamp_active_fan_percent
 from .display import render_display, resolve_display_title
 from .metrics import metrics_payload, update_metrics
 from .nvidia import NvidiaSmi, NvidiaStatus
-from .ai_runtime import AIRuntimeClient, AIStatus
+from .ollama import OllamaClient, OllamaStatus
 from .parser import ControllerStatus
 from .watchdog import run_watchdog_checks
 
@@ -44,12 +44,12 @@ async def lifespan(_app: FastAPI):
 
 app = FastAPI(title="Octofan AI Controller", version="0.1.0", lifespan=lifespan)
 cli = OctofanCli(BIN_PATH)
-ai_client = AIRuntimeClient()
+ollama_client = OllamaClient()
 nvidia_smi = NvidiaSmi()
 state: dict[str, Any] = {
     "config": load_config(CONFIG_PATH),
     "status": ControllerStatus(ok=False, error="not polled yet"),
-    "ai": AIStatus(),
+    "ollama": OllamaStatus(),
     "nvidia": NvidiaStatus(ok=False, gpus=[], error="not polled yet"),
     "target_fan": None,
     "applied_fan_target": None,
@@ -75,14 +75,14 @@ async def poll_loop() -> None:
     while True:
         cfg: AppConfig = state["config"]
         status = cli.status()
-        ai = await ai_client.status(cfg.ai)
+        ollama = await ollama_client.status(cfg.ollama)
         nvidia = nvidia_smi.status()
-        gpu_idle_stop_active = _gpu_idle_stop_active(cfg, status, nvidia, ai)
+        gpu_idle_stop_active = _gpu_idle_stop_active(cfg, status, nvidia, ollama)
         target = calculate_target_fan_percent(
             status,
             cfg.fans,
             state["target_fan"],
-            ai.generating,
+            ollama.generating,
             gpu_idle_stop_active,
         )
         fan_ids = sorted(status.fans.keys()) if status.ok and status.fans else list(range(12))
@@ -100,12 +100,12 @@ async def poll_loop() -> None:
                 _event(f"failed to set fans: {exc}")
         state.update(
             status=status,
-            ai=ai,
+            ollama=ollama,
             nvidia=nvidia,
             target_fan=target,
             gpu_idle_stop_active=gpu_idle_stop_active,
         )
-        update_metrics(status, ai, target, nvidia)
+        update_metrics(status, ollama, target, nvidia)
         await asyncio.sleep(cfg.fans.poll_interval_seconds)
 
 
@@ -153,7 +153,7 @@ async def led_loop() -> None:
         cfg: AppConfig = state["config"]
         try:
             if cfg.leds.enabled:
-                desired = _desired_led_modes(cfg, state["status"], state["ai"], state["nvidia"])
+                desired = _desired_led_modes(cfg, state["status"], state["ollama"], state["nvidia"])
                 _apply_led_modes(desired)
         except Exception as exc:
             _event(f"failed to update leds: {exc}")
@@ -248,7 +248,7 @@ async def api_calibrate_fans() -> dict[str, Any]:
 async def _write_display(profile: str | None, force_eeprom: bool = False) -> list[str]:
     cfg: AppConfig = state["config"]
     display_cfg = cfg.display.model_copy(update={"profile": profile or cfg.display.profile})
-    lines = render_display(state["status"], display_cfg, state["target_fan"], state["ai"])
+    lines = render_display(state["status"], display_cfg, state["target_fan"], state["ollama"])
     try:
         signature = (resolve_display_title(display_cfg), display_cfg.profile)
         title_written = False
@@ -277,7 +277,6 @@ def serialize_status() -> dict[str, Any]:
     status: ControllerStatus = state["status"]
     watchdog = state["watchdog"]
     gpu_idle_since = state["gpu_idle_since"]
-    ai_status = vars(state["ai"])
     return {
         "controller": {
             "ok": status.ok,
@@ -297,8 +296,7 @@ def serialize_status() -> dict[str, Any]:
         "psus": {k: vars(v) for k, v in status.psus.items()},
         "bme280": {k: vars(v) for k, v in status.bme280.items()},
         "watchdog": None if watchdog is None else vars(watchdog),
-        "ai": ai_status,
-        "ollama": ai_status,
+        "ollama": vars(state["ollama"]),
         "nvidia": state["nvidia"].to_dict(),
         "leds": {
             "enabled": state["config"].leds.enabled,
@@ -319,17 +317,17 @@ def _event(message: str) -> None:
 def _desired_led_modes(
     cfg: AppConfig,
     status: ControllerStatus,
-    ai: AIStatus,
+    ollama: OllamaStatus,
     nvidia: NvidiaStatus,
 ) -> dict[int, int]:
     leds = cfg.leds
     controlled_ids = {leds.warning_led_id, leds.online_led_id, leds.activity_led_id}
     desired = {led_id: leds.off_mode for led_id in controlled_ids}
-    if ai.ok:
+    if ollama.ok:
         desired[leds.online_led_id] = leds.on_mode
     if _led_activity_active(cfg, nvidia):
         desired[leds.activity_led_id] = leds.fast_blink_mode
-    if not status.ok or (cfg.ai.enabled and not ai.ok):
+    if not status.ok or (cfg.ollama.enabled and not ollama.ok):
         desired[leds.warning_led_id] = leds.slow_blink_mode
     return desired
 
@@ -364,11 +362,11 @@ def _gpu_idle_stop_active(
     cfg: AppConfig,
     status: ControllerStatus,
     nvidia: NvidiaStatus,
-    ai: AIStatus,
+    ollama: OllamaStatus,
 ) -> bool:
     fans = cfg.fans
     now = time.monotonic()
-    if not _gpu_idle_stop_candidate(cfg, status, nvidia, ai):
+    if not _gpu_idle_stop_candidate(cfg, status, nvidia, ollama):
         state["gpu_idle_since"] = None
         return False
 
@@ -381,7 +379,7 @@ def _gpu_idle_stop_candidate(
     cfg: AppConfig,
     status: ControllerStatus,
     nvidia: NvidiaStatus,
-    ai: AIStatus,
+    ollama: OllamaStatus,
 ) -> bool:
     fans = cfg.fans
     intake_temp = status.intake_temp_c
@@ -391,7 +389,7 @@ def _gpu_idle_stop_candidate(
         or not status.ok
         or intake_temp is None
         or intake_temp > fans.gpu_idle_max_intake_temp_c
-        or ai.generating
+        or ollama.generating
         or not nvidia.ok
         or not nvidia.gpus
     ):
@@ -469,15 +467,13 @@ async function refresh(){
   maxFan.value=cfg.fans.max_percent; manualFan.value=cfg.fans.manual_percent
   displayProfile.value=cfg.display.profile; watchdogEnabled.checked=cfg.watchdog.enabled
   watchdogTarget.value=(cfg.watchdog.checks[0]||{target:'host.docker.internal:22'}).target
-  const ai=st.ai||st.ollama||{}
   metrics.innerHTML=[
     ['Controller', st.controller.ok?'OK':'DOWN'],
     ['Intake', st.controller.intake_temp_c+' C'],
     ['Exhaust', st.controller.exhaust_temp_c+' C'],
     ['Target fan', st.target_fan_percent+' %'],
     ['Power', st.controller.power_ac_total_w+' W'],
-    ['AI runtime', (ai.source||ai.provider||'ai')+' '+(ai.ok?'OK':'DOWN')],
-    ['AI models', (ai.available_models||0)+' served / '+(ai.running_models||0)+' loaded'],
+    ['Ollama', st.ollama.available_models+' installed / '+st.ollama.running_models+' running'],
     ['AI activity', (st.nvidia.gpus||[]).some(g=>g.utilization_gpu_percent>=cfg.leds.gpu_activity_utilization_percent || g.power_draw_watts>=cfg.leds.gpu_activity_power_watts) ? 'GPU active' : 'idle'],
     ['LEDs', st.leds.enabled ? JSON.stringify(st.leds.modes) : 'disabled'],
     ['GPUs', (st.nvidia.gpus||[]).length],

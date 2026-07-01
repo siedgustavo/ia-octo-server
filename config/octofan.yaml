@@ -46,11 +46,7 @@ leds:
   slow_blink_mode: 3
   gpu_activity_utilization_percent: 15.0
   gpu_activity_power_watts: 40.0
-ai:
+ollama:
   enabled: true
-  provider: vllm
-  base_url: http://vllm:8000
-  timeout_seconds: 5.0
-  api_key: null
-  metrics_path: /metrics
-  source_label: null
+  base_url: http://ollama:11434
+  timeout_seconds: 2.0

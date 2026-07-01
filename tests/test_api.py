@@ -8,15 +8,13 @@ from octofan_controller.app import ManualFanRequest, _desired_led_modes, _gpu_id
 from octofan_controller.config import AppConfig
 from octofan_controller.metrics import metrics_payload
 from octofan_controller.nvidia import GpuStatus, NvidiaStatus
-from octofan_controller.ai_runtime import AIStatus
+from octofan_controller.ollama import OllamaStatus
 from octofan_controller.parser import BmeStatus, ControllerStatus
 
 
 def test_status_and_metrics():
     status = serialize_status()
     assert "controller" in status
-    assert "ai" in status
-    assert status["ollama"] == status["ai"]
     metrics = metrics_payload().decode()
     assert "octofan_controller_up" in metrics
     assert "octofan_nvidia_smi_up" in metrics
@@ -59,7 +57,7 @@ def test_gpu_idle_stop_candidate_requires_cool_idle_gpus():
         ],
     )
 
-    assert _gpu_idle_stop_candidate(cfg, status, nvidia, AIStatus(generating=False))
+    assert _gpu_idle_stop_candidate(cfg, status, nvidia, OllamaStatus(generating=False))
 
 
 def test_gpu_idle_stop_candidate_rejects_gpu_load():
@@ -83,7 +81,7 @@ def test_gpu_idle_stop_candidate_rejects_gpu_load():
         ],
     )
 
-    assert not _gpu_idle_stop_candidate(cfg, status, nvidia, AIStatus(generating=False))
+    assert not _gpu_idle_stop_candidate(cfg, status, nvidia, OllamaStatus(generating=False))
 
 
 def test_led_modes_show_online_and_gpu_activity():
@@ -104,7 +102,7 @@ def test_led_modes_show_online_and_gpu_activity():
         ],
     )
 
-    modes = _desired_led_modes(cfg, status, AIStatus(ok=True), nvidia)
+    modes = _desired_led_modes(cfg, status, OllamaStatus(ok=True), nvidia)
 
     assert modes == {
         cfg.leds.warning_led_id: cfg.leds.off_mode,
@@ -113,14 +111,14 @@ def test_led_modes_show_online_and_gpu_activity():
     }
 
 
-def test_led_modes_warn_when_ai_runtime_is_down():
+def test_led_modes_warn_when_ollama_is_down():
     cfg = AppConfig()
     cfg.leds.enabled = True
-    cfg.ai.enabled = True
+    cfg.ollama.enabled = True
     status = ControllerStatus()
     nvidia = NvidiaStatus(ok=True, gpus=[])
 
-    modes = _desired_led_modes(cfg, status, AIStatus(ok=False), nvidia)
+    modes = _desired_led_modes(cfg, status, OllamaStatus(ok=False), nvidia)
 
     assert modes[cfg.leds.warning_led_id] == cfg.leds.slow_blink_mode
     assert modes[cfg.leds.online_led_id] == cfg.leds.off_mode
