@@ -11,6 +11,8 @@ OCTOFAN_DIR="${OCTOFAN_DIR:-/opt/ia-octo-server}"
 FAN_CLI="${FAN_CLI:-${OCTOFAN_DIR}/reference/octofan-hiveos-originals/fan_controller_cli}"
 FAN_PWM="${FAN_PWM:-26}"
 
+export PATH="/usr/local/cuda/bin:/usr/local/cuda-13.3/bin:/usr/local/cuda-13.2/bin:/usr/local/cuda-13.1/bin:/usr/local/cuda-13.0/bin:${PATH}"
+
 require_root() {
   if [[ "${EUID}" -ne 0 ]]; then
     echo "Run as root." >&2
@@ -133,10 +135,20 @@ clone_or_update_llama_cpp() {
 }
 
 build_rpc_server() {
+  local cuda_compiler="${CUDACXX:-}"
+  if [[ -z "${cuda_compiler}" ]]; then
+    cuda_compiler="$(command -v nvcc || true)"
+  fi
+  if [[ -z "${cuda_compiler}" ]]; then
+    echo "nvcc not found in PATH after CUDA toolkit install." >&2
+    exit 1
+  fi
+
   cmake -S "${LLAMA_DIR}" -B "${BUILD_DIR}" \
     -DGGML_CUDA=ON \
     -DGGML_RPC=ON \
     -DLLAMA_BUILD_TESTS=OFF \
+    -DCMAKE_CUDA_COMPILER="${cuda_compiler}" \
     -DCMAKE_BUILD_TYPE=Release
 
   cmake --build "${BUILD_DIR}" --config Release --target ggml-rpc-server -j"$(nproc)" \
