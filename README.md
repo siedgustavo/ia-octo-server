@@ -151,7 +151,7 @@ LLAMACPP_RPC_GPU0_DEVICE=0
 LLAMACPP_RPC_GPU0_PORT=5000
 ```
 
-Each RPC service reserves one NVIDIA device with Docker Compose `device_ids`, so NVIDIA Container Toolkit must be available on the host.
+Each RPC service runs `/app/rpc-server` directly, bypassing the image entrypoint, and reserves one NVIDIA device with Docker Compose `device_ids`. NVIDIA Container Toolkit must be available on the host.
 
 ## Validation
 

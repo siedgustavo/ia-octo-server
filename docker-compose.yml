@@ -71,10 +71,9 @@ services:
     image: ${LLAMACPP_RPC_IMAGE:-evilfreelancer/llama.cpp-rpc:latest-cuda}
     container_name: octofan-llamacpp-rpc-gpu0
     restart: unless-stopped
+    entrypoint: ["/app/rpc-server"]
+    command: ["--host", "0.0.0.0", "--port", "${LLAMACPP_RPC_GPU0_PORT:-5000}", "--device", "CUDA0"]
     environment:
-      APP_MODE: backend
-      APP_BIND: 0.0.0.0
-      APP_PORT: "${LLAMACPP_RPC_GPU0_PORT:-5000}"
       NVIDIA_VISIBLE_DEVICES: "${LLAMACPP_RPC_GPU0_DEVICE:-0}"
       NVIDIA_DRIVER_CAPABILITIES: compute,utility
     ports:
@@ -91,10 +90,9 @@ services:
     image: ${LLAMACPP_RPC_IMAGE:-evilfreelancer/llama.cpp-rpc:latest-cuda}
     container_name: octofan-llamacpp-rpc-gpu1
     restart: unless-stopped
+    entrypoint: ["/app/rpc-server"]
+    command: ["--host", "0.0.0.0", "--port", "${LLAMACPP_RPC_GPU1_PORT:-5001}", "--device", "CUDA0"]
     environment:
-      APP_MODE: backend
-      APP_BIND: 0.0.0.0
-      APP_PORT: "${LLAMACPP_RPC_GPU1_PORT:-5001}"
       NVIDIA_VISIBLE_DEVICES: "${LLAMACPP_RPC_GPU1_DEVICE:-1}"
       NVIDIA_DRIVER_CAPABILITIES: compute,utility
     ports:
@@ -111,10 +109,9 @@ services:
     image: ${LLAMACPP_RPC_IMAGE:-evilfreelancer/llama.cpp-rpc:latest-cuda}
     container_name: octofan-llamacpp-rpc-gpu2
     restart: unless-stopped
+    entrypoint: ["/app/rpc-server"]
+    command: ["--host", "0.0.0.0", "--port", "${LLAMACPP_RPC_GPU2_PORT:-5002}", "--device", "CUDA0"]
     environment:
-      APP_MODE: backend
-      APP_BIND: 0.0.0.0
-      APP_PORT: "${LLAMACPP_RPC_GPU2_PORT:-5002}"
       NVIDIA_VISIBLE_DEVICES: "${LLAMACPP_RPC_GPU2_DEVICE:-2}"
       NVIDIA_DRIVER_CAPABILITIES: compute,utility
     ports:
@@ -131,10 +128,9 @@ services:
     image: ${LLAMACPP_RPC_IMAGE:-evilfreelancer/llama.cpp-rpc:latest-cuda}
     container_name: octofan-llamacpp-rpc-gpu3
     restart: unless-stopped
+    entrypoint: ["/app/rpc-server"]
+    command: ["--host", "0.0.0.0", "--port", "${LLAMACPP_RPC_GPU3_PORT:-5003}", "--device", "CUDA0"]
     environment:
-      APP_MODE: backend
-      APP_BIND: 0.0.0.0
-      APP_PORT: "${LLAMACPP_RPC_GPU3_PORT:-5003}"
       NVIDIA_VISIBLE_DEVICES: "${LLAMACPP_RPC_GPU3_DEVICE:-3}"
       NVIDIA_DRIVER_CAPABILITIES: compute,utility
     ports:
