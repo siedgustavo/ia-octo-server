@@ -67,9 +67,10 @@ class LedConfig(BaseModel):
     gpu_activity_power_watts: float = Field(default=40.0, ge=0.0, le=1000.0)
 
 
-class OllamaConfig(BaseModel):
+class AiConfig(BaseModel):
     enabled: bool = False
-    base_url: str = "http://host.docker.internal:11434"
+    source: str = "llamacpp"
+    base_url: str = "http://host.docker.internal:8080"
     base_urls: list[str] = Field(default_factory=list)
     timeout_seconds: float = Field(default=2.0, ge=0.2, le=30.0)
 
@@ -79,7 +80,7 @@ class AppConfig(BaseModel):
     watchdog: WatchdogConfig = Field(default_factory=WatchdogConfig)
     display: DisplayConfig = Field(default_factory=DisplayConfig)
     leds: LedConfig = Field(default_factory=LedConfig)
-    ollama: OllamaConfig = Field(default_factory=OllamaConfig)
+    ai: AiConfig = Field(default_factory=AiConfig)
 
 
 def load_config(path: Path) -> AppConfig:

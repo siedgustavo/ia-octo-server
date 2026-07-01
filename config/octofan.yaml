@@ -47,12 +47,12 @@ leds:
   slow_blink_mode: 3
   gpu_activity_utilization_percent: 15.0
   gpu_activity_power_watts: 40.0
-ollama:
+ai:
   enabled: true
-  base_url: http://ollama-gpu0:11434
+  source: llamacpp
+  base_url: http://llama-server-qwen3coder:8080
   base_urls:
-  - http://ollama-gpu0:11434
-  - http://ollama-gpu1:11434
-  - http://ollama-gpu2:11434
-  - http://ollama-gpu3:11434
+  - http://llama-server-qwen3coder:8080
+  - http://llama-server-qwen36-uncensored:8080
+  - http://llama-server-llama31-pro:8080
   timeout_seconds: 2.0
