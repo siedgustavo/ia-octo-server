@@ -35,6 +35,17 @@ OCTOFAN_MOCK=1 OCTOFAN_CONTROLLER_PORT=18000 PROMETHEUS_PORT=19090 GRAFANA_PORT=
 docker compose down
 ```
 
+## Monitoring Retention
+
+Prometheus keeps local history in the `prometheus-data` Docker volume. The compose file limits retention by both time and size; whichever limit is reached first wins:
+
+```env
+PROMETHEUS_RETENTION_TIME=15d
+PROMETHEUS_RETENTION_SIZE=2GB
+```
+
+Set these in `.env` before starting the stack if you need a different history window or disk cap.
+
 ## Docker Group Without Reboot
 
 If Docker permissions were just added and the shell has not been restarted:
