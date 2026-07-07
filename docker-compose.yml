@@ -97,11 +97,6 @@ services:
       - ${QWEN3CODER_BATCH_SIZE:-512}
       - --ubatch-size
       - ${QWEN3CODER_UBATCH_SIZE:-128}
-      - --cache-ram
-      - "0"
-      - --ctx-checkpoints
-      - "0"
-      - --no-cache-prompt
       - --no-mmap
     volumes:
       - ${MODELS_DIR:-/opt/llamacpp/models}:/models:ro
@@ -140,11 +135,6 @@ services:
       - ${QWEN36_UNCENSORED_BATCH_SIZE:-512}
       - --ubatch-size
       - ${QWEN36_UNCENSORED_UBATCH_SIZE:-128}
-      - --cache-ram
-      - "0"
-      - --ctx-checkpoints
-      - "0"
-      - --no-cache-prompt
       - --no-mmap
     volumes:
       - ${MODELS_DIR:-/opt/llamacpp/models}:/models:ro
@@ -181,11 +171,6 @@ services:
       - ${LLAMA31_PRO_BATCH_SIZE:-512}
       - --ubatch-size
       - ${LLAMA31_PRO_UBATCH_SIZE:-128}
-      - --cache-ram
-      - "0"
-      - --ctx-checkpoints
-      - "0"
-      - --no-cache-prompt
       - --no-mmap
     volumes:
       - ${MODELS_DIR:-/opt/llamacpp/models}:/models:ro

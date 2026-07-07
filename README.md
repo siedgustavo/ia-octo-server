@@ -142,7 +142,7 @@ Externally, the GPU-pinned instances are exposed as `8080`, `8081` and `8082`. G
 
 Models are expected as GGUF files under `${MODELS_DIR:-/opt/llamacpp/models}`. The default served IDs are `qwen3coder:30b`, `qwen3.6:35b` and `llama3.1:8b`. The GHCR images may require `docker login ghcr.io` on the host before `docker compose pull` or `docker compose up`.
 
-The services use the official `ghcr.io/ggml-org/llama.cpp:server-cuda` image. They pass `--no-mmap`, `--parallel 1`, `--no-cache-prompt` and reduced batch sizes so model loading and 64k context fit predictably on the production GPUs.
+The services use the official `ghcr.io/ggml-org/llama.cpp:server-cuda` image. They pass `--no-mmap`, `--parallel 1` and reduced batch sizes so model loading and 64k context fit predictably on the production GPUs. Prompt cache remains enabled for agentic workloads.
 
 ## Validation
 
