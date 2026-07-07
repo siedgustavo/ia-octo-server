@@ -67,11 +67,38 @@ class LedConfig(BaseModel):
     gpu_activity_power_watts: float = Field(default=40.0, ge=0.0, le=1000.0)
 
 
-class OllamaConfig(BaseModel):
+class LlamaCppServerConfig(BaseModel):
+    name: str
+    gpu: str
+    base_url: str
+    expected_model: str
+
+
+class LlamaCppConfig(BaseModel):
     enabled: bool = False
-    base_url: str = "http://host.docker.internal:11434"
-    base_urls: list[str] = Field(default_factory=list)
     timeout_seconds: float = Field(default=2.0, ge=0.2, le=30.0)
+    servers: list[LlamaCppServerConfig] = Field(
+        default_factory=lambda: [
+            LlamaCppServerConfig(
+                name="qwen3coder:30b",
+                gpu="0",
+                base_url="http://llamacpp-qwen3coder:8080",
+                expected_model="qwen3coder:30b",
+            ),
+            LlamaCppServerConfig(
+                name="qwen3.6:35b",
+                gpu="1",
+                base_url="http://llamacpp-qwen36-uncensored:8080",
+                expected_model="qwen3.6:35b",
+            ),
+            LlamaCppServerConfig(
+                name="llama3.1:8b",
+                gpu="2",
+                base_url="http://llamacpp-llama31-pro:8080",
+                expected_model="llama3.1:8b",
+            ),
+        ]
+    )
 
 
 class AppConfig(BaseModel):
@@ -79,7 +106,7 @@ class AppConfig(BaseModel):
     watchdog: WatchdogConfig = Field(default_factory=WatchdogConfig)
     display: DisplayConfig = Field(default_factory=DisplayConfig)
     leds: LedConfig = Field(default_factory=LedConfig)
-    ollama: OllamaConfig = Field(default_factory=OllamaConfig)
+    llamacpp: LlamaCppConfig = Field(default_factory=LlamaCppConfig)
 
 
 def load_config(path: Path) -> AppConfig:
@@ -89,6 +116,8 @@ def load_config(path: Path) -> AppConfig:
         return cfg
     with path.open("r", encoding="utf-8") as fh:
         data = yaml.safe_load(fh) or {}
+    if "llamacpp" not in data and isinstance(data.get("ollama"), dict) and data["ollama"].get("enabled"):
+        data["llamacpp"] = {"enabled": True}
     return AppConfig.model_validate(data)
 
 

@@ -4,7 +4,7 @@
 
 ### `GET /api/status`
 
-Returns current controller status, fan data, PSU data, BME280 readings, watchdog result, Ollama status and recent events.
+Returns current controller status, fan data, PSU data, BME280 readings, watchdog result, llama.cpp status and recent events.
 
 When GPU idle stop is enabled, the response also includes `gpu_idle_seconds` and `gpu_idle_stop_active`.
 
@@ -100,10 +100,12 @@ Common NVIDIA metric values include `temperature_gpu_c`, `temperature_memory_c`,
 
 AI:
 
-- `octofan_ai_tokens_per_second{source="ollama"}`
-- `octofan_ai_tokens_per_second_available{source="ollama"}`
-- `octofan_ai_available_models{source="ollama"}`
-- `octofan_ai_running_models{source="ollama"}`
+- `octofan_ai_tokens_per_second{source="llamacpp"}`
+- `octofan_ai_tokens_per_second_available{source="llamacpp"}`
+- `octofan_ai_available_models{source="llamacpp"}`
+- `octofan_ai_running_models{source="llamacpp"}`
+- `octofan_llamacpp_up{name,gpu,model}`
+- `octofan_llamacpp_slots{name,gpu,state="total|processing"}`
 
 Host and network:
 
@@ -122,4 +124,4 @@ Grafana provisions these dashboards under the `Octofan` folder:
 
 ## Notes
 
-Ollama model inventory is read from `/api/tags`; loaded/running models are read from `/api/ps`. Ollama does not expose a native Prometheus endpoint or live token counters through those polling APIs, so `octofan_ai_tokens_per_second_available` remains `0` unless the application that calls Ollama exports request-level token telemetry separately.
+llama.cpp health is read from `/health`, model properties from `/props`, and active generation from `/slots`. The controller does not derive live token counters from those polling APIs, so `octofan_ai_tokens_per_second_available{source="llamacpp"}` remains `0` unless the application that calls inference exports request-level token telemetry separately.

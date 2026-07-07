@@ -15,9 +15,9 @@ The original HiveOS package files are preserved only as reference material under
 - Adds host CPU, memory, disk and network telemetry through node exporter.
 - Ships Grafana dashboards for overview, PSUs, environment, cooling, GPUs, host/network, watchdog and AI metrics.
 - Updates the controller OLED with host, thermal, power and AI status.
-- Drives the front-panel LEDs for Ollama health and GPU activity.
+- Drives the front-panel LEDs for llama.cpp health and GPU activity.
 - Feeds the hardware watchdog only when configured host checks pass.
-- Integrates with an Ollama container over Docker networking.
+- Runs three GPU-pinned `llama-server` containers over Docker networking.
 
 ## Services
 
@@ -25,7 +25,9 @@ The original HiveOS package files are preserved only as reference material under
 - `prometheus`: metrics storage.
 - `node-exporter`: host system and network metrics, running in the host network namespace.
 - `grafana`: dashboard at `http://localhost:3000` (`admin` / `octofan`).
-- `ollama`: Ollama inference API at `http://localhost:11434`.
+- `llamacpp-qwen3coder`: llama.cpp OpenAI-compatible API at `http://localhost:8080`.
+- `llamacpp-qwen36-uncensored`: llama.cpp OpenAI-compatible API at `http://localhost:8081`.
+- `llamacpp-llama31-pro`: llama.cpp OpenAI-compatible API at `http://localhost:8082`.
 
 ## Repository Layout
 
@@ -91,7 +93,7 @@ Important sections:
 - `watchdog`: hardware watchdog timeouts and HTTP/TCP health checks.
 - `display`: OLED profile and refresh interval.
 - `leds`: front-panel LED policy. By default LED `0` is orange warning, LED `1` is blue online and LED `2` is white activity.
-- `ollama`: external Ollama endpoint.
+- `llamacpp`: GPU-pinned llama.cpp endpoints.
 
 The fan controller uses BME280 sensor `0` as intake/internal temperature when available, then falls back to `Temperature No. 0`.
 
@@ -109,37 +111,38 @@ The fan controller uses BME280 sensor `0` as intake/internal temperature when av
 - `POST /api/calibrate-fans`
 - `GET /metrics`
 
-## Ollama
+## llama.cpp
 
-Enable `ollama.enabled` in `config/octofan.yaml` and point `ollama.base_url` to the host Ollama endpoint. The OLED and Grafana dashboard include model inventory from `/api/tags` and loaded models from `/api/ps`.
+Enable `llamacpp.enabled` in `config/octofan.yaml`. The controller polls each configured server with `/health`, `/props` and `/slots`; the OLED and Grafana dashboard show healthy models and active generation slots.
 
-Tokens per second remain unavailable from controller-side polling because Ollama only reports evaluation counts and durations in individual generation responses. To expose exact token throughput without changing traffic flow, instrument the application that calls Ollama and export that data separately.
+Tokens per second remain unavailable from controller-side polling, so `octofan_ai_tokens_per_second_available{source="llamacpp"}` stays `0` unless request-level telemetry is added separately.
 
-The compose stack includes one Ollama service per GPU on the same Docker network. The controller polls all instances for model inventory and loaded models:
+The compose stack includes three direct `llama-server` services on the same Docker network:
 
 ```yaml
-ollama:
+llamacpp:
   enabled: true
-  base_url: http://ollama-gpu0:11434
-  base_urls:
-  - http://ollama-gpu0:11434
-  - http://ollama-gpu1:11434
-  - http://ollama-gpu2:11434
-  - http://ollama-gpu3:11434
   timeout_seconds: 2.0
+  servers:
+  - name: qwen3coder:30b
+    gpu: '0'
+    base_url: http://llamacpp-qwen3coder:8080
+    expected_model: qwen3coder:30b
+  - name: qwen3.6:35b
+    gpu: '1'
+    base_url: http://llamacpp-qwen36-uncensored:8080
+    expected_model: qwen3.6:35b
+  - name: llama3.1:8b
+    gpu: '2'
+    base_url: http://llamacpp-llama31-pro:8080
+    expected_model: llama3.1:8b
 ```
 
-Externally, the GPU-pinned instances are exposed as `11434` through `11437`.
+Externally, the GPU-pinned instances are exposed as `8080`, `8081` and `8082`. GPU 3 is intentionally left free.
 
-The compose stack creates/uses the `octofan-ai` network by default. If Ollama is managed by another compose project instead, attach that container to the network:
+Models are expected as GGUF files under `${MODELS_DIR:-/opt/llamacpp/models}`. The default served IDs are `qwen3coder:30b`, `qwen3.6:35b` and `llama3.1:8b`. The GHCR images may require `docker login ghcr.io` on the host before `docker compose pull` or `docker compose up`.
 
-```bash
-docker network connect octofan-ai ollama
-```
-
-Each Ollama service reserves one NVIDIA device with Docker Compose `device_ids`, so NVIDIA Container Toolkit must be available on the host.
-
-The compose services set per-GPU context windows by default: GPU 0 uses `49152`, GPU 1 uses `40960`, and GPUs 2-3 use `32768`. They also set `OLLAMA_KEEP_ALIVE` to `-1`, `OLLAMA_MAX_LOADED_MODELS` to `1`, and `OLLAMA_SCHED_SPREAD` to `false`. Override these values with environment variables before starting the stack if a different context window, unload policy or GPU scheduling policy is needed.
+The Qwen MoE models use the pinned `ghcr.io/siedgustavo/llama-cpp-rpc:b8857-cuda` image because that build is the host-proven version for those model files. The services pass `--no-mmap`, `--parallel 1`, `--no-cache-prompt` and reduced batch sizes so model loading and 64k context fit predictably on the production GPUs.
 
 ## Validation
 

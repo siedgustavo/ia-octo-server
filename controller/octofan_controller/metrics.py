@@ -3,7 +3,7 @@ from __future__ import annotations
 from prometheus_client import Gauge, generate_latest
 from prometheus_client.core import REGISTRY
 
-from .ollama import OllamaStatus
+from .llamacpp import LlamaCppStatus
 from .nvidia import NvidiaStatus
 from .parser import ControllerStatus
 
@@ -26,13 +26,15 @@ ai_tps = Gauge("octofan_ai_tokens_per_second", "AI tokens per second", ["source"
 ai_tps_available = Gauge("octofan_ai_tokens_per_second_available", "Whether AI tokens per second is available", ["source"])
 ai_available_models = Gauge("octofan_ai_available_models", "AI models available locally", ["source"])
 ai_models = Gauge("octofan_ai_running_models", "AI running models", ["source"])
+llamacpp_up = Gauge("octofan_llamacpp_up", "llama.cpp server health", ["name", "gpu", "model"])
+llamacpp_slots = Gauge("octofan_llamacpp_slots", "llama.cpp server slots", ["name", "gpu", "state"])
 target_fan = Gauge("octofan_target_fan_percent", "Last target case fan percent")
 nvidia_up = Gauge("octofan_nvidia_smi_up", "nvidia-smi read success")
 nvidia_info = Gauge("octofan_nvidia_gpu_info", "NVIDIA GPU info", ["index", "uuid", "name", "pci_bus_id", "driver_version", "vbios_version"])
 nvidia_metric = Gauge("octofan_nvidia_gpu_metric", "NVIDIA GPU metric from nvidia-smi", ["index", "uuid", "name", "metric"])
 
 
-def update_metrics(status: ControllerStatus, ollama: OllamaStatus, current_target_fan: int | None, nvidia: NvidiaStatus | None = None) -> None:
+def update_metrics(status: ControllerStatus, llamacpp: LlamaCppStatus, current_target_fan: int | None, nvidia: NvidiaStatus | None = None) -> None:
     controller_up.set(1 if status.ok else 0)
     if current_target_fan is not None:
         target_fan.set(current_target_fan)
@@ -91,10 +93,15 @@ def update_metrics(status: ControllerStatus, ollama: OllamaStatus, current_targe
         watchdog_metric.labels("mode").set(status.watchdog_mode)
     if status.watchdog_resets is not None:
         watchdog_metric.labels("resets").set(status.watchdog_resets)
-    ai_tps.labels("ollama").set(ollama.tokens_per_second or 0)
-    ai_tps_available.labels("ollama").set(1 if ollama.tokens_per_second_available else 0)
-    ai_available_models.labels("ollama").set(ollama.available_models)
-    ai_models.labels("ollama").set(ollama.running_models)
+    ai_tps.labels("llamacpp").set(llamacpp.tokens_per_second or 0)
+    ai_tps_available.labels("llamacpp").set(1 if llamacpp.tokens_per_second_available else 0)
+    ai_available_models.labels("llamacpp").set(llamacpp.available_models)
+    ai_models.labels("llamacpp").set(llamacpp.running_models)
+    for server in llamacpp.servers:
+        model = server.model or server.expected_model or ""
+        llamacpp_up.labels(server.name, server.gpu, model).set(1 if server.ok else 0)
+        llamacpp_slots.labels(server.name, server.gpu, "total").set(server.total_slots)
+        llamacpp_slots.labels(server.name, server.gpu, "processing").set(server.processing_slots)
     if nvidia is not None:
         nvidia_up.set(1 if nvidia.ok else 0)
         for gpu in nvidia.gpus:
