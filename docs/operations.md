@@ -119,7 +119,7 @@ The default services use these context windows:
 - `qwen3.6:35b` on GPU 1: `65536`
 - `llama3.1:8b` on GPU 2: `8192`
 
-The Qwen MoE services use `ghcr.io/siedgustavo/llama-cpp-rpc:b8857-cuda`, the host-proven image for those model files. `llama31-pro` defaults to `ghcr.io/siedgustavo/llama-cpp-rpc:latest-cuda`. All services pass `--no-mmap`, `--parallel 1`, `--no-cache-prompt`, `--batch-size 512` and `--ubatch-size 128` so loading large GGUF files does not depend on memory-mapped file behavior and 64k context fits predictably on the production GPUs.
+The services use the official `ghcr.io/ggml-org/llama.cpp:server-cuda` image. All services pass `--no-mmap`, `--parallel 1`, `--no-cache-prompt`, `--batch-size 512` and `--ubatch-size 128` so loading large GGUF files does not depend on memory-mapped file behavior and 64k context fits predictably on the production GPUs.
 
 Controller-side token throughput is not available from the llama.cpp polling endpoints. The controller keeps `octofan_ai_tokens_per_second_available{source="llamacpp"}` at `0` unless the application that calls inference exports request-level token telemetry through another integration.
 
