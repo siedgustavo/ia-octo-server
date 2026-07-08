@@ -115,7 +115,7 @@ services:
     container_name: octofan-llamacpp-qwen36-uncensored
     restart: unless-stopped
     environment:
-      LLAMA_CHAT_TEMPLATE_KWARGS: '{"enable_thinking":false}'
+      LLAMA_ARG_CHAT_TEMPLATE_KWARGS: '{"enable_thinking":false}'
     command:
       - --host
       - 0.0.0.0
@@ -126,7 +126,7 @@ services:
       - --model
       - /models/${QWEN36_UNCENSORED_MODEL:-qwen3.6-uncensored.gguf}
       - --ctx-size
-      - ${QWEN36_UNCENSORED_CTX_SIZE:-65536}
+      - ${QWEN36_UNCENSORED_CTX_SIZE:-196608}
       - --n-gpu-layers
       - ${QWEN36_UNCENSORED_N_GPU_LAYERS:-999}
       - --parallel

@@ -116,7 +116,7 @@ curl -fsS http://localhost:8082/v1/models
 The default services use these context windows:
 
 - `qwen3coder:30b` on GPU 0: `65536`
-- `qwen3.6:35b` on GPU 1: `65536`
+- `qwen3.6:35b` on GPU 1: `196608`
 - `llama3.1:8b` on GPU 2: `8192`
 
 The services use the official `ghcr.io/ggml-org/llama.cpp:server-cuda` image. All services pass `--no-mmap`, `--parallel 1`, `--batch-size 512` and `--ubatch-size 128` so loading large GGUF files does not depend on memory-mapped file behavior and 64k context fits predictably on the production GPUs. Prompt cache remains enabled for agentic workloads.
