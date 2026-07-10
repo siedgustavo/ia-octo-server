@@ -64,7 +64,7 @@ sg docker -c 'docker compose ps'
 
 ## llama.cpp Servers
 
-The compose file runs three direct `llama-server` instances pinned to GPUs 0, 1 and 2. GPU 3 is left free. Configure controller polling with:
+The compose file runs three direct `llama-server` instances pinned to GPUs 0, 1 and 2. GPU 3 is reserved for the optional ComfyUI image generation service. Configure controller polling with:
 
 ```yaml
 llamacpp:
@@ -122,6 +122,53 @@ The default services use these context windows:
 The services use the official `ghcr.io/ggml-org/llama.cpp:server-cuda` image. All services pass `--no-mmap`, `--parallel 1`, `--batch-size 512` and `--ubatch-size 128` so loading large GGUF files does not depend on memory-mapped file behavior and 64k context fits predictably on the production GPUs. Prompt cache remains enabled for agentic workloads.
 
 Controller-side token throughput is not available from the llama.cpp polling endpoints. The controller keeps `octofan_ai_tokens_per_second_available{source="llamacpp"}` at `0` unless the application that calls inference exports request-level token telemetry through another integration.
+
+## ComfyUI Image Generation
+
+The optional `comfyui` service is pinned to GPU 3 and exposed on port `8188`:
+
+```bash
+docker compose up -d comfyui
+curl -fsS http://localhost:8188/system_stats
+```
+
+Runtime data is kept outside the repo:
+
+```env
+COMFYUI_MODELS_DIR=/opt/imagegen/comfyui/models
+COMFYUI_OUTPUT_DIR=/opt/imagegen/comfyui/output
+COMFYUI_CUSTOM_NODES_DIR=/opt/imagegen/comfyui/custom_nodes
+```
+
+For a Chroma FP8 workflow, use these model locations:
+
+```text
+/opt/imagegen/comfyui/models/diffusion_models/Chroma1-HD-fp8_scaled_rev2.safetensors
+/opt/imagegen/comfyui/models/text_encoders/t5xxl_fp8_e4m3fn_scaled.safetensors
+/opt/imagegen/comfyui/models/vae/ae.safetensors
+```
+
+Suggested downloads:
+
+```bash
+mkdir -p /opt/imagegen/comfyui/models/diffusion_models \
+  /opt/imagegen/comfyui/models/text_encoders \
+  /opt/imagegen/comfyui/models/vae
+
+curl -L --fail --continue-at - \
+  -o /opt/imagegen/comfyui/models/diffusion_models/Chroma1-HD-fp8_scaled_rev2.safetensors \
+  https://huggingface.co/silveroxides/Chroma1-HD-fp8-scaled/resolve/main/Chroma1-HD-fp8_scaled_rev2.safetensors
+
+curl -L --fail --continue-at - \
+  -o /opt/imagegen/comfyui/models/text_encoders/t5xxl_fp8_e4m3fn_scaled.safetensors \
+  https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/t5xxl_fp8_e4m3fn_scaled.safetensors
+
+curl -L --fail --continue-at - \
+  -o /opt/imagegen/comfyui/models/vae/ae.safetensors \
+  https://huggingface.co/Comfy-Org/Lumina_Image_2.0_Repackaged/resolve/main/split_files/vae/ae.safetensors
+```
+
+ComfyUI is not part of the controller's AI health model yet; use the ComfyUI UI/API directly while image workflows are experimental.
 
 ## Front LEDs
 

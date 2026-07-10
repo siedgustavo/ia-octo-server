@@ -11,6 +11,7 @@ Octofan AI Server is a small container stack around the original Octominer USB c
 - `node-exporter`: exposes host CPU, memory, disk, filesystem and network metrics. It runs with `network_mode: host` so network counters come from the host namespace instead of the exporter container.
 - `grafana`: loads the Prometheus datasource and the Octofan dashboard set.
 - `llamacpp-qwen3coder`, `llamacpp-qwen36-uncensored` and `llamacpp-llama31-pro`: GPU-pinned llama.cpp inference containers on the same Docker network when AI metrics are enabled.
+- `comfyui`: optional image generation workspace pinned to GPU 3. It is exposed for direct UI/API use and is not currently polled by the controller.
 
 ## Data Flow
 
@@ -44,4 +45,4 @@ Supported controller surfaces include:
 
 ## Network Model
 
-The compose stack uses the Docker network `octofan-ai` by default. This gives the controller stable internal names for the GPU-pinned llama.cpp containers at `http://llamacpp-qwen3coder:8080`, `http://llamacpp-qwen36-uncensored:8080` and `http://llamacpp-llama31-pro:8080`.
+The compose stack uses the Docker network `octofan-ai` by default. This gives the controller stable internal names for the GPU-pinned llama.cpp containers at `http://llamacpp-qwen3coder:8080`, `http://llamacpp-qwen36-uncensored:8080` and `http://llamacpp-llama31-pro:8080`. ComfyUI is also on the network as `http://comfyui:8188`, but the controller does not depend on it.

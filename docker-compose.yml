@@ -184,6 +184,31 @@ services:
               device_ids: ["${LLAMA31_PRO_GPU:-2}"]
               capabilities: [gpu]
 
+  comfyui:
+    image: ${COMFYUI_IMAGE:-yanwk/comfyui-boot:cu126-slim}
+    container_name: octofan-comfyui
+    restart: unless-stopped
+    environment:
+      CLI_ARGS: ${COMFYUI_CLI_ARGS:---listen 0.0.0.0 --port 8188 --lowvram}
+    volumes:
+      - ${COMFYUI_CACHE_DIR:-/opt/imagegen/comfyui/cache}:/root/.cache
+      - ${COMFYUI_CONFIG_DIR:-/opt/imagegen/comfyui/config}:/root/.config
+      - ${COMFYUI_LOCAL_DIR:-/opt/imagegen/comfyui/local}:/root/.local
+      - ${COMFYUI_CUSTOM_NODES_DIR:-/opt/imagegen/comfyui/custom_nodes}:/root/ComfyUI/custom_nodes
+      - ${COMFYUI_MODELS_DIR:-/opt/imagegen/comfyui/models}:/root/ComfyUI/models
+      - ${COMFYUI_INPUT_DIR:-/opt/imagegen/comfyui/input}:/root/ComfyUI/input
+      - ${COMFYUI_OUTPUT_DIR:-/opt/imagegen/comfyui/output}:/root/ComfyUI/output
+      - ${COMFYUI_USER_DIR:-/opt/imagegen/comfyui/user}:/root/ComfyUI/user
+    ports:
+      - "${COMFYUI_PORT:-8188}:8188"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["${COMFYUI_GPU:-3}"]
+              capabilities: [gpu]
+
 volumes:
   prometheus-data:
   grafana-data:

@@ -28,6 +28,7 @@ The original HiveOS package files are preserved only as reference material under
 - `llamacpp-qwen3coder`: llama.cpp OpenAI-compatible API at `http://localhost:8080`.
 - `llamacpp-qwen36-uncensored`: llama.cpp OpenAI-compatible API at `http://localhost:8081`.
 - `llamacpp-llama31-pro`: llama.cpp OpenAI-compatible API at `http://localhost:8082`.
+- `comfyui`: ComfyUI image generation workspace at `http://localhost:8188`, pinned to GPU 3.
 
 ## Repository Layout
 
@@ -138,11 +139,23 @@ llamacpp:
     expected_model: llama3.1:8b
 ```
 
-Externally, the GPU-pinned instances are exposed as `8080`, `8081` and `8082`. GPU 3 is intentionally left free.
+Externally, the GPU-pinned instances are exposed as `8080`, `8081` and `8082`. GPU 3 is reserved for the optional ComfyUI image generation service.
 
 Models are expected as GGUF files under `${MODELS_DIR:-/opt/llamacpp/models}`. The default served IDs are `qwen3coder:30b`, `qwen3.6:35b` and `llama3.1:8b`. The GHCR images may require `docker login ghcr.io` on the host before `docker compose pull` or `docker compose up`.
 
 The services use the official `ghcr.io/ggml-org/llama.cpp:server-cuda` image. They pass `--no-mmap`, `--parallel 1` and reduced batch sizes so model loading and 64k context fit predictably on the production GPUs. Prompt cache remains enabled for agentic workloads.
+
+## Image Generation
+
+The compose stack includes an optional ComfyUI workspace pinned to GPU 3 and exposed at `http://localhost:8188`.
+
+Persistent directories live under `${COMFYUI_MODELS_DIR:-/opt/imagegen/comfyui/models}` and sibling paths for cache, input, output, user data and custom nodes. For Chroma/Flux-style workflows, place files in:
+
+- `diffusion_models/`: Chroma checkpoint, for example `Chroma1-HD-fp8_scaled_rev2.safetensors`.
+- `text_encoders/`: T5 XXL text encoder, for example `t5xxl_fp8_e4m3fn_scaled.safetensors`.
+- `vae/`: Flux VAE, for example `ae.safetensors`.
+
+ComfyUI is intentionally not polled by `octofan-controller` yet. Use it directly through the ComfyUI web UI or API while workflows are experimental.
 
 ## Validation
 
