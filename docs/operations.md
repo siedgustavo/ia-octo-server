@@ -143,8 +143,9 @@ COMFYUI_CUSTOM_NODES_DIR=/opt/imagegen/comfyui/custom_nodes
 For a Chroma FP8 workflow, use these model locations:
 
 ```text
-/opt/imagegen/comfyui/models/diffusion_models/Chroma1-HD-fp8_scaled_rev2.safetensors
+/opt/imagegen/comfyui/models/diffusion_models/Chroma1-HD-fp8_scaled_defaultloader_hybrid_large_rev2.safetensors
 /opt/imagegen/comfyui/models/text_encoders/t5xxl_fp8_e4m3fn_scaled.safetensors
+/opt/imagegen/comfyui/models/clip/t5xxl_fp8_e4m3fn_scaled.safetensors -> ../text_encoders/t5xxl_fp8_e4m3fn_scaled.safetensors
 /opt/imagegen/comfyui/models/vae/ae.safetensors
 ```
 
@@ -153,15 +154,19 @@ Suggested downloads:
 ```bash
 mkdir -p /opt/imagegen/comfyui/models/diffusion_models \
   /opt/imagegen/comfyui/models/text_encoders \
+  /opt/imagegen/comfyui/models/clip \
   /opt/imagegen/comfyui/models/vae
 
 curl -L --fail --continue-at - \
-  -o /opt/imagegen/comfyui/models/diffusion_models/Chroma1-HD-fp8_scaled_rev2.safetensors \
-  https://huggingface.co/silveroxides/Chroma1-HD-fp8-scaled/resolve/main/Chroma1-HD-fp8_scaled_rev2.safetensors
+  -o /opt/imagegen/comfyui/models/diffusion_models/Chroma1-HD-fp8_scaled_defaultloader_hybrid_large_rev2.safetensors \
+  https://huggingface.co/silveroxides/Chroma1-HD-fp8-scaled/resolve/main/Chroma1-HD-fp8_scaled_defaultloader_hybrid_large_rev2.safetensors
 
 curl -L --fail --continue-at - \
   -o /opt/imagegen/comfyui/models/text_encoders/t5xxl_fp8_e4m3fn_scaled.safetensors \
   https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/t5xxl_fp8_e4m3fn_scaled.safetensors
+
+ln -sfn ../text_encoders/t5xxl_fp8_e4m3fn_scaled.safetensors \
+  /opt/imagegen/comfyui/models/clip/t5xxl_fp8_e4m3fn_scaled.safetensors
 
 curl -L --fail --continue-at - \
   -o /opt/imagegen/comfyui/models/vae/ae.safetensors \

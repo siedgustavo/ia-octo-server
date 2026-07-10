@@ -151,8 +151,9 @@ The compose stack includes an optional ComfyUI workspace pinned to GPU 3 and exp
 
 Persistent directories live under `${COMFYUI_MODELS_DIR:-/opt/imagegen/comfyui/models}` and sibling paths for cache, input, output, user data and custom nodes. For Chroma/Flux-style workflows, place files in:
 
-- `diffusion_models/`: Chroma checkpoint, for example `Chroma1-HD-fp8_scaled_rev2.safetensors`.
+- `diffusion_models/`: Chroma checkpoint, for example `Chroma1-HD-fp8_scaled_defaultloader_hybrid_large_rev2.safetensors`.
 - `text_encoders/`: T5 XXL text encoder, for example `t5xxl_fp8_e4m3fn_scaled.safetensors`.
+- `clip/`: compatibility symlink to the same T5 file for workflows that still look under `models/clip`.
 - `vae/`: Flux VAE, for example `ae.safetensors`.
 
 ComfyUI is intentionally not polled by `octofan-controller` yet. Use it directly through the ComfyUI web UI or API while workflows are experimental.
