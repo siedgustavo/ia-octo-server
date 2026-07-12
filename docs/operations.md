@@ -119,7 +119,7 @@ The default services use these context windows:
 - `qwen3.6:35b` on GPU 1: `196608`
 - `llama3.1:8b` on GPU 2: `8192`
 
-The services use the official `ghcr.io/ggml-org/llama.cpp:server-cuda` image. All services pass `--no-mmap`, `--parallel 1`, `--batch-size 512` and `--ubatch-size 128` so loading large GGUF files does not depend on memory-mapped file behavior and 64k context fits predictably on the production GPUs. Prompt cache remains enabled for agentic workloads.
+The services use the official `ghcr.io/ggml-org/llama.cpp:server-cuda` image. All services pass `--no-mmap`, `--parallel 1`, `--batch-size 512` and `--ubatch-size 128` so loading large GGUF files does not depend on memory-mapped file behavior and 64k context fits predictably on the production GPUs. Prompt cache remains enabled for agentic workloads, but each service caps `--cache-ram` (`QWEN3CODER_CACHE_RAM_MIB=1024`, `QWEN36_UNCENSORED_CACHE_RAM_MIB=2048`, `LLAMA31_PRO_CACHE_RAM_MIB=512`) instead of using llama.cpp's default 8192 MiB per server. The host has ~8GB of physical RAM total; three uncapped 8192 MiB caches plus ComfyUI oversubscribe it and were observed pushing 6-7GB into swap. Raise these values only after confirming the host has more RAM headroom (`free -h`, `swapon --show`).
 
 Controller-side token throughput is not available from the llama.cpp polling endpoints. The controller keeps `octofan_ai_tokens_per_second_available{source="llamacpp"}` at `0` unless the application that calls inference exports request-level token telemetry through another integration.
 
