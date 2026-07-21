@@ -14,6 +14,7 @@ Open:
 - llama.cpp qwen3coder: `http://localhost:8080`
 - llama.cpp qwen36-uncensored: `http://localhost:8081`
 - llama.cpp llama31-pro: `http://localhost:8082`
+- llama.cpp permission classifier: `http://localhost:8083`
 
 Grafana login is `admin` / `octofan`.
 
@@ -64,7 +65,7 @@ sg docker -c 'docker compose ps'
 
 ## llama.cpp Servers
 
-The compose file runs three direct `llama-server` instances pinned to GPUs 0, 1 and 2. GPU 3 is reserved for the optional ComfyUI image generation service. Configure controller polling with:
+The compose file runs three general-purpose `llama-server` instances pinned to GPUs 0, 1 and 2. A dedicated permission classifier shares GPU 3 with the optional ComfyUI image generation service and is consumed directly by the gateway. Configure controller polling for the three general-purpose instances with:
 
 ```yaml
 llamacpp:
@@ -102,6 +103,7 @@ The host must already have these GGUF files in that directory:
 - `Huihui-Qwen3-Coder-30B-A3B-Instruct-abliterated.i1-IQ4_XS.gguf`
 - `qwen3.6-uncensored.gguf`
 - `llama31-pro.gguf`
+- `Qwen2.5-Coder-7B-Instruct-128K-Q4_K_M.gguf`
 
 The images are hosted on GHCR, so run `docker login ghcr.io` on the host if pulls are unauthorized.
 
@@ -111,6 +113,7 @@ Check the OpenAI-compatible model endpoints:
 curl -fsS http://localhost:8080/v1/models
 curl -fsS http://localhost:8081/v1/models
 curl -fsS http://localhost:8082/v1/models
+curl -fsS http://localhost:8083/v1/models
 ```
 
 The default services use these context windows:
@@ -118,14 +121,15 @@ The default services use these context windows:
 - `qwen3coder:30b` on GPU 0: `65536`
 - `qwen3.6:35b` on GPU 1: `196608`
 - `llama3.1:8b` on GPU 2: `8192`
+- `qwen2.5-coder:7b` permission classifier on GPU 3: `131072`
 
-The services use the official `ghcr.io/ggml-org/llama.cpp:server-cuda` image. All services pass `--no-mmap`, `--parallel 1`, `--batch-size 512` and `--ubatch-size 128` so loading large GGUF files does not depend on memory-mapped file behavior and 64k context fits predictably on the production GPUs. Prompt cache remains enabled for agentic workloads, but each service caps `--cache-ram` (`QWEN3CODER_CACHE_RAM_MIB=1024`, `QWEN36_UNCENSORED_CACHE_RAM_MIB=2048`, `LLAMA31_PRO_CACHE_RAM_MIB=512`) instead of using llama.cpp's default 8192 MiB per server. The host has ~8GB of physical RAM total; three uncapped 8192 MiB caches plus ComfyUI oversubscribe it and were observed pushing 6-7GB into swap. Raise these values only after confirming the host has more RAM headroom (`free -h`, `swapon --show`).
+The services use the official `ghcr.io/ggml-org/llama.cpp:server-cuda` image. All services pass `--no-mmap`, `--parallel 1`, `--batch-size 512` and `--ubatch-size 128`. Prompt cache remains enabled, but each service caps `--cache-ram` (`QWEN3CODER_CACHE_RAM_MIB=1024`, `QWEN36_UNCENSORED_CACHE_RAM_MIB=2048`, `LLAMA31_PRO_CACHE_RAM_MIB=512`, `PERMISSION_CLASSIFIER_CACHE_RAM_MIB=256`) instead of using llama.cpp's default 8192 MiB per server. These settings cap only the prompt cache, not total container RAM. Raise them only after checking host headroom with `free -h` and `swapon --show`.
 
 Controller-side token throughput is not available from the llama.cpp polling endpoints. The controller keeps `octofan_ai_tokens_per_second_available{source="llamacpp"}` at `0` unless the application that calls inference exports request-level token telemetry through another integration.
 
 ## ComfyUI Image Generation
 
-The optional `comfyui` service is pinned to GPU 3 and exposed on port `8188`:
+The optional `comfyui` service shares GPU 3 with the permission classifier and is exposed on port `8188`. Avoid generating images while the classifier is handling a large request:
 
 ```bash
 docker compose up -d comfyui

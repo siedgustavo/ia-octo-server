@@ -190,6 +190,50 @@ services:
               device_ids: ["${LLAMA31_PRO_GPU:-2}"]
               capabilities: [gpu]
 
+  llamacpp-permission-classifier:
+    image: ${PERMISSION_CLASSIFIER_IMAGE:-ghcr.io/ggml-org/llama.cpp:server-cuda}
+    container_name: octofan-llamacpp-permission-classifier
+    restart: unless-stopped
+    command:
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"
+      - --alias
+      - ${PERMISSION_CLASSIFIER_ALIAS:-qwen2.5-coder:7b}
+      - --model
+      - /models/${PERMISSION_CLASSIFIER_MODEL:-Qwen2.5-Coder-7B-Instruct-128K-Q4_K_M.gguf}
+      - --ctx-size
+      - ${PERMISSION_CLASSIFIER_CTX_SIZE:-131072}
+      - --n-gpu-layers
+      - ${PERMISSION_CLASSIFIER_N_GPU_LAYERS:-999}
+      - --parallel
+      - ${PERMISSION_CLASSIFIER_PARALLEL:-1}
+      - --batch-size
+      - ${PERMISSION_CLASSIFIER_BATCH_SIZE:-512}
+      - --ubatch-size
+      - ${PERMISSION_CLASSIFIER_UBATCH_SIZE:-128}
+      - --flash-attn
+      - "on"
+      - --cache-type-k
+      - ${PERMISSION_CLASSIFIER_CACHE_TYPE:-q8_0}
+      - --cache-type-v
+      - ${PERMISSION_CLASSIFIER_CACHE_TYPE:-q8_0}
+      - --cache-ram
+      - ${PERMISSION_CLASSIFIER_CACHE_RAM_MIB:-256}
+      - --no-mmap
+    volumes:
+      - ${MODELS_DIR:-/opt/llamacpp/models}:/models:ro
+    ports:
+      - "${PERMISSION_CLASSIFIER_PORT:-8083}:8080"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["${PERMISSION_CLASSIFIER_GPU:-3}"]
+              capabilities: [gpu]
+
   comfyui:
     image: ${COMFYUI_IMAGE:-yanwk/comfyui-boot:cu126-slim}
     container_name: octofan-comfyui

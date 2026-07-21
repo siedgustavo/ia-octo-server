@@ -17,7 +17,7 @@ The original HiveOS package files are preserved only as reference material under
 - Updates the controller OLED with host, thermal, power and AI status.
 - Drives the front-panel LEDs for llama.cpp health and GPU activity.
 - Feeds the hardware watchdog only when configured host checks pass.
-- Runs three GPU-pinned `llama-server` containers over Docker networking.
+- Runs three general-purpose GPU-pinned `llama-server` containers and a dedicated permission classifier over Docker networking.
 
 ## Services
 
@@ -28,7 +28,8 @@ The original HiveOS package files are preserved only as reference material under
 - `llamacpp-qwen3coder`: llama.cpp OpenAI-compatible API at `http://localhost:8080`.
 - `llamacpp-qwen36-uncensored`: llama.cpp OpenAI-compatible API at `http://localhost:8081`.
 - `llamacpp-llama31-pro`: llama.cpp OpenAI-compatible API at `http://localhost:8082`.
-- `comfyui`: ComfyUI image generation workspace at `http://localhost:8188`, pinned to GPU 3.
+- `llamacpp-permission-classifier`: dedicated security classifier API at `http://localhost:8083`.
+- `comfyui`: ComfyUI image generation workspace at `http://localhost:8188`, sharing GPU 3 with the classifier.
 
 ## Repository Layout
 
@@ -118,7 +119,7 @@ Enable `llamacpp.enabled` in `config/octofan.yaml`. The controller polls each co
 
 Tokens per second remain unavailable from controller-side polling, so `octofan_ai_tokens_per_second_available{source="llamacpp"}` stays `0` unless request-level telemetry is added separately.
 
-The compose stack includes three direct `llama-server` services on the same Docker network:
+The compose stack includes three general-purpose `llama-server` services polled by the controller, plus a dedicated permission classifier used directly by the gateway:
 
 ```yaml
 llamacpp:
@@ -139,11 +140,11 @@ llamacpp:
     expected_model: llama3.1:8b
 ```
 
-Externally, the GPU-pinned instances are exposed as `8080`, `8081` and `8082`. GPU 3 is reserved for the optional ComfyUI image generation service.
+Externally, the general-purpose instances are exposed as `8080`, `8081` and `8082`; the permission classifier is exposed as `8083`. The classifier and optional ComfyUI service share GPU 3, so avoid running heavy inference and image-generation workloads on them simultaneously.
 
-Models are expected as GGUF files under `${MODELS_DIR:-/opt/llamacpp/models}`. The default served IDs are `qwen3coder:30b`, `qwen3.6:35b` and `llama3.1:8b`. The GHCR images may require `docker login ghcr.io` on the host before `docker compose pull` or `docker compose up`.
+Models are expected as GGUF files under `${MODELS_DIR:-/opt/llamacpp/models}`. The default served IDs are `qwen3coder:30b`, `qwen3.6:35b`, `llama3.1:8b` and `qwen2.5-coder:7b`. The GHCR images may require `docker login ghcr.io` on the host before `docker compose pull` or `docker compose up`.
 
-The services use the official `ghcr.io/ggml-org/llama.cpp:server-cuda` image. They pass `--no-mmap`, `--parallel 1` and reduced batch sizes so model loading and 64k context fit predictably on the production GPUs. Prompt cache remains enabled for agentic workloads, but `--cache-ram` is capped per service (2048 MiB for `qwen3.6:35b`, 1024 MiB for `qwen3coder:30b`, 512 MiB for `llama3.1:8b`) instead of the llama.cpp default of 8192 MiB per server — the host only has ~8GB of RAM, so three uncapped caches plus ComfyUI oversubscribe it and force swap.
+The services use the official `ghcr.io/ggml-org/llama.cpp:server-cuda` image. They pass `--no-mmap`, `--parallel 1` and reduced batch sizes so model loading and large contexts fit predictably on the production GPUs. Prompt cache remains enabled, but `--cache-ram` is capped per service (2048 MiB for `qwen3.6:35b`, 1024 MiB for `qwen3coder:30b`, 512 MiB for `llama3.1:8b` and 256 MiB for the classifier) instead of using llama.cpp's 8192 MiB default per server. These are prompt-cache caps, not hard container memory limits.
 
 ## Image Generation
 
