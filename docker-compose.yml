@@ -78,6 +78,8 @@ services:
     image: ${QWEN3CODER_IMAGE:-ghcr.io/ggml-org/llama.cpp:server-cuda}
     container_name: octofan-llamacpp-qwen3coder
     restart: unless-stopped
+    mem_limit: ${QWEN3CODER_MEM_LIMIT:-2g}
+    memswap_limit: ${QWEN3CODER_MEMSWAP_LIMIT:-9g}
     command:
       - --host
       - 0.0.0.0
@@ -116,6 +118,8 @@ services:
     image: ${QWEN36_UNCENSORED_IMAGE:-ghcr.io/ggml-org/llama.cpp:server-cuda}
     container_name: octofan-llamacpp-qwen36-uncensored
     restart: unless-stopped
+    mem_limit: ${QWEN36_UNCENSORED_MEM_LIMIT:-4g}
+    memswap_limit: ${QWEN36_UNCENSORED_MEMSWAP_LIMIT:-10g}
     environment:
       LLAMA_ARG_CHAT_TEMPLATE_KWARGS: '{"enable_thinking":false}'
     command:
@@ -156,6 +160,8 @@ services:
     image: ${LLAMA31_PRO_IMAGE:-ghcr.io/ggml-org/llama.cpp:server-cuda}
     container_name: octofan-llamacpp-llama31-pro
     restart: unless-stopped
+    mem_limit: ${LLAMA31_PRO_MEM_LIMIT:-1536m}
+    memswap_limit: ${LLAMA31_PRO_MEMSWAP_LIMIT:-7g}
     command:
       - --host
       - 0.0.0.0
@@ -194,6 +200,8 @@ services:
     image: ${PERMISSION_CLASSIFIER_IMAGE:-ghcr.io/ggml-org/llama.cpp:server-cuda}
     container_name: octofan-llamacpp-permission-classifier
     restart: unless-stopped
+    mem_limit: ${PERMISSION_CLASSIFIER_MEM_LIMIT:-1g}
+    memswap_limit: ${PERMISSION_CLASSIFIER_MEMSWAP_LIMIT:-5g}
     command:
       - --host
       - 0.0.0.0

@@ -125,6 +125,22 @@ The default services use these context windows:
 
 The services use the official `ghcr.io/ggml-org/llama.cpp:server-cuda` image. All services pass `--no-mmap`, `--parallel 1`, `--batch-size 512` and `--ubatch-size 128`. Prompt cache remains enabled, but each service caps `--cache-ram` (`QWEN3CODER_CACHE_RAM_MIB=1024`, `QWEN36_UNCENSORED_CACHE_RAM_MIB=2048`, `LLAMA31_PRO_CACHE_RAM_MIB=512`, `PERMISSION_CLASSIFIER_CACHE_RAM_MIB=256`) instead of using llama.cpp's default 8192 MiB per server. These settings cap only the prompt cache, not total container RAM. Raise them only after checking host headroom with `free -h` and `swapon --show`.
 
+Compose applies hard cgroup limits separately from the prompt cache:
+
+| Service | `mem_limit` | `memswap_limit` |
+| --- | ---: | ---: |
+| `llamacpp-qwen3coder` | 2 GiB | 9 GiB |
+| `llamacpp-qwen36-uncensored` | 4 GiB | 10 GiB |
+| `llamacpp-llama31-pro` | 1536 MiB | 7 GiB |
+| `llamacpp-permission-classifier` | 1 GiB | 5 GiB |
+
+`memswap_limit` is the combined RAM+swap ceiling. The defaults total 31 GiB across the four servers, leaving headroom within the host's 7.4 GiB RAM plus 32 GiB swap. Check effective limits and cgroup pressure with:
+
+```bash
+docker inspect --format '{{.Name}} memory={{.HostConfig.Memory}} memory_swap={{.HostConfig.MemorySwap}}' $(docker compose ps -q)
+docker stats --no-stream
+```
+
 Controller-side token throughput is not available from the llama.cpp polling endpoints. The controller keeps `octofan_ai_tokens_per_second_available{source="llamacpp"}` at `0` unless the application that calls inference exports request-level token telemetry through another integration.
 
 ## ComfyUI Image Generation

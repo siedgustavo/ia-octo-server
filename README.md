@@ -146,6 +146,17 @@ Models are expected as GGUF files under `${MODELS_DIR:-/opt/llamacpp/models}`. T
 
 The services use the official `ghcr.io/ggml-org/llama.cpp:server-cuda` image. They pass `--no-mmap`, `--parallel 1` and reduced batch sizes so model loading and large contexts fit predictably on the production GPUs. Prompt cache remains enabled, but `--cache-ram` is capped per service (2048 MiB for `qwen3.6:35b`, 1024 MiB for `qwen3coder:30b`, 512 MiB for `llama3.1:8b` and 256 MiB for the classifier) instead of using llama.cpp's 8192 MiB default per server. These are prompt-cache caps, not hard container memory limits.
 
+Docker also enforces hard cgroup budgets for physical RAM and combined RAM+swap:
+
+| Service | RAM | RAM + swap |
+| --- | ---: | ---: |
+| `qwen3coder:30b` | 2 GiB | 9 GiB |
+| `qwen3.6:35b` | 4 GiB | 10 GiB |
+| `llama3.1:8b` | 1536 MiB | 7 GiB |
+| Permission classifier | 1 GiB | 5 GiB |
+
+The combined 31 GiB ceiling leaves capacity for the operating system and supporting services on a host with 7.4 GiB RAM and 32 GiB swap. Override the corresponding `*_MEM_LIMIT` and `*_MEMSWAP_LIMIT` variables only after measuring both `memory.current` and `memory.swap.current`; the second value is the total combined allowance, not additional swap.
+
 ## Image Generation
 
 The compose stack includes an optional ComfyUI workspace pinned to GPU 3 and exposed at `http://localhost:8188`.
