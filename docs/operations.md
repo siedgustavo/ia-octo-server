@@ -146,6 +146,15 @@ docker inspect --format '{{.Name}} memory={{.HostConfig.Memory}} memory_swap={{.
 docker stats --no-stream
 ```
 
+The host uses `vm.swappiness=60` from `host/sysctl.d/99-octofan-memory.conf`. This lets the kernel move cold anonymous pages to SSD-backed swap before direct reclaim becomes urgent, while still balancing swap I/O against filesystem cache. Install it with:
+
+```bash
+sudo cp host/sysctl.d/99-octofan-memory.conf /etc/sysctl.d/99-octofan-memory.conf
+sudo sysctl --system
+```
+
+Do not use `drop_caches` or cycle swap to make RAM look free. Monitor the `available` field from `free`, swap I/O and workload latency; cached RAM is reclaimable and is not a leak.
+
 Controller-side token throughput is not available from the llama.cpp polling endpoints. The controller keeps `octofan_ai_tokens_per_second_available{source="llamacpp"}` at `0` unless the application that calls inference exports request-level token telemetry through another integration.
 
 ## ComfyUI Image Generation
