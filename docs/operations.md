@@ -133,8 +133,13 @@ Compose applies hard cgroup limits separately from the prompt cache:
 | `llamacpp-qwen36-uncensored` | 4 GiB | 10 GiB |
 | `llamacpp-llama31-pro` | 1536 MiB | 7 GiB |
 | `llamacpp-permission-classifier` | 1 GiB | 5 GiB |
+| `comfyui` | 2 GiB | 4 GiB |
+| `octofan-controller` | 192 MiB | 384 MiB |
+| `prometheus` | 256 MiB | 768 MiB |
+| `grafana` | 256 MiB | 512 MiB |
+| `node-exporter` | 64 MiB | 128 MiB |
 
-`memswap_limit` is the combined RAM+swap ceiling. The defaults total 31 GiB across the four servers, leaving headroom within the host's 7.4 GiB RAM plus 32 GiB swap. Check effective limits and cgroup pressure with:
+`memswap_limit` is the combined RAM+swap ceiling. The defaults total 36.75 GiB across the complete stack, leaving about 2.6 GiB outside container cgroups on the production host's 7.4 GiB RAM plus 32 GiB swap. Check effective limits and cgroup pressure with:
 
 ```bash
 docker inspect --format '{{.Name}} memory={{.HostConfig.Memory}} memory_swap={{.HostConfig.MemorySwap}}' $(docker compose ps -q)

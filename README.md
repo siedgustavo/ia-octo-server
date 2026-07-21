@@ -154,8 +154,13 @@ Docker also enforces hard cgroup budgets for physical RAM and combined RAM+swap:
 | `qwen3.6:35b` | 4 GiB | 10 GiB |
 | `llama3.1:8b` | 1536 MiB | 7 GiB |
 | Permission classifier | 1 GiB | 5 GiB |
+| ComfyUI | 2 GiB | 4 GiB |
+| Controller | 192 MiB | 384 MiB |
+| Prometheus | 256 MiB | 768 MiB |
+| Grafana | 256 MiB | 512 MiB |
+| Node exporter | 64 MiB | 128 MiB |
 
-The combined 31 GiB ceiling leaves capacity for the operating system and supporting services on a host with 7.4 GiB RAM and 32 GiB swap. Override the corresponding `*_MEM_LIMIT` and `*_MEMSWAP_LIMIT` variables only after measuring both `memory.current` and `memory.swap.current`; the second value is the total combined allowance, not additional swap.
+The combined container ceiling is 36.75 GiB on a host with about 39.4 GiB of RAM+swap, leaving roughly 2.6 GiB exclusively for the kernel, Docker and non-containerized services. Override the corresponding `*_MEM_LIMIT` and `*_MEMSWAP_LIMIT` variables only after measuring both `memory.current` and `memory.swap.current`; the second value is the total combined allowance, not additional swap.
 
 ## Image Generation
 

@@ -5,6 +5,8 @@ services:
     privileged: true
     gpus: all
     restart: unless-stopped
+    mem_limit: ${OCTOFAN_CONTROLLER_MEM_LIMIT:-192m}
+    memswap_limit: ${OCTOFAN_CONTROLLER_MEMSWAP_LIMIT:-384m}
     environment:
       OCTOFAN_CONFIG: /config/octofan.yaml
       OCTOFAN_BIN: /opt/octofan/fan_controller_cli
@@ -23,6 +25,8 @@ services:
     image: prom/prometheus:v2.55.1
     container_name: octofan-prometheus
     restart: unless-stopped
+    mem_limit: ${PROMETHEUS_MEM_LIMIT:-256m}
+    memswap_limit: ${PROMETHEUS_MEMSWAP_LIMIT:-768m}
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
@@ -45,6 +49,8 @@ services:
     image: quay.io/prometheus/node-exporter:v1.8.2
     container_name: octofan-node-exporter
     restart: unless-stopped
+    mem_limit: ${NODE_EXPORTER_MEM_LIMIT:-64m}
+    memswap_limit: ${NODE_EXPORTER_MEMSWAP_LIMIT:-128m}
     network_mode: host
     pid: host
     command:
@@ -61,6 +67,8 @@ services:
     image: grafana/grafana:11.4.0
     container_name: octofan-grafana
     restart: unless-stopped
+    mem_limit: ${GRAFANA_MEM_LIMIT:-256m}
+    memswap_limit: ${GRAFANA_MEMSWAP_LIMIT:-512m}
     environment:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: octofan
@@ -246,6 +254,8 @@ services:
     image: ${COMFYUI_IMAGE:-yanwk/comfyui-boot:cu126-slim}
     container_name: octofan-comfyui
     restart: unless-stopped
+    mem_limit: ${COMFYUI_MEM_LIMIT:-2g}
+    memswap_limit: ${COMFYUI_MEMSWAP_LIMIT:-4g}
     environment:
       CLI_ARGS: ${COMFYUI_CLI_ARGS:---listen 0.0.0.0 --port 8188 --lowvram}
     volumes:
