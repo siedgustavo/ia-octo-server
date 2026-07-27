@@ -5,8 +5,6 @@ services:
     privileged: true
     gpus: all
     restart: unless-stopped
-    mem_limit: ${OCTOFAN_CONTROLLER_MEM_LIMIT:-192m}
-    memswap_limit: ${OCTOFAN_CONTROLLER_MEMSWAP_LIMIT:-384m}
     environment:
       OCTOFAN_CONFIG: /config/octofan.yaml
       OCTOFAN_BIN: /opt/octofan/fan_controller_cli
@@ -25,8 +23,6 @@ services:
     image: prom/prometheus:v2.55.1
     container_name: octofan-prometheus
     restart: unless-stopped
-    mem_limit: ${PROMETHEUS_MEM_LIMIT:-256m}
-    memswap_limit: ${PROMETHEUS_MEMSWAP_LIMIT:-768m}
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
@@ -49,8 +45,6 @@ services:
     image: quay.io/prometheus/node-exporter:v1.8.2
     container_name: octofan-node-exporter
     restart: unless-stopped
-    mem_limit: ${NODE_EXPORTER_MEM_LIMIT:-64m}
-    memswap_limit: ${NODE_EXPORTER_MEMSWAP_LIMIT:-128m}
     network_mode: host
     pid: host
     command:
@@ -67,8 +61,6 @@ services:
     image: grafana/grafana:11.4.0
     container_name: octofan-grafana
     restart: unless-stopped
-    mem_limit: ${GRAFANA_MEM_LIMIT:-256m}
-    memswap_limit: ${GRAFANA_MEMSWAP_LIMIT:-512m}
     environment:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: octofan
@@ -86,8 +78,6 @@ services:
     image: ${QWEN3CODER_IMAGE:-ghcr.io/ggml-org/llama.cpp:server-cuda}
     container_name: octofan-llamacpp-qwen3coder
     restart: unless-stopped
-    mem_limit: ${QWEN3CODER_MEM_LIMIT:-2g}
-    memswap_limit: ${QWEN3CODER_MEMSWAP_LIMIT:-9g}
     command:
       - --host
       - 0.0.0.0
@@ -126,8 +116,6 @@ services:
     image: ${QWEN36_UNCENSORED_IMAGE:-ghcr.io/ggml-org/llama.cpp:server-cuda}
     container_name: octofan-llamacpp-qwen36-uncensored
     restart: unless-stopped
-    mem_limit: ${QWEN36_UNCENSORED_MEM_LIMIT:-4g}
-    memswap_limit: ${QWEN36_UNCENSORED_MEMSWAP_LIMIT:-10g}
     environment:
       LLAMA_ARG_CHAT_TEMPLATE_KWARGS: '{"enable_thinking":false}'
     command:
@@ -164,98 +152,11 @@ services:
               device_ids: ["${QWEN36_UNCENSORED_GPU:-1}"]
               capabilities: [gpu]
 
-  llamacpp-llama31-pro:
-    image: ${LLAMA31_PRO_IMAGE:-ghcr.io/ggml-org/llama.cpp:server-cuda}
-    container_name: octofan-llamacpp-llama31-pro
-    restart: unless-stopped
-    mem_limit: ${LLAMA31_PRO_MEM_LIMIT:-1536m}
-    memswap_limit: ${LLAMA31_PRO_MEMSWAP_LIMIT:-7g}
-    command:
-      - --host
-      - 0.0.0.0
-      - --port
-      - "8080"
-      - --alias
-      - ${LLAMA31_PRO_ALIAS:-llama3.1:8b}
-      - --model
-      - /models/${LLAMA31_PRO_MODEL:-llama31-pro.gguf}
-      - --ctx-size
-      - ${LLAMA31_PRO_CTX_SIZE:-8192}
-      - --n-gpu-layers
-      - ${LLAMA31_PRO_N_GPU_LAYERS:-999}
-      - --parallel
-      - ${LLAMA31_PRO_PARALLEL:-1}
-      - --batch-size
-      - ${LLAMA31_PRO_BATCH_SIZE:-512}
-      - --ubatch-size
-      - ${LLAMA31_PRO_UBATCH_SIZE:-128}
-      - --cache-ram
-      - ${LLAMA31_PRO_CACHE_RAM_MIB:-512}
-      - --no-mmap
-    volumes:
-      - ${MODELS_DIR:-/opt/llamacpp/models}:/models:ro
-    ports:
-      - "${LLAMA31_PRO_PORT:-8082}:8080"
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              device_ids: ["${LLAMA31_PRO_GPU:-2}"]
-              capabilities: [gpu]
-
-  llamacpp-permission-classifier:
-    image: ${PERMISSION_CLASSIFIER_IMAGE:-ghcr.io/ggml-org/llama.cpp:server-cuda}
-    container_name: octofan-llamacpp-permission-classifier
-    restart: unless-stopped
-    mem_limit: ${PERMISSION_CLASSIFIER_MEM_LIMIT:-1g}
-    memswap_limit: ${PERMISSION_CLASSIFIER_MEMSWAP_LIMIT:-5g}
-    command:
-      - --host
-      - 0.0.0.0
-      - --port
-      - "8080"
-      - --alias
-      - ${PERMISSION_CLASSIFIER_ALIAS:-qwen2.5-coder:7b}
-      - --model
-      - /models/${PERMISSION_CLASSIFIER_MODEL:-Qwen2.5-Coder-7B-Instruct-128K-Q4_K_M.gguf}
-      - --ctx-size
-      - ${PERMISSION_CLASSIFIER_CTX_SIZE:-131072}
-      - --n-gpu-layers
-      - ${PERMISSION_CLASSIFIER_N_GPU_LAYERS:-999}
-      - --parallel
-      - ${PERMISSION_CLASSIFIER_PARALLEL:-1}
-      - --batch-size
-      - ${PERMISSION_CLASSIFIER_BATCH_SIZE:-512}
-      - --ubatch-size
-      - ${PERMISSION_CLASSIFIER_UBATCH_SIZE:-128}
-      - --flash-attn
-      - "on"
-      - --cache-type-k
-      - ${PERMISSION_CLASSIFIER_CACHE_TYPE:-q8_0}
-      - --cache-type-v
-      - ${PERMISSION_CLASSIFIER_CACHE_TYPE:-q8_0}
-      - --cache-ram
-      - ${PERMISSION_CLASSIFIER_CACHE_RAM_MIB:-256}
-      - --no-mmap
-    volumes:
-      - ${MODELS_DIR:-/opt/llamacpp/models}:/models:ro
-    ports:
-      - "${PERMISSION_CLASSIFIER_PORT:-8083}:8080"
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              device_ids: ["${PERMISSION_CLASSIFIER_GPU:-3}"]
-              capabilities: [gpu]
-
   comfyui:
     image: ${COMFYUI_IMAGE:-yanwk/comfyui-boot:cu126-slim}
     container_name: octofan-comfyui
+    profiles: ["imagegen"]
     restart: unless-stopped
-    mem_limit: ${COMFYUI_MEM_LIMIT:-2g}
-    memswap_limit: ${COMFYUI_MEMSWAP_LIMIT:-4g}
     environment:
       CLI_ARGS: ${COMFYUI_CLI_ARGS:---listen 0.0.0.0 --port 8188 --lowvram}
     volumes:
@@ -274,7 +175,7 @@ services:
         reservations:
           devices:
             - driver: nvidia
-              device_ids: ["${COMFYUI_GPU:-3}"]
+              device_ids: ["${COMFYUI_GPU:-1}"]
               capabilities: [gpu]
 
 volumes:

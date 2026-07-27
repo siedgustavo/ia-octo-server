@@ -17,7 +17,7 @@ The original HiveOS package files are preserved only as reference material under
 - Updates the controller OLED with host, thermal, power and AI status.
 - Drives the front-panel LEDs for llama.cpp health and GPU activity.
 - Feeds the hardware watchdog only when configured host checks pass.
-- Runs three general-purpose GPU-pinned `llama-server` containers and a dedicated permission classifier over Docker networking.
+- Runs two GPU-pinned `llama-server` containers over Docker networking.
 
 ## Services
 
@@ -27,9 +27,7 @@ The original HiveOS package files are preserved only as reference material under
 - `grafana`: dashboard at `http://localhost:3000` (`admin` / `octofan`).
 - `llamacpp-qwen3coder`: llama.cpp OpenAI-compatible API at `http://localhost:8080`.
 - `llamacpp-qwen36-uncensored`: llama.cpp OpenAI-compatible API at `http://localhost:8081`.
-- `llamacpp-llama31-pro`: llama.cpp OpenAI-compatible API at `http://localhost:8082`.
-- `llamacpp-permission-classifier`: dedicated security classifier API at `http://localhost:8083`.
-- `comfyui`: ComfyUI image generation workspace at `http://localhost:8188`, sharing GPU 3 with the classifier.
+- `comfyui`: optional ComfyUI image generation workspace at `http://localhost:8188`.
 
 ## Repository Layout
 
@@ -119,7 +117,7 @@ Enable `llamacpp.enabled` in `config/octofan.yaml`. The controller polls each co
 
 Tokens per second remain unavailable from controller-side polling, so `octofan_ai_tokens_per_second_available{source="llamacpp"}` stays `0` unless request-level telemetry is added separately.
 
-The compose stack includes three general-purpose `llama-server` services polled by the controller, plus a dedicated permission classifier used directly by the gateway:
+The compose stack includes two `llama-server` services polled by the controller:
 
 ```yaml
 llamacpp:
@@ -134,37 +132,19 @@ llamacpp:
     gpu: '1'
     base_url: http://llamacpp-qwen36-uncensored:8080
     expected_model: qwen3.6:35b
-  - name: llama3.1:8b
-    gpu: '2'
-    base_url: http://llamacpp-llama31-pro:8080
-    expected_model: llama3.1:8b
 ```
 
-Externally, the general-purpose instances are exposed as `8080`, `8081` and `8082`; the permission classifier is exposed as `8083`. The classifier and optional ComfyUI service share GPU 3, so avoid running heavy inference and image-generation workloads on them simultaneously.
+Externally, the instances are exposed as `8080` and `8081`.
 
-Models are expected as GGUF files under `${MODELS_DIR:-/opt/llamacpp/models}`. The default served IDs are `qwen3coder:30b`, `qwen3.6:35b`, `llama3.1:8b` and `qwen2.5-coder:7b`. The GHCR images may require `docker login ghcr.io` on the host before `docker compose pull` or `docker compose up`.
+Models are expected as GGUF files under `${MODELS_DIR:-/opt/llamacpp/models}`. The default served IDs are `qwen3coder:30b` and `qwen3.6:35b`. The GHCR images may require `docker login ghcr.io` on the host before `docker compose pull` or `docker compose up`.
 
-The services use the official `ghcr.io/ggml-org/llama.cpp:server-cuda` image. They pass `--no-mmap`, `--parallel 1` and reduced batch sizes so model loading and large contexts fit predictably on the production GPUs. Prompt cache remains enabled, but `--cache-ram` is capped per service (2048 MiB for `qwen3.6:35b`, 1024 MiB for `qwen3coder:30b`, 512 MiB for `llama3.1:8b` and 256 MiB for the classifier) instead of using llama.cpp's 8192 MiB default per server. These are prompt-cache caps, not hard container memory limits.
+The services use the official `ghcr.io/ggml-org/llama.cpp:server-cuda` image. They pass `--no-mmap`, `--parallel 1` and reduced batch sizes so model loading and large contexts fit predictably on the production GPUs. Prompt cache remains enabled, but `--cache-ram` is capped per service (2048 MiB for `qwen3.6:35b` and 1024 MiB for `qwen3coder:30b`) instead of using llama.cpp's 8192 MiB default per server. These are prompt-cache caps, not hard container memory limits.
 
-Docker also enforces hard cgroup budgets for physical RAM and combined RAM+swap:
-
-| Service | RAM | RAM + swap |
-| --- | ---: | ---: |
-| `qwen3coder:30b` | 2 GiB | 9 GiB |
-| `qwen3.6:35b` | 4 GiB | 10 GiB |
-| `llama3.1:8b` | 1536 MiB | 7 GiB |
-| Permission classifier | 1 GiB | 5 GiB |
-| ComfyUI | 2 GiB | 4 GiB |
-| Controller | 192 MiB | 384 MiB |
-| Prometheus | 256 MiB | 768 MiB |
-| Grafana | 256 MiB | 512 MiB |
-| Node exporter | 64 MiB | 128 MiB |
-
-The combined container ceiling is 36.75 GiB on a host with about 39.4 GiB of RAM+swap, leaving roughly 2.6 GiB exclusively for the kernel, Docker and non-containerized services. Override the corresponding `*_MEM_LIMIT` and `*_MEMSWAP_LIMIT` variables only after measuring both `memory.current` and `memory.swap.current`; the second value is the total combined allowance, not additional swap.
+The compose stack does not impose hard container RAM or RAM+swap limits.
 
 ## Image Generation
 
-The compose stack includes an optional ComfyUI workspace pinned to GPU 3 and exposed at `http://localhost:8188`.
+The compose stack includes an optional ComfyUI workspace exposed at `http://localhost:8188`. Start it explicitly with `docker compose --profile imagegen up -d comfyui`; it defaults to GPU 1 and should not run alongside a memory-intensive inference workload on that GPU.
 
 Persistent directories live under `${COMFYUI_MODELS_DIR:-/opt/imagegen/comfyui/models}` and sibling paths for cache, input, output, user data and custom nodes. For Chroma/Flux-style workflows, place files in:
 
