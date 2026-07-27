@@ -111,7 +111,7 @@ The default services use these context windows:
 - `qwen3coder:30b` on GPU 0: `65536`
 - `qwen3.6:35b` on GPU 1: `196608`
 
-The services use the official `ghcr.io/ggml-org/llama.cpp:server-cuda` image. Both services pass `--no-mmap`, `--parallel 1`, `--batch-size 512` and `--ubatch-size 128`. Prompt cache remains enabled, but each service caps `--cache-ram` (`QWEN3CODER_CACHE_RAM_MIB=1024`, `QWEN36_UNCENSORED_CACHE_RAM_MIB=2048`) instead of using llama.cpp's default 8192 MiB per server. These settings cap only the prompt cache, not total container RAM. Raise them only after checking host headroom with `free -h` and `swapon --show`.
+The services use the official `ghcr.io/ggml-org/llama.cpp:server-cuda` image. Both services use llama.cpp's default memory mapping and pass `--parallel 1`, `--batch-size 512` and `--ubatch-size 128`. Prompt cache remains enabled, but each service caps `--cache-ram` (`QWEN3CODER_CACHE_RAM_MIB=1024`, `QWEN36_UNCENSORED_CACHE_RAM_MIB=2048`) instead of using llama.cpp's default 8192 MiB per server. These settings cap only the prompt cache, not total container RAM. Raise them only after checking host headroom with `free -h` and `swapon --show`.
 
 Compose does not apply hard cgroup RAM or RAM+swap limits. Check actual usage with:
 

@@ -138,7 +138,7 @@ Externally, the instances are exposed as `8080` and `8081`.
 
 Models are expected as GGUF files under `${MODELS_DIR:-/opt/llamacpp/models}`. The default served IDs are `qwen3coder:30b` and `qwen3.6:35b`. The GHCR images may require `docker login ghcr.io` on the host before `docker compose pull` or `docker compose up`.
 
-The services use the official `ghcr.io/ggml-org/llama.cpp:server-cuda` image. They pass `--no-mmap`, `--parallel 1` and reduced batch sizes so model loading and large contexts fit predictably on the production GPUs. Prompt cache remains enabled, but `--cache-ram` is capped per service (2048 MiB for `qwen3.6:35b` and 1024 MiB for `qwen3coder:30b`) instead of using llama.cpp's 8192 MiB default per server. These are prompt-cache caps, not hard container memory limits.
+The services use the official `ghcr.io/ggml-org/llama.cpp:server-cuda` image. They use llama.cpp's default memory mapping, `--parallel 1` and reduced batch sizes. Prompt cache remains enabled, but `--cache-ram` is capped per service (2048 MiB for `qwen3.6:35b` and 1024 MiB for `qwen3coder:30b`) instead of using llama.cpp's 8192 MiB default per server. These are prompt-cache caps, not hard container memory limits.
 
 The compose stack does not impose hard container RAM or RAM+swap limits.
 

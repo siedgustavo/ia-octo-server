@@ -99,7 +99,6 @@ services:
       - ${QWEN3CODER_UBATCH_SIZE:-128}
       - --cache-ram
       - ${QWEN3CODER_CACHE_RAM_MIB:-1024}
-      - --no-mmap
     volumes:
       - ${MODELS_DIR:-/opt/llamacpp/models}:/models:ro
     ports:
@@ -139,7 +138,6 @@ services:
       - ${QWEN36_UNCENSORED_UBATCH_SIZE:-128}
       - --cache-ram
       - ${QWEN36_UNCENSORED_CACHE_RAM_MIB:-2048}
-      - --no-mmap
     volumes:
       - ${MODELS_DIR:-/opt/llamacpp/models}:/models:ro
     ports:

@@ -22,3 +22,9 @@ def test_migrated_models_are_not_in_compose():
     assert "llamacpp-llama31-pro" not in services
     assert "llamacpp-permission-classifier" not in services
     assert "comfyui" in services
+
+
+def test_llamacpp_services_use_memory_mapping():
+    services = load_compose()["services"]
+    for service_name in ("llamacpp-qwen3coder", "llamacpp-qwen36-uncensored"):
+        assert "--no-mmap" not in services[service_name]["command"]
