@@ -157,7 +157,7 @@ docker compose exec ollama ollama create qwen3.6:35b -f /model-definitions/qwen3
 docker compose exec ollama ollama list
 ```
 
-The imported models use the same default context sizes as their llama.cpp counterparts. Other models can be added with `ollama pull`, and Ollama loads them only when requested:
+The imported models use the same default context sizes as their llama.cpp counterparts and `num_batch=128` to reduce inference compute buffers on the 24 GiB GPUs. Other models can be added with `ollama pull`, and Ollama loads them only when requested:
 
 ```bash
 docker compose exec ollama ollama pull gemma3

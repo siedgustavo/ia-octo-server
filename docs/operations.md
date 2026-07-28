@@ -143,6 +143,8 @@ OLLAMA_NUM_PARALLEL=1
 
 This keeps idle models resident. When another model needs memory, Ollama queues the request and unloads idle models as necessary. API callers can override the policy per request with `keep_alive`.
 
+Both local model definitions set `num_batch=128`. This reduces GPU compute-buffer usage for their large context windows, at the cost of slower prompt ingestion.
+
 Create the two local models from the existing read-only GGUF mount:
 
 ```bash

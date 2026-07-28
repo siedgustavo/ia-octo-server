@@ -38,3 +38,9 @@ def test_ollama_uses_both_gpus_and_keeps_models_resident():
     assert "OLLAMA_MAX_LOADED_MODELS" not in ollama["environment"]
     assert ollama["environment"]["OLLAMA_NUM_PARALLEL"] == "${OLLAMA_NUM_PARALLEL:-1}"
     assert "${MODELS_DIR:-/opt/llamacpp/models}:/models:ro" in ollama["volumes"]
+
+
+def test_ollama_local_models_use_reduced_batch_size():
+    for filename in ("qwen3coder.Modelfile", "qwen36-uncensored.Modelfile"):
+        definition = (ROOT / "ollama" / filename).read_text(encoding="utf-8")
+        assert "PARAMETER num_batch 128" in definition
