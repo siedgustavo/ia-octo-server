@@ -27,6 +27,7 @@ The original HiveOS package files are preserved only as reference material under
 - `grafana`: dashboard at `http://localhost:3000` (`admin` / `octofan`).
 - `llamacpp-qwen3coder`: llama.cpp OpenAI-compatible API at `http://localhost:8080`.
 - `llamacpp-qwen36-uncensored`: llama.cpp OpenAI-compatible API at `http://localhost:8081`.
+- `ollama`: on-demand Ollama API at `http://localhost:11434`, with both GPUs visible.
 - `comfyui`: optional ComfyUI image generation workspace at `http://localhost:8188`.
 
 ## Repository Layout
@@ -51,6 +52,7 @@ Open:
 - Controller UI: `http://localhost:8000`
 - Prometheus: `http://localhost:9090`
 - Grafana: `http://localhost:3000`
+- Ollama: `http://localhost:11434`
 
 Grafana provisions these dashboards under the `Octofan` folder:
 
@@ -141,6 +143,33 @@ Models are expected as GGUF files under `${MODELS_DIR:-/opt/llamacpp/models}`. T
 The services use the official `ghcr.io/ggml-org/llama.cpp:server-cuda` image. They use llama.cpp's default memory mapping, `--parallel 1` and reduced batch sizes. Prompt cache remains enabled, but `--cache-ram` is capped per service (2048 MiB for `qwen3.6:35b` and 1024 MiB for `qwen3coder:30b`) instead of using llama.cpp's 8192 MiB default per server. These are prompt-cache caps, not hard container memory limits.
 
 The compose stack does not impose hard container RAM or RAM+swap limits.
+
+## Ollama
+
+The stack includes one Ollama instance with both NVIDIA GPUs visible. It is limited to one loaded model and one parallel request, and `OLLAMA_KEEP_ALIVE=0` unloads the model after each request so VRAM remains available for the persistent llama.cpp servers.
+
+Ollama stores its model inventory under `${OLLAMA_DATA_DIR:-/opt/ollama}`. The two existing GGUF files can be registered without downloading them again:
+
+```bash
+docker compose up -d ollama
+docker compose exec ollama ollama create qwen3coder:30b -f /model-definitions/qwen3coder.Modelfile
+docker compose exec ollama ollama create qwen3.6:35b -f /model-definitions/qwen36-uncensored.Modelfile
+docker compose exec ollama ollama list
+```
+
+The imported models use the same default context sizes as their llama.cpp counterparts. Other models can be added with `ollama pull`, and Ollama loads them only when requested:
+
+```bash
+docker compose exec ollama ollama pull gemma3
+curl http://localhost:11434/api/chat -d '{
+  "model": "gemma3",
+  "messages": [{"role": "user", "content": "Hello"}],
+  "stream": false
+}'
+docker compose exec ollama ollama ps
+```
+
+Because the two llama.cpp containers already occupy most of both GPUs, Ollama may offload part of a model to the host's 128 GiB RAM. Stop a llama.cpp service temporarily if a test requires that GPU's full VRAM.
 
 ## Image Generation
 

@@ -1,0 +1,3 @@
+FROM /models/Huihui-Qwen3-Coder-30B-A3B-Instruct-abliterated.i1-IQ4_XS.gguf
+
+PARAMETER num_ctx 65536

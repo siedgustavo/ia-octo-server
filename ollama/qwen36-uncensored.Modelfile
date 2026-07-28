@@ -1,0 +1,3 @@
+FROM /models/qwen3.6-uncensored.gguf
+
+PARAMETER num_ctx 196608

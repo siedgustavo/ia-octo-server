@@ -13,6 +13,7 @@ Open:
 - Grafana: `http://localhost:3000`
 - llama.cpp qwen3coder: `http://localhost:8080`
 - llama.cpp qwen36-uncensored: `http://localhost:8081`
+- Ollama: `http://localhost:11434`
 
 Grafana login is `admin` / `octofan`.
 
@@ -129,6 +130,40 @@ sudo sysctl --system
 Do not use `drop_caches` or cycle swap to make RAM look free. Monitor the `available` field from `free`, swap I/O and workload latency; cached RAM is reclaimable and is not a leak.
 
 Controller-side token throughput is not available from the llama.cpp polling endpoints. The controller keeps `octofan_ai_tokens_per_second_available{source="llamacpp"}` at `0` unless the application that calls inference exports request-level token telemetry through another integration.
+
+## Ollama On-Demand Models
+
+Ollama sees both NVIDIA GPUs through `gpus: all`. The service defaults to:
+
+```env
+OLLAMA_CONTEXT_LENGTH=65536
+OLLAMA_KEEP_ALIVE=0
+OLLAMA_MAX_LOADED_MODELS=1
+OLLAMA_NUM_PARALLEL=1
+```
+
+This keeps the scheduler serial and unloads each model after its request. API callers can override the unload policy per request with `keep_alive`.
+
+Create the two local models from the existing read-only GGUF mount:
+
+```bash
+docker compose up -d ollama
+docker compose exec ollama \
+  ollama create qwen3coder:30b -f /model-definitions/qwen3coder.Modelfile
+docker compose exec ollama \
+  ollama create qwen3.6:35b -f /model-definitions/qwen36-uncensored.Modelfile
+```
+
+Inspect models stored on disk and models currently occupying memory:
+
+```bash
+curl -fsS http://localhost:11434/api/tags
+curl -fsS http://localhost:11434/api/ps
+docker compose exec ollama ollama list
+docker compose exec ollama ollama ps
+```
+
+Add experimental models with `docker compose exec ollama ollama pull <model>`. The two persistent llama.cpp servers already occupy most VRAM on both RTX 3090 cards, so Ollama may use partial CPU offload. Temporarily stop the llama.cpp service assigned to a GPU when testing a model that requires its full VRAM.
 
 ## ComfyUI Image Generation
 

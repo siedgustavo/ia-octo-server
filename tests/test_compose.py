@@ -28,3 +28,13 @@ def test_llamacpp_services_use_memory_mapping():
     services = load_compose()["services"]
     for service_name in ("llamacpp-qwen3coder", "llamacpp-qwen36-uncensored"):
         assert "--no-mmap" not in services[service_name]["command"]
+
+
+def test_ollama_uses_both_gpus_and_unloads_models_on_demand():
+    ollama = load_compose()["services"]["ollama"]
+
+    assert ollama["gpus"] == "all"
+    assert ollama["environment"]["OLLAMA_KEEP_ALIVE"] == "${OLLAMA_KEEP_ALIVE:-0}"
+    assert ollama["environment"]["OLLAMA_MAX_LOADED_MODELS"] == "${OLLAMA_MAX_LOADED_MODELS:-1}"
+    assert ollama["environment"]["OLLAMA_NUM_PARALLEL"] == "${OLLAMA_NUM_PARALLEL:-1}"
+    assert "${MODELS_DIR:-/opt/llamacpp/models}:/models:ro" in ollama["volumes"]
