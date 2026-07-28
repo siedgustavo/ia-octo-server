@@ -2,3 +2,4 @@ FROM /models/qwen3.6-uncensored.gguf
 
 PARAMETER num_ctx 196608
 PARAMETER num_batch 128
+PARAMETER repeat_penalty 1.0

@@ -10,7 +10,6 @@ Octofan AI Server is a small container stack around the original Octominer USB c
 - `prometheus`: scrapes `octofan-controller:8000/metrics`.
 - `node-exporter`: exposes host CPU, memory, disk, filesystem and network metrics. It runs with `network_mode: host` so network counters come from the host namespace instead of the exporter container.
 - `grafana`: loads the Prometheus datasource and the Octofan dashboard set.
-- `llamacpp-qwen3coder` and `llamacpp-qwen36-uncensored`: GPU-pinned llama.cpp inference containers polled by the controller when AI metrics are enabled.
 - `ollama`: on-demand model server with both NVIDIA GPUs visible and persistent model storage under `/opt/ollama`.
 - `comfyui`: optional image generation workspace. It is exposed for direct UI/API use and is not currently polled by the controller.
 
@@ -25,7 +24,7 @@ Octofan AI Server is a small container stack around the original Octominer USB c
 7. Prometheus scrapes the controller and node exporter metrics.
 8. Grafana visualizes overview, PSU, environment, cooling, GPU and host/network dashboards.
 9. The OLED loop renders an 8-line, 20-character layout through `fan_controller_cli -o`.
-10. The LED loop maps llama.cpp health and NVIDIA activity to front-panel LEDs through `fan_controller_cli -l`.
+10. The LED loop maps controller health and NVIDIA activity to front-panel LEDs through `fan_controller_cli -l`.
 11. The watchdog loop runs configured checks and feeds the watchdog with `fan_controller_cli -s` only when healthy.
 
 ## Hardware Interface
@@ -46,4 +45,4 @@ Supported controller surfaces include:
 
 ## Network Model
 
-The compose stack uses the Docker network `octofan-ai` by default. This gives the controller stable internal names for the GPU-pinned llama.cpp containers at `http://llamacpp-qwen3coder:8080` and `http://llamacpp-qwen36-uncensored:8080`. Ollama is reachable within the network at `http://ollama:11434`. ComfyUI is also on the network as `http://comfyui:8188` when its `imagegen` profile is enabled; the controller does not depend on Ollama or ComfyUI.
+The compose stack uses the Docker network `octofan-ai` by default. Ollama is reachable within the network at `http://ollama:11434`. ComfyUI is also on the network as `http://comfyui:8188` when its `imagegen` profile is enabled; the controller does not depend on Ollama or ComfyUI.

@@ -24,10 +24,9 @@ def test_migrated_models_are_not_in_compose():
     assert "comfyui" in services
 
 
-def test_llamacpp_services_use_memory_mapping():
+def test_llamacpp_services_are_not_in_compose():
     services = load_compose()["services"]
-    for service_name in ("llamacpp-qwen3coder", "llamacpp-qwen36-uncensored"):
-        assert "--no-mmap" not in services[service_name]["command"]
+    assert not any(name.startswith("llamacpp-") for name in services)
 
 
 def test_ollama_uses_both_gpus_and_keeps_models_resident():
@@ -40,7 +39,8 @@ def test_ollama_uses_both_gpus_and_keeps_models_resident():
     assert "${MODELS_DIR:-/opt/llamacpp/models}:/models:ro" in ollama["volumes"]
 
 
-def test_ollama_local_models_use_reduced_batch_size():
+def test_ollama_local_models_use_tuned_inference_parameters():
     for filename in ("qwen3coder.Modelfile", "qwen36-uncensored.Modelfile"):
         definition = (ROOT / "ollama" / filename).read_text(encoding="utf-8")
         assert "PARAMETER num_batch 128" in definition
+        assert "PARAMETER repeat_penalty 1.0" in definition

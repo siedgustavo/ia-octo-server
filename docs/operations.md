@@ -11,8 +11,6 @@ Open:
 - Controller: `http://localhost:8000`
 - Prometheus: `http://localhost:9090`
 - Grafana: `http://localhost:3000`
-- llama.cpp qwen3coder: `http://localhost:8080`
-- llama.cpp qwen36-uncensored: `http://localhost:8081`
 - Ollama: `http://localhost:11434`
 
 Grafana login is `admin` / `octofan`.
@@ -62,75 +60,6 @@ or for one command:
 sg docker -c 'docker compose ps'
 ```
 
-## llama.cpp Servers
-
-The compose file runs two `llama-server` instances pinned to GPUs 0 and 1. Configure controller polling with:
-
-```yaml
-llamacpp:
-  enabled: true
-  timeout_seconds: 2.0
-  servers:
-  - name: qwen3coder:30b
-    gpu: '0'
-    base_url: http://llamacpp-qwen3coder:8080
-    expected_model: qwen3coder:30b
-  - name: qwen3.6:35b
-    gpu: '1'
-    base_url: http://llamacpp-qwen36-uncensored:8080
-    expected_model: qwen3.6:35b
-```
-
-Restart the controller:
-
-```bash
-docker compose restart octofan-controller
-```
-
-The local models directory is mounted read-only into each container:
-
-```env
-MODELS_DIR=/opt/llamacpp/models
-```
-
-The host must already have these GGUF files in that directory:
-
-- `Huihui-Qwen3-Coder-30B-A3B-Instruct-abliterated.i1-IQ4_XS.gguf`
-- `qwen3.6-uncensored.gguf`
-
-The images are hosted on GHCR, so run `docker login ghcr.io` on the host if pulls are unauthorized.
-
-Check the OpenAI-compatible model endpoints:
-
-```bash
-curl -fsS http://localhost:8080/v1/models
-curl -fsS http://localhost:8081/v1/models
-```
-
-The default services use these context windows:
-
-- `qwen3coder:30b` on GPU 0: `65536`
-- `qwen3.6:35b` on GPU 1: `196608`
-
-The services use the official `ghcr.io/ggml-org/llama.cpp:server-cuda` image. Both services use llama.cpp's default memory mapping and pass `--parallel 1`, `--batch-size 512` and `--ubatch-size 128`. Prompt cache remains enabled, but each service caps `--cache-ram` (`QWEN3CODER_CACHE_RAM_MIB=1024`, `QWEN36_UNCENSORED_CACHE_RAM_MIB=2048`) instead of using llama.cpp's default 8192 MiB per server. These settings cap only the prompt cache, not total container RAM. Raise them only after checking host headroom with `free -h` and `swapon --show`.
-
-Compose does not apply hard cgroup RAM or RAM+swap limits. Check actual usage with:
-
-```bash
-docker stats --no-stream
-```
-
-The host uses `vm.swappiness=60` from `host/sysctl.d/99-octofan-memory.conf`. This lets the kernel move cold anonymous pages to SSD-backed swap before direct reclaim becomes urgent, while still balancing swap I/O against filesystem cache. Install it with:
-
-```bash
-sudo cp host/sysctl.d/99-octofan-memory.conf /etc/sysctl.d/99-octofan-memory.conf
-sudo sysctl --system
-```
-
-Do not use `drop_caches` or cycle swap to make RAM look free. Monitor the `available` field from `free`, swap I/O and workload latency; cached RAM is reclaimable and is not a leak.
-
-Controller-side token throughput is not available from the llama.cpp polling endpoints. The controller keeps `octofan_ai_tokens_per_second_available{source="llamacpp"}` at `0` unless the application that calls inference exports request-level token telemetry through another integration.
-
 ## Ollama On-Demand Models
 
 Ollama sees both NVIDIA GPUs through `gpus: all`. The service defaults to:
@@ -143,7 +72,7 @@ OLLAMA_NUM_PARALLEL=1
 
 This keeps idle models resident. When another model needs memory, Ollama queues the request and unloads idle models as necessary. API callers can override the policy per request with `keep_alive`.
 
-Both local model definitions set `num_batch=128`. This reduces GPU compute-buffer usage for their large context windows, at the cost of slower prompt ingestion.
+Both local model definitions set `num_batch=128` and `repeat_penalty=1.0`. The batch setting reduces GPU compute-buffer usage for their large context windows. The repetition penalty setting matches the former llama.cpp behavior and avoids a measured twofold generation slowdown on these models.
 
 Create the two local models from the existing read-only GGUF mount:
 
@@ -164,7 +93,7 @@ docker compose exec ollama ollama list
 docker compose exec ollama ollama ps
 ```
 
-Add experimental models with `docker compose exec ollama ollama pull <model>`. The two persistent llama.cpp servers already occupy most VRAM on both RTX 3090 cards, so Ollama may use partial CPU offload. Temporarily stop the llama.cpp service assigned to a GPU when testing a model that requires its full VRAM.
+Add experimental models with `docker compose exec ollama ollama pull <model>`. Ollama can use both RTX 3090 cards and unload idle models when another request needs their VRAM.
 
 ## ComfyUI Image Generation
 

@@ -48,7 +48,7 @@ leds:
   gpu_activity_utilization_percent: 15.0
   gpu_activity_power_watts: 40.0
 llamacpp:
-  enabled: true
+  enabled: false
   timeout_seconds: 2.0
   servers:
   - name: qwen3coder:30b

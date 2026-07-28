@@ -15,9 +15,9 @@ The original HiveOS package files are preserved only as reference material under
 - Adds host CPU, memory, disk and network telemetry through node exporter.
 - Ships Grafana dashboards for overview, PSUs, environment, cooling, GPUs, host/network, watchdog and AI metrics.
 - Updates the controller OLED with host, thermal, power and AI status.
-- Drives the front-panel LEDs for llama.cpp health and GPU activity.
+- Drives the front-panel LEDs from controller health and GPU activity.
 - Feeds the hardware watchdog only when configured host checks pass.
-- Runs two GPU-pinned `llama-server` containers over Docker networking.
+- Runs Ollama with both NVIDIA GPUs visible and on-demand model scheduling.
 
 ## Services
 
@@ -25,8 +25,6 @@ The original HiveOS package files are preserved only as reference material under
 - `prometheus`: metrics storage.
 - `node-exporter`: host system and network metrics, running in the host network namespace.
 - `grafana`: dashboard at `http://localhost:3000` (`admin` / `octofan`).
-- `llamacpp-qwen3coder`: llama.cpp OpenAI-compatible API at `http://localhost:8080`.
-- `llamacpp-qwen36-uncensored`: llama.cpp OpenAI-compatible API at `http://localhost:8081`.
 - `ollama`: on-demand Ollama API at `http://localhost:11434`, with both GPUs visible.
 - `comfyui`: optional ComfyUI image generation workspace at `http://localhost:8188`.
 
@@ -95,7 +93,7 @@ Important sections:
 - `watchdog`: hardware watchdog timeouts and HTTP/TCP health checks.
 - `display`: OLED profile and refresh interval.
 - `leds`: front-panel LED policy. By default LED `0` is orange warning, LED `1` is blue online and LED `2` is white activity.
-- `llamacpp`: GPU-pinned llama.cpp endpoints.
+- `llamacpp`: legacy controller polling support; disabled in the active stack.
 
 The fan controller uses BME280 sensor `0` as intake/internal temperature when available, then falls back to `Temperature No. 0`.
 
@@ -113,37 +111,6 @@ The fan controller uses BME280 sensor `0` as intake/internal temperature when av
 - `POST /api/calibrate-fans`
 - `GET /metrics`
 
-## llama.cpp
-
-Enable `llamacpp.enabled` in `config/octofan.yaml`. The controller polls each configured server with `/health`, `/props` and `/slots`; the OLED and Grafana dashboard show healthy models and active generation slots.
-
-Tokens per second remain unavailable from controller-side polling, so `octofan_ai_tokens_per_second_available{source="llamacpp"}` stays `0` unless request-level telemetry is added separately.
-
-The compose stack includes two `llama-server` services polled by the controller:
-
-```yaml
-llamacpp:
-  enabled: true
-  timeout_seconds: 2.0
-  servers:
-  - name: qwen3coder:30b
-    gpu: '0'
-    base_url: http://llamacpp-qwen3coder:8080
-    expected_model: qwen3coder:30b
-  - name: qwen3.6:35b
-    gpu: '1'
-    base_url: http://llamacpp-qwen36-uncensored:8080
-    expected_model: qwen3.6:35b
-```
-
-Externally, the instances are exposed as `8080` and `8081`.
-
-Models are expected as GGUF files under `${MODELS_DIR:-/opt/llamacpp/models}`. The default served IDs are `qwen3coder:30b` and `qwen3.6:35b`. The GHCR images may require `docker login ghcr.io` on the host before `docker compose pull` or `docker compose up`.
-
-The services use the official `ghcr.io/ggml-org/llama.cpp:server-cuda` image. They use llama.cpp's default memory mapping, `--parallel 1` and reduced batch sizes. Prompt cache remains enabled, but `--cache-ram` is capped per service (2048 MiB for `qwen3.6:35b` and 1024 MiB for `qwen3coder:30b`) instead of using llama.cpp's 8192 MiB default per server. These are prompt-cache caps, not hard container memory limits.
-
-The compose stack does not impose hard container RAM or RAM+swap limits.
-
 ## Ollama
 
 The stack includes one Ollama instance with both NVIDIA GPUs visible. It processes one request per model in parallel and uses `OLLAMA_KEEP_ALIVE=-1` so idle models remain resident until the scheduler needs their memory for another model.
@@ -157,7 +124,7 @@ docker compose exec ollama ollama create qwen3.6:35b -f /model-definitions/qwen3
 docker compose exec ollama ollama list
 ```
 
-The imported models use the same default context sizes as their llama.cpp counterparts and `num_batch=128` to reduce inference compute buffers on the 24 GiB GPUs. Other models can be added with `ollama pull`, and Ollama loads them only when requested:
+The imported models use their tuned context sizes, `num_batch=128` to reduce inference compute buffers on the 24 GiB GPUs, and `repeat_penalty=1.0` to avoid the large sampler overhead measured with these 248k-token vocabularies. Other models can be added with `ollama pull`, and Ollama loads them only when requested:
 
 ```bash
 docker compose exec ollama ollama pull gemma3
@@ -169,7 +136,7 @@ curl http://localhost:11434/api/chat -d '{
 docker compose exec ollama ollama ps
 ```
 
-Because the two llama.cpp containers already occupy most of both GPUs, Ollama may offload part of a model to the host's 128 GiB RAM. Stop a llama.cpp service temporarily if a test requires that GPU's full VRAM.
+The scheduler can distribute a model across both GPUs and unload idle models when another request needs their VRAM.
 
 ## Image Generation
 
