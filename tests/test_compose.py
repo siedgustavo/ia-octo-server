@@ -34,6 +34,7 @@ def test_ollama_uses_both_gpus_and_keeps_models_resident():
 
     assert ollama["gpus"] == "all"
     assert ollama["environment"]["OLLAMA_KEEP_ALIVE"] == "${OLLAMA_KEEP_ALIVE:--1}"
+    assert ollama["environment"]["OLLAMA_KV_CACHE_TYPE"] == "${OLLAMA_KV_CACHE_TYPE:-q8_0}"
     assert "OLLAMA_MAX_LOADED_MODELS" not in ollama["environment"]
     assert ollama["environment"]["OLLAMA_NUM_PARALLEL"] == "${OLLAMA_NUM_PARALLEL:-1}"
     assert ollama["environment"]["OLLAMA_SCHED_SPREAD"] == "${OLLAMA_SCHED_SPREAD:-true}"
