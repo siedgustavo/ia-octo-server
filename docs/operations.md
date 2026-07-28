@@ -137,12 +137,11 @@ Ollama sees both NVIDIA GPUs through `gpus: all`. The service defaults to:
 
 ```env
 OLLAMA_CONTEXT_LENGTH=65536
-OLLAMA_KEEP_ALIVE=0
-OLLAMA_MAX_LOADED_MODELS=1
+OLLAMA_KEEP_ALIVE=-1
 OLLAMA_NUM_PARALLEL=1
 ```
 
-This keeps the scheduler serial and unloads each model after its request. API callers can override the unload policy per request with `keep_alive`.
+This keeps idle models resident. When another model needs memory, Ollama queues the request and unloads idle models as necessary. API callers can override the policy per request with `keep_alive`.
 
 Create the two local models from the existing read-only GGUF mount:
 

@@ -30,11 +30,11 @@ def test_llamacpp_services_use_memory_mapping():
         assert "--no-mmap" not in services[service_name]["command"]
 
 
-def test_ollama_uses_both_gpus_and_unloads_models_on_demand():
+def test_ollama_uses_both_gpus_and_keeps_models_resident():
     ollama = load_compose()["services"]["ollama"]
 
     assert ollama["gpus"] == "all"
-    assert ollama["environment"]["OLLAMA_KEEP_ALIVE"] == "${OLLAMA_KEEP_ALIVE:-0}"
-    assert ollama["environment"]["OLLAMA_MAX_LOADED_MODELS"] == "${OLLAMA_MAX_LOADED_MODELS:-1}"
+    assert ollama["environment"]["OLLAMA_KEEP_ALIVE"] == "${OLLAMA_KEEP_ALIVE:--1}"
+    assert "OLLAMA_MAX_LOADED_MODELS" not in ollama["environment"]
     assert ollama["environment"]["OLLAMA_NUM_PARALLEL"] == "${OLLAMA_NUM_PARALLEL:-1}"
     assert "${MODELS_DIR:-/opt/llamacpp/models}:/models:ro" in ollama["volumes"]

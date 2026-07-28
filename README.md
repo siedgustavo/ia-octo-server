@@ -146,7 +146,7 @@ The compose stack does not impose hard container RAM or RAM+swap limits.
 
 ## Ollama
 
-The stack includes one Ollama instance with both NVIDIA GPUs visible. It is limited to one loaded model and one parallel request, and `OLLAMA_KEEP_ALIVE=0` unloads the model after each request so VRAM remains available for the persistent llama.cpp servers.
+The stack includes one Ollama instance with both NVIDIA GPUs visible. It processes one request per model in parallel and uses `OLLAMA_KEEP_ALIVE=-1` so idle models remain resident until the scheduler needs their memory for another model.
 
 Ollama stores its model inventory under `${OLLAMA_DATA_DIR:-/opt/ollama}`. The two existing GGUF files can be registered without downloading them again:
 
