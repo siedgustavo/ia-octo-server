@@ -113,7 +113,7 @@ The fan controller uses BME280 sensor `0` as intake/internal temperature when av
 
 ## Ollama
 
-The stack includes one Ollama instance with both NVIDIA GPUs visible. It processes one request per model in parallel, spreads every model across both GPUs, uses an 8-bit KV cache so both local models fit with 65k context windows, and uses `OLLAMA_KEEP_ALIVE=-1` so idle models remain resident until the scheduler needs their memory for another model.
+The stack includes one Ollama instance with both NVIDIA GPUs visible. It processes one request per model in parallel, spreads every model across both GPUs, uses a 4-bit KV cache so both local models fit with 128k context windows, and uses `OLLAMA_KEEP_ALIVE=-1` so idle models remain resident until the scheduler needs their memory for another model.
 
 Ollama stores its model inventory under `${OLLAMA_DATA_DIR:-/opt/ollama}`. The two existing GGUF files can be registered without downloading them again:
 
@@ -124,7 +124,7 @@ docker compose exec ollama ollama create qwen3.6:35b -f /model-definitions/qwen3
 docker compose exec ollama ollama list
 ```
 
-The imported models use their tuned context sizes, `num_batch=128` to reduce inference compute buffers on the 24 GiB GPUs, and `repeat_penalty=1.0` to avoid the large sampler overhead measured with these 248k-token vocabularies. Other models can be added with `ollama pull`, and Ollama loads them only when requested:
+The imported models use 128k contexts, `num_batch=128`, and `repeat_penalty=1.0` to avoid the large sampler overhead measured with these 248k-token vocabularies. The local Ollama 0.32.5 image changes only its conservative 80% scheduler threshold so both models remain fully on GPU. Other models can be added with `ollama pull`, and Ollama loads them only when requested:
 
 ```bash
 docker compose exec ollama ollama pull gemma3
