@@ -113,7 +113,7 @@ The fan controller uses BME280 sensor `0` as intake/internal temperature when av
 
 ## Ollama
 
-The stack includes one Ollama instance with both NVIDIA GPUs visible. It processes one request per model in parallel and uses `OLLAMA_KEEP_ALIVE=-1` so idle models remain resident until the scheduler needs their memory for another model.
+The stack includes one Ollama instance with both NVIDIA GPUs visible. It processes one request per model in parallel, spreads every model across both GPUs, and uses `OLLAMA_KEEP_ALIVE=-1` so idle models remain resident until the scheduler needs their memory for another model.
 
 Ollama stores its model inventory under `${OLLAMA_DATA_DIR:-/opt/ollama}`. The two existing GGUF files can be registered without downloading them again:
 

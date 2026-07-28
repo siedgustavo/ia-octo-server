@@ -68,9 +68,10 @@ Ollama sees both NVIDIA GPUs through `gpus: all`. The service defaults to:
 OLLAMA_CONTEXT_LENGTH=65536
 OLLAMA_KEEP_ALIVE=-1
 OLLAMA_NUM_PARALLEL=1
+OLLAMA_SCHED_SPREAD=true
 ```
 
-This keeps idle models resident. When another model needs memory, Ollama queues the request and unloads idle models as necessary. API callers can override the policy per request with `keep_alive`.
+This spreads each model across both GPUs and keeps idle models resident. When another model needs memory, Ollama queues the request and unloads idle models as necessary. API callers can override the policy per request with `keep_alive`.
 
 Both local model definitions set `num_batch=128` and `repeat_penalty=1.0`. The batch setting reduces GPU compute-buffer usage for their large context windows. The repetition penalty setting matches the former llama.cpp behavior and avoids a measured twofold generation slowdown on these models.
 
