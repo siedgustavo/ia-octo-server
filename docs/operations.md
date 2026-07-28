@@ -72,7 +72,7 @@ OLLAMA_NUM_PARALLEL=1
 OLLAMA_SCHED_SPREAD=true
 ```
 
-This spreads each model across both GPUs, halves KV-cache memory relative to `f16`, and keeps idle models resident. That lets the two local models retain their 65k and 196k context windows simultaneously. When another model needs memory, Ollama queues the request and unloads idle models as necessary. API callers can override the policy per request with `keep_alive`.
+This spreads each model across both GPUs, halves KV-cache memory relative to `f16`, and keeps idle models resident. Both local models use 65k context windows so they satisfy Ollama's VRAM-headroom check simultaneously. When another model needs memory, Ollama queues the request and unloads idle models as necessary. API callers can override the policy per request with `keep_alive`.
 
 Both local model definitions set `num_batch=128` and `repeat_penalty=1.0`. The batch setting reduces GPU compute-buffer usage for their large context windows. The repetition penalty setting matches the former llama.cpp behavior and avoids a measured twofold generation slowdown on these models.
 

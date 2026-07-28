@@ -44,5 +44,6 @@ def test_ollama_uses_both_gpus_and_keeps_models_resident():
 def test_ollama_local_models_use_tuned_inference_parameters():
     for filename in ("qwen3coder.Modelfile", "qwen36-uncensored.Modelfile"):
         definition = (ROOT / "ollama" / filename).read_text(encoding="utf-8")
+        assert "PARAMETER num_ctx 65536" in definition
         assert "PARAMETER num_batch 128" in definition
         assert "PARAMETER repeat_penalty 1.0" in definition
