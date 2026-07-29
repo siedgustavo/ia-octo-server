@@ -1,5 +1,5 @@
 diff --git a/server/sched.go b/server/sched.go
-index 36b6f272..48b1d854 100644
+index 36b6f272..768c588f 100644
 --- a/server/sched.go
 +++ b/server/sched.go
 @@ -547,8 +547,8 @@ func (s *Scheduler) processPending(ctx context.Context, pending chan *LlmRequest)
@@ -13,3 +13,13 @@ index 36b6f272..48b1d854 100644
  					slog.Info("llama-server model predicted to exceed available memory, evicting",
  						"predicted", format.HumanBytes2(predictedForLoad),
  						"predicted_num_ctx", predictedCtx,
+@@ -1067,7 +1067,8 @@ func bestSingleGPUFit(systemInfo ml.SystemInfo, groups [][]ml.DeviceInfo, predict
+ 	for _, group := range groups {
+ 		for _, candidate := range group {
+ 			candidateAvailable := availableMemoryForGPU(systemInfo, candidate)
+-			if predictedVRAM > candidateAvailable*80/100 {
++			// Prefer one GPU whenever the complete predicted allocation fits.
++			if predictedVRAM > candidateAvailable {
+ 				continue
+ 			}
+ 			if !ok || betterPlacementGPU(candidate, candidateAvailable, gpu, available) {

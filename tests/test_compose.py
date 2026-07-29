@@ -44,6 +44,14 @@ def test_ollama_uses_gpu_scheduler_and_keeps_models_resident():
     assert "${MODELS_DIR:-/opt/llamacpp/models}:/models:ro" in ollama["volumes"]
 
 
+def test_ollama_scheduler_patch_uses_all_available_vram_for_single_gpu_placement():
+    patch = (ROOT / "ollama" / "scheduler-vram-headroom.patch").read_text(encoding="utf-8")
+
+    assert "+\t\t\t\tif predictedForLoad > freeMemory {" in patch
+    assert "+\t\t\tif predictedVRAM > candidateAvailable {" in patch
+    assert "+\t\t\tif predictedVRAM > candidateAvailable*80/100 {" not in patch
+
+
 def test_ollama_local_models_use_tuned_inference_parameters():
     for filename in ("qwen3coder.Modelfile", "qwen36-uncensored.Modelfile"):
         definition = (ROOT / "ollama" / filename).read_text(encoding="utf-8")

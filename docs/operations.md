@@ -76,10 +76,10 @@ This packs a model into one GPU whenever its weights, context and compute buffer
 splits it across both GPUs when necessary. The 4-bit KV cache quarters KV-cache memory relative
 to `f16`, while `OLLAMA_KEEP_ALIVE=-1` keeps idle models resident. Both local models use 128k
 context windows with every layer on GPU. The local Ollama image is built from 0.32.5 with a
-one-line scheduler patch that uses all reported free VRAM instead of evicting at 80%; the
-official CUDA and llama-server libraries remain unchanged. When another model truly needs
-memory, Ollama queues the request and unloads idle models as necessary. API callers can override
-the residency policy per request with `keep_alive`.
+scheduler patch that removes its conservative 20% VRAM reserve both when admitting a model and
+when selecting a single GPU. The official CUDA and llama-server libraries remain unchanged.
+When another model truly needs memory, Ollama queues the request and unloads idle models as
+necessary. API callers can override the residency policy per request with `keep_alive`.
 
 Both local model definitions set `num_batch=128` and `repeat_penalty=1.0`. The batch setting reduces GPU compute-buffer usage for their large context windows. The repetition penalty setting matches the former llama.cpp behavior and avoids a measured twofold generation slowdown on these models.
 
