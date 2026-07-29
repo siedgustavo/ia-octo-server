@@ -29,7 +29,7 @@ def test_llamacpp_services_are_not_in_compose():
     assert not any(name.startswith("llamacpp-") for name in services)
 
 
-def test_ollama_uses_both_gpus_and_keeps_models_resident():
+def test_ollama_uses_gpu_scheduler_and_keeps_models_resident():
     ollama = load_compose()["services"]["ollama"]
 
     assert ollama["build"]["context"] == "./ollama"
@@ -40,7 +40,7 @@ def test_ollama_uses_both_gpus_and_keeps_models_resident():
     assert ollama["environment"]["OLLAMA_KV_CACHE_TYPE"] == "${OLLAMA_KV_CACHE_TYPE:-q4_0}"
     assert "OLLAMA_MAX_LOADED_MODELS" not in ollama["environment"]
     assert ollama["environment"]["OLLAMA_NUM_PARALLEL"] == "${OLLAMA_NUM_PARALLEL:-1}"
-    assert ollama["environment"]["OLLAMA_SCHED_SPREAD"] == "${OLLAMA_SCHED_SPREAD:-true}"
+    assert ollama["environment"]["OLLAMA_SCHED_SPREAD"] == "${OLLAMA_SCHED_SPREAD:-false}"
     assert "${MODELS_DIR:-/opt/llamacpp/models}:/models:ro" in ollama["volumes"]
 
 
