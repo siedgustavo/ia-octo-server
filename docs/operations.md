@@ -96,6 +96,20 @@ docker compose exec ollama \
   ollama create qwen3.6:35b -f /model-definitions/qwen36-uncensored.Modelfile
 ```
 
+On an existing installation, rebuild temporary aliases from the registered models and then copy
+them back onto the stable names. This updates only manifests and reuses the stored blobs:
+
+```bash
+docker compose exec ollama ollama create qwen3coder:configured \
+  -f /model-definitions/qwen3coder-alias-256k.Modelfile
+docker compose exec ollama ollama cp qwen3coder:configured qwen3coder:30b
+docker compose exec ollama ollama rm qwen3coder:configured
+docker compose exec ollama ollama create qwen3.6:configured \
+  -f /model-definitions/qwen36-alias-256k.Modelfile
+docker compose exec ollama ollama cp qwen3.6:configured qwen3.6:35b
+docker compose exec ollama ollama rm qwen3.6:configured
+```
+
 Inspect models stored on disk and models currently occupying memory:
 
 ```bash

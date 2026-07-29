@@ -55,7 +55,12 @@ def test_ollama_scheduler_patch_uses_all_available_vram_for_single_gpu_placement
 
 
 def test_ollama_local_models_use_tuned_inference_parameters():
-    for filename in ("qwen3coder.Modelfile", "qwen36-uncensored.Modelfile"):
+    for filename in (
+        "qwen3coder.Modelfile",
+        "qwen36-uncensored.Modelfile",
+        "qwen3coder-alias-256k.Modelfile",
+        "qwen36-alias-256k.Modelfile",
+    ):
         definition = (ROOT / "ollama" / filename).read_text(encoding="utf-8")
         assert "PARAMETER num_ctx 262144" in definition
         assert "PARAMETER num_batch 128" in definition

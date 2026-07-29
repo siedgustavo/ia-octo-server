@@ -1,0 +1,5 @@
+FROM qwen3coder:30b
+
+PARAMETER num_ctx 262144
+PARAMETER num_batch 128
+PARAMETER repeat_penalty 1.0
