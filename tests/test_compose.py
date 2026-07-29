@@ -78,7 +78,6 @@ def test_qwen36_fable_uses_its_native_maximum_context():
 def test_downloaded_models_pin_their_native_maximum_context():
     for filename in (
         "mistral-medium-3.5-256k.Modelfile",
-        "qwen3-coder-next-256k.Modelfile",
         "qwen3-coder-next-q4-256k.Modelfile",
     ):
         definition = (ROOT / "ollama" / filename).read_text(encoding="utf-8")

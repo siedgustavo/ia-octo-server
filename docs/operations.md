@@ -121,13 +121,16 @@ docker compose exec ollama ollama ps
 
 Add experimental models with `docker compose exec ollama ollama pull <model>`. Ollama can use both RTX 3090 cards and unload idle models when another request needs their VRAM.
 
-Qwen3-Coder-Next uses a dedicated alias that pins its native 256k context:
+Qwen3-Coder-Next keeps its original quantization tag and pins its native 256k context directly
+in that manifest:
 
 ```bash
 docker compose exec ollama ollama pull qwen3-coder-next:q4_K_M
-docker compose exec ollama ollama create qwen3-coder-next:256k \
-  -f /model-definitions/qwen3-coder-next-256k.Modelfile
-docker compose exec ollama ollama show qwen3-coder-next:256k
+docker compose exec ollama ollama create qwen3-coder-next:configured \
+  -f /model-definitions/qwen3-coder-next-q4-256k.Modelfile
+docker compose exec ollama ollama cp qwen3-coder-next:configured qwen3-coder-next:q4_K_M
+docker compose exec ollama ollama rm qwen3-coder-next:configured
+docker compose exec ollama ollama show qwen3-coder-next:q4_K_M
 ```
 
 This 51 GB quantization requires partial CPU offload on two RTX 3090 cards. Check

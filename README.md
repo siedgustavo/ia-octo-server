@@ -142,13 +142,15 @@ docker compose exec ollama ollama ps
 
 The scheduler can distribute a model across both GPUs and unload idle models when another request needs their VRAM.
 
-Qwen3-Coder-Next Q4_K_M is a 51 GB model with a native 256k context. Pull it once and create
-the local alias that pins `num_ctx=262144` without duplicating its weight blob:
+Qwen3-Coder-Next Q4_K_M is a 51 GB model with a native 256k context. Keep the original
+`qwen3-coder-next:q4_K_M` tag and pin `num_ctx=262144` directly in that manifest:
 
 ```bash
 docker compose exec ollama ollama pull qwen3-coder-next:q4_K_M
-docker compose exec ollama ollama create qwen3-coder-next:256k \
-  -f /model-definitions/qwen3-coder-next-256k.Modelfile
+docker compose exec ollama ollama create qwen3-coder-next:configured \
+  -f /model-definitions/qwen3-coder-next-q4-256k.Modelfile
+docker compose exec ollama ollama cp qwen3-coder-next:configured qwen3-coder-next:q4_K_M
+docker compose exec ollama ollama rm qwen3-coder-next:configured
 ```
 
 Apply the same native 256k context to the short Fable alias without duplicating its weight blobs:
