@@ -138,6 +138,19 @@ docker compose exec ollama ollama ps
 
 The scheduler can distribute a model across both GPUs and unload idle models when another request needs their VRAM.
 
+Qwen3-Coder-Next Q4_K_M is a 51 GB model with a native 256k context. Pull it once and create
+the local alias that pins `num_ctx=262144` without duplicating its weight blob:
+
+```bash
+docker compose exec ollama ollama pull qwen3-coder-next:q4_K_M
+docker compose exec ollama ollama create qwen3-coder-next:256k \
+  -f /model-definitions/qwen3-coder-next-256k.Modelfile
+```
+
+The weights plus the 256k KV cache do not fit entirely in the two 24 GiB GPUs. Ollama spreads
+the GPU-resident portion across both cards and offloads the remainder to host RAM. Loading this
+model can evict the smaller resident models; benchmark it before routing production traffic.
+
 ## Image Generation
 
 The compose stack includes an optional ComfyUI workspace exposed at `http://localhost:8188`. Start it explicitly with `docker compose --profile imagegen up -d comfyui`; it defaults to GPU 1 and should not run alongside a memory-intensive inference workload on that GPU.
