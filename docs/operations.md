@@ -65,7 +65,7 @@ sg docker -c 'docker compose ps'
 Ollama sees both NVIDIA GPUs through `gpus: all`. The service defaults to:
 
 ```env
-OLLAMA_CONTEXT_LENGTH=131072
+OLLAMA_CONTEXT_LENGTH=262144
 OLLAMA_KEEP_ALIVE=-1
 OLLAMA_KV_CACHE_TYPE=q4_0
 OLLAMA_NUM_PARALLEL=1
@@ -74,8 +74,9 @@ OLLAMA_SCHED_SPREAD=false
 
 This packs a model into one GPU whenever its weights, context and compute buffers fit, and only
 splits it across both GPUs when necessary. The 4-bit KV cache quarters KV-cache memory relative
-to `f16`, while `OLLAMA_KEEP_ALIVE=-1` keeps idle models resident. Both local models use 128k
-context windows with every layer on GPU. The local Ollama image is built from 0.32.5 with a
+to `f16`, while `OLLAMA_KEEP_ALIVE=-1` keeps idle models resident. The Qwen models use their
+native 256k context windows; operational context must never be lower than 128k even when the
+larger context reduces throughput. The local Ollama image is built from 0.32.5 with a
 scheduler patch that removes its conservative 20% VRAM reserve both when admitting a model and
 when selecting a single GPU. Its placement estimate also honors the configured quantized KV
 cache and recurrent layers instead of assuming an `f16` cache for every layer. The official CUDA
@@ -106,8 +107,7 @@ docker compose exec ollama ollama ps
 
 Add experimental models with `docker compose exec ollama ollama pull <model>`. Ollama can use both RTX 3090 cards and unload idle models when another request needs their VRAM.
 
-Qwen3-Coder-Next uses a dedicated alias so its native 256k context is not capped by the
-container-wide 128k default:
+Qwen3-Coder-Next uses a dedicated alias that pins its native 256k context:
 
 ```bash
 docker compose exec ollama ollama pull qwen3-coder-next:q4_K_M
@@ -119,6 +119,15 @@ docker compose exec ollama ollama show qwen3-coder-next:256k
 This 51 GB quantization requires partial CPU offload on two RTX 3090 cards. Check
 `ollama ps`, `nvidia-smi` and `free -h` during the first benchmark before exposing it through
 the router.
+
+Pin the short Fable alias to its native 256k context:
+
+```bash
+docker compose exec ollama ollama create qwen36-fable:configured \
+  -f /model-definitions/qwen36-fable-256k.Modelfile
+docker compose exec ollama ollama cp qwen36-fable:configured qwen36-fable:latest
+docker compose exec ollama ollama rm qwen36-fable:configured
+```
 
 ## ComfyUI Image Generation
 

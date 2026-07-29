@@ -1,0 +1,3 @@
+FROM qwen36-fable:latest
+
+PARAMETER num_ctx 262144

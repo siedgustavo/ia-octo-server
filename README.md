@@ -128,7 +128,7 @@ docker compose exec ollama ollama create qwen3.6:35b -f /model-definitions/qwen3
 docker compose exec ollama ollama list
 ```
 
-The imported models use 128k contexts, `num_batch=128`, and `repeat_penalty=1.0` to avoid the large sampler overhead measured with these 248k-token vocabularies. The local Ollama 0.32.5 image removes the scheduler's conservative 20% VRAM reserve for model admission and single-GPU placement, and makes that estimate honor the configured quantized KV cache and recurrent layers. A model therefore stays on one card whenever its complete predicted allocation fits. Other models can be added with `ollama pull`, and Ollama loads them only when requested:
+The imported Qwen models use their native 256k contexts, `num_batch=128`, and `repeat_penalty=1.0` to avoid the large sampler overhead measured with these 248k-token vocabularies. Operationally, models are always run at their native maximum context and never below 128k, even when this reduces throughput. The local Ollama 0.32.5 image removes the scheduler's conservative 20% VRAM reserve for model admission and single-GPU placement, and makes that estimate honor the configured quantized KV cache and recurrent layers. A model therefore stays on one card whenever its complete predicted allocation fits. Other models can be added with `ollama pull`, and Ollama loads them only when requested:
 
 ```bash
 docker compose exec ollama ollama pull gemma3
@@ -149,6 +149,15 @@ the local alias that pins `num_ctx=262144` without duplicating its weight blob:
 docker compose exec ollama ollama pull qwen3-coder-next:q4_K_M
 docker compose exec ollama ollama create qwen3-coder-next:256k \
   -f /model-definitions/qwen3-coder-next-256k.Modelfile
+```
+
+Apply the same native 256k context to the short Fable alias without duplicating its weight blobs:
+
+```bash
+docker compose exec ollama ollama create qwen36-fable:configured \
+  -f /model-definitions/qwen36-fable-256k.Modelfile
+docker compose exec ollama ollama cp qwen36-fable:configured qwen36-fable:latest
+docker compose exec ollama ollama rm qwen36-fable:configured
 ```
 
 The weights plus the 256k KV cache do not fit entirely in the two 24 GiB GPUs. Ollama spreads
