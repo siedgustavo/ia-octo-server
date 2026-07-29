@@ -65,7 +65,6 @@ sg docker -c 'docker compose ps'
 Ollama sees both NVIDIA GPUs through `gpus: all`. The service defaults to:
 
 ```env
-OLLAMA_CONTEXT_LENGTH=262144
 OLLAMA_KEEP_ALIVE=-1
 OLLAMA_KV_CACHE_TYPE=q4_0
 OLLAMA_NUM_PARALLEL=1
@@ -74,9 +73,10 @@ OLLAMA_SCHED_SPREAD=false
 
 This packs a model into one GPU whenever its weights, context and compute buffers fit, and only
 splits it across both GPUs when necessary. The 4-bit KV cache quarters KV-cache memory relative
-to `f16`, while `OLLAMA_KEEP_ALIVE=-1` keeps idle models resident. The Qwen models use their
-native 256k context windows; operational context must never be lower than 128k even when the
-larger context reduces throughput. The local Ollama image is built from 0.32.5 with a
+to `f16`, while `OLLAMA_KEEP_ALIVE=-1` keeps idle models resident. Context is pinned in each
+model manifest to that model's native maximum; there is deliberately no container-wide context
+override. Operational context must never be lower than 128k even when the larger context reduces
+throughput. The local Ollama image is built from 0.32.5 with a
 scheduler patch that removes its conservative 20% VRAM reserve both when admitting a model and
 when selecting a single GPU. Its placement estimate also honors the configured quantized KV
 cache and recurrent layers instead of assuming an `f16` cache for every layer. The official CUDA
@@ -141,6 +141,20 @@ docker compose exec ollama ollama create qwen36-fable:configured \
   -f /model-definitions/qwen36-fable-256k.Modelfile
 docker compose exec ollama ollama cp qwen36-fable:configured qwen36-fable:latest
 docker compose exec ollama ollama rm qwen36-fable:configured
+```
+
+The currently installed Mistral Medium 3.5 and base Qwen3-Coder-Next tags also declare a native
+maximum of 256k. Pin those tags independently instead of relying on a global Ollama default:
+
+```bash
+docker compose exec ollama ollama create mistral-medium-3.5:configured \
+  -f /model-definitions/mistral-medium-3.5-256k.Modelfile
+docker compose exec ollama ollama cp mistral-medium-3.5:configured mistral-medium-3.5:latest
+docker compose exec ollama ollama rm mistral-medium-3.5:configured
+docker compose exec ollama ollama create qwen3-coder-next:configured \
+  -f /model-definitions/qwen3-coder-next-q4-256k.Modelfile
+docker compose exec ollama ollama cp qwen3-coder-next:configured qwen3-coder-next:q4_K_M
+docker compose exec ollama ollama rm qwen3-coder-next:configured
 ```
 
 ## ComfyUI Image Generation

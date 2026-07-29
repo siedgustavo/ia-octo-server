@@ -36,7 +36,7 @@ def test_ollama_uses_gpu_scheduler_and_keeps_models_resident():
     assert ollama["image"] == "${OLLAMA_IMAGE:-octofan/ollama:0.32.5-vram}"
     assert ollama["gpus"] == "all"
     assert ollama["environment"]["OLLAMA_KEEP_ALIVE"] == "${OLLAMA_KEEP_ALIVE:--1}"
-    assert ollama["environment"]["OLLAMA_CONTEXT_LENGTH"] == "${OLLAMA_CONTEXT_LENGTH:-262144}"
+    assert "OLLAMA_CONTEXT_LENGTH" not in ollama["environment"]
     assert ollama["environment"]["OLLAMA_KV_CACHE_TYPE"] == "${OLLAMA_KV_CACHE_TYPE:-q4_0}"
     assert "OLLAMA_MAX_LOADED_MODELS" not in ollama["environment"]
     assert ollama["environment"]["OLLAMA_NUM_PARALLEL"] == "${OLLAMA_NUM_PARALLEL:-1}"
@@ -73,3 +73,13 @@ def test_qwen36_fable_uses_its_native_maximum_context():
 
     assert "FROM qwen36-fable:latest" in definition
     assert "PARAMETER num_ctx 262144" in definition
+
+
+def test_downloaded_models_pin_their_native_maximum_context():
+    for filename in (
+        "mistral-medium-3.5-256k.Modelfile",
+        "qwen3-coder-next-256k.Modelfile",
+        "qwen3-coder-next-q4-256k.Modelfile",
+    ):
+        definition = (ROOT / "ollama" / filename).read_text(encoding="utf-8")
+        assert "PARAMETER num_ctx 262144" in definition

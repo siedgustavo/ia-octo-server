@@ -128,7 +128,7 @@ docker compose exec ollama ollama create qwen3.6:35b -f /model-definitions/qwen3
 docker compose exec ollama ollama list
 ```
 
-The imported Qwen models use their native 256k contexts, `num_batch=128`, and `repeat_penalty=1.0` to avoid the large sampler overhead measured with these 248k-token vocabularies. Operationally, models are always run at their native maximum context and never below 128k, even when this reduces throughput. The local Ollama 0.32.5 image removes the scheduler's conservative 20% VRAM reserve for model admission and single-GPU placement, and makes that estimate honor the configured quantized KV cache and recurrent layers. A model therefore stays on one card whenever its complete predicted allocation fits. Other models can be added with `ollama pull`, and Ollama loads them only when requested:
+Each installed model pins its own native maximum context in its manifest; there is no container-wide context override. All models currently installed report a native maximum of 256k. Operationally, models are always run at their native maximum and never below 128k, even when this reduces throughput. The imported Qwen models also use `num_batch=128` and `repeat_penalty=1.0` to avoid the large sampler overhead measured with their 248k-token vocabularies. The local Ollama 0.32.5 image removes the scheduler's conservative 20% VRAM reserve for model admission and single-GPU placement, and makes that estimate honor the configured quantized KV cache and recurrent layers. A model therefore stays on one card whenever its complete predicted allocation fits. Other models can be added with `ollama pull`, and Ollama loads them only when requested:
 
 ```bash
 docker compose exec ollama ollama pull gemma3
