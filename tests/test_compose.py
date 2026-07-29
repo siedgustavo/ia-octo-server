@@ -69,16 +69,28 @@ def test_ollama_local_models_use_tuned_inference_parameters():
 
 
 def test_qwen36_fable_uses_its_native_maximum_context():
-    definition = (ROOT / "ollama" / "qwen36-fable-256k.Modelfile").read_text(encoding="utf-8")
+    definition = (ROOT / "ollama" / "qwen36-fable-27b.Modelfile").read_text(encoding="utf-8")
 
-    assert "FROM qwen36-fable:latest" in definition
+    assert "FROM qwen36-fable:27b" in definition
     assert "PARAMETER num_ctx 262144" in definition
 
 
 def test_downloaded_models_pin_their_native_maximum_context():
     for filename in (
-        "mistral-medium-3.5-256k.Modelfile",
-        "qwen3-coder-next-q4-256k.Modelfile",
+        "mistral-medium-3.5-128b.Modelfile",
+        "qwen3-coder-next-80b.Modelfile",
     ):
         definition = (ROOT / "ollama" / filename).read_text(encoding="utf-8")
         assert "PARAMETER num_ctx 262144" in definition
+
+
+def test_downloaded_model_tags_use_name_and_parameter_count():
+    expected_sources = {
+        "qwen36-fable-27b.Modelfile": "FROM qwen36-fable:27b",
+        "mistral-medium-3.5-128b.Modelfile": "FROM mistral-medium-3.5:128b",
+        "qwen3-coder-next-80b.Modelfile": "FROM qwen3-coder-next:80b",
+    }
+
+    for filename, source in expected_sources.items():
+        definition = (ROOT / "ollama" / filename).read_text(encoding="utf-8")
+        assert source in definition

@@ -1,0 +1,3 @@
+FROM mistral-medium-3.5:128b
+
+PARAMETER num_ctx 262144

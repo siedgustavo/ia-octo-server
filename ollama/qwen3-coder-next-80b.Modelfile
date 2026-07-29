@@ -1,0 +1,3 @@
+FROM qwen3-coder-next:80b
+
+PARAMETER num_ctx 262144

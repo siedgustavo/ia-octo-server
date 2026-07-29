@@ -1,3 +1,0 @@
-FROM mistral-medium-3.5:latest
-
-PARAMETER num_ctx 262144

@@ -142,24 +142,23 @@ docker compose exec ollama ollama ps
 
 The scheduler can distribute a model across both GPUs and unload idle models when another request needs their VRAM.
 
-Qwen3-Coder-Next Q4_K_M is a 51 GB model with a native 256k context. Keep the original
-`qwen3-coder-next:q4_K_M` tag and pin `num_ctx=262144` directly in that manifest:
+The installed inventory uses only `name:parameter-count` tags:
 
 ```bash
-docker compose exec ollama ollama pull qwen3-coder-next:q4_K_M
-docker compose exec ollama ollama create qwen3-coder-next:configured \
-  -f /model-definitions/qwen3-coder-next-q4-256k.Modelfile
-docker compose exec ollama ollama cp qwen3-coder-next:configured qwen3-coder-next:q4_K_M
-docker compose exec ollama ollama rm qwen3-coder-next:configured
+qwen36-fable:27b
+mistral-medium-3.5:128b
+qwen3-coder-next:80b
+qwen3coder:30b
+qwen3.6:35b
 ```
 
-Apply the same native 256k context to the short Fable alias without duplicating its weight blobs:
+Reapply a model's native context through a temporary manifest without changing its stable tag:
 
 ```bash
-docker compose exec ollama ollama create qwen36-fable:configured \
-  -f /model-definitions/qwen36-fable-256k.Modelfile
-docker compose exec ollama ollama cp qwen36-fable:configured qwen36-fable:latest
-docker compose exec ollama ollama rm qwen36-fable:configured
+docker compose exec ollama ollama create qwen3-coder-next:configured \
+  -f /model-definitions/qwen3-coder-next-80b.Modelfile
+docker compose exec ollama ollama cp qwen3-coder-next:configured qwen3-coder-next:80b
+docker compose exec ollama ollama rm qwen3-coder-next:configured
 ```
 
 The weights plus the 256k KV cache do not fit entirely in the two 24 GiB GPUs. Ollama spreads

@@ -121,42 +121,35 @@ docker compose exec ollama ollama ps
 
 Add experimental models with `docker compose exec ollama ollama pull <model>`. Ollama can use both RTX 3090 cards and unload idle models when another request needs their VRAM.
 
-Qwen3-Coder-Next keeps its original quantization tag and pins its native 256k context directly
-in that manifest:
+Production model tags follow `name:parameter-count`:
 
 ```bash
-docker compose exec ollama ollama pull qwen3-coder-next:q4_K_M
-docker compose exec ollama ollama create qwen3-coder-next:configured \
-  -f /model-definitions/qwen3-coder-next-q4-256k.Modelfile
-docker compose exec ollama ollama cp qwen3-coder-next:configured qwen3-coder-next:q4_K_M
-docker compose exec ollama ollama rm qwen3-coder-next:configured
-docker compose exec ollama ollama show qwen3-coder-next:q4_K_M
+qwen36-fable:27b
+mistral-medium-3.5:128b
+qwen3-coder-next:80b
+qwen3coder:30b
+qwen3.6:35b
 ```
 
 This 51 GB quantization requires partial CPU offload on two RTX 3090 cards. Check
 `ollama ps`, `nvidia-smi` and `free -h` during the first benchmark before exposing it through
 the router.
 
-Pin the short Fable alias to its native 256k context:
+Each tag has a dedicated manifest that pins its native 256k context. Reapply a manifest through
+a temporary tag so the stable name remains available:
 
 ```bash
 docker compose exec ollama ollama create qwen36-fable:configured \
-  -f /model-definitions/qwen36-fable-256k.Modelfile
-docker compose exec ollama ollama cp qwen36-fable:configured qwen36-fable:latest
+  -f /model-definitions/qwen36-fable-27b.Modelfile
+docker compose exec ollama ollama cp qwen36-fable:configured qwen36-fable:27b
 docker compose exec ollama ollama rm qwen36-fable:configured
-```
-
-The currently installed Mistral Medium 3.5 and base Qwen3-Coder-Next tags also declare a native
-maximum of 256k. Pin those tags independently instead of relying on a global Ollama default:
-
-```bash
 docker compose exec ollama ollama create mistral-medium-3.5:configured \
-  -f /model-definitions/mistral-medium-3.5-256k.Modelfile
-docker compose exec ollama ollama cp mistral-medium-3.5:configured mistral-medium-3.5:latest
+  -f /model-definitions/mistral-medium-3.5-128b.Modelfile
+docker compose exec ollama ollama cp mistral-medium-3.5:configured mistral-medium-3.5:128b
 docker compose exec ollama ollama rm mistral-medium-3.5:configured
 docker compose exec ollama ollama create qwen3-coder-next:configured \
-  -f /model-definitions/qwen3-coder-next-q4-256k.Modelfile
-docker compose exec ollama ollama cp qwen3-coder-next:configured qwen3-coder-next:q4_K_M
+  -f /model-definitions/qwen3-coder-next-80b.Modelfile
+docker compose exec ollama ollama cp qwen3-coder-next:configured qwen3-coder-next:80b
 docker compose exec ollama ollama rm qwen3-coder-next:configured
 ```
 
