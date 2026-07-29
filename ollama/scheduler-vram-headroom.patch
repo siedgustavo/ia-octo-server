@@ -23,3 +23,45 @@ index 36b6f272..768c588f 100644
  				continue
  			}
  			if !ok || betterPlacementGPU(candidate, candidateAvailable, gpu, available) {
+diff --git a/llm/llama_server.go b/llm/llama_server.go
+index e529cfc..78513e5 100644
+--- a/llm/llama_server.go
++++ b/llm/llama_server.go
+@@ -2610,27 +2610,24 @@ func (s *llamaServerRunner) MemorySize() (total, vram uint64) {
+ }
+ 
+ // PredictServerVRAM estimates VRAM usage for a model without spawning llama-server.
+-// Uses model file size as a proxy for weights plus a rough KV cache estimate.
+-// This is intentionally conservative — it overestimates to avoid VRAM contention.
++// Uses model file size as a proxy for weights plus the model-aware KV cache
++// and full-offload compute estimates.
+ func PredictServerVRAM(modelPath string, f *ggml.GGML, numCtx int) uint64 {
+ 	var weights uint64
+ 	if info, err := os.Stat(modelPath); err == nil {
+ 		weights = uint64(info.Size())
+ 	}
+ 
+-	// KV cache: 2 (K+V) * layers * kv_heads * head_dim * context * 2 bytes (f16)
+-	layers := f.KV().BlockCount()
+-	kvHeads := f.KV().HeadCountKVMin()
+-	if kvHeads == 0 {
+-		kvHeads = 1
++	kv, _, compute := f.GraphSize(uint64(numCtx), 1024, 1, envconfig.KvCacheType(), ml.FlashAttentionAuto)
++	var kvCache uint64
++	for _, layer := range kv {
++		kvCache += layer
+ 	}
+-	headDim := uint64(0)
+-	if f.KV().HeadCountMax() > 0 {
+-		headDim = f.KV().EmbeddingLength() / f.KV().HeadCountMax()
+-	}
+-	kvCache := 2 * layers * kvHeads * headDim * uint64(numCtx) * 2
+ 
+-	return weights + kvCache
++	// Account for projectors, allocator bookkeeping, and other buffers that are
++	// not represented by the main GGUF file or GraphSize.
++	const placementReserve = uint64(1 << 30)
++	return weights + kvCache + compute + placementReserve
+ }
+ 
+ // memoryParsingWriter wraps an io.Writer and parses llama-server log output

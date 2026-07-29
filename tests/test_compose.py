@@ -50,6 +50,8 @@ def test_ollama_scheduler_patch_uses_all_available_vram_for_single_gpu_placement
     assert "+\t\t\t\tif predictedForLoad > freeMemory {" in patch
     assert "+\t\t\tif predictedVRAM > candidateAvailable {" in patch
     assert "+\t\t\tif predictedVRAM > candidateAvailable*80/100 {" not in patch
+    assert "f.GraphSize(uint64(numCtx), 1024, 1, envconfig.KvCacheType()" in patch
+    assert "return weights + kvCache + compute + placementReserve" in patch
 
 
 def test_ollama_local_models_use_tuned_inference_parameters():
