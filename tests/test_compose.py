@@ -75,19 +75,25 @@ def test_qwen36_fable_uses_its_native_maximum_context():
     assert "PARAMETER num_ctx 262144" in definition
 
 
-def test_downloaded_models_pin_their_native_maximum_context():
-    for filename in (
-        "mistral-medium-3.5-128b.Modelfile",
-        "qwen3-coder-next-80b.Modelfile",
-    ):
-        definition = (ROOT / "ollama" / filename).read_text(encoding="utf-8")
-        assert "PARAMETER num_ctx 262144" in definition
+def test_downloaded_models_pin_their_workload_context():
+    mistral = (ROOT / "ollama" / "mistral-medium-3.5-128b.Modelfile").read_text(
+        encoding="utf-8"
+    )
+    coder_next = (ROOT / "ollama" / "qwen3-coder-next-80b.Modelfile").read_text(
+        encoding="utf-8"
+    )
+
+    assert "Mistral-Medium-3.5-128B-i1-GGUF:IQ2_S" in mistral
+    assert "PARAMETER num_ctx 32768" in mistral
+    assert "PARAMETER num_ctx 262144" in coder_next
 
 
 def test_downloaded_model_tags_use_name_and_parameter_count():
     expected_sources = {
         "qwen36-fable-27b.Modelfile": "FROM qwen36-fable:27b",
-        "mistral-medium-3.5-128b.Modelfile": "FROM mistral-medium-3.5:128b",
+        "mistral-medium-3.5-128b.Modelfile": (
+            "FROM hf.co/mradermacher/Mistral-Medium-3.5-128B-i1-GGUF:IQ2_S"
+        ),
         "qwen3-coder-next-80b.Modelfile": "FROM qwen3-coder-next:80b",
     }
 

@@ -1,3 +1,5 @@
-FROM mistral-medium-3.5:128b
+FROM hf.co/mradermacher/Mistral-Medium-3.5-128B-i1-GGUF:IQ2_S
 
-PARAMETER num_ctx 262144
+# sied-poster envia menos de 10K tokens totales. 32K permite mantener esta
+# cuantizacion de mejor calidad mayormente en las dos RTX 3090.
+PARAMETER num_ctx 32768

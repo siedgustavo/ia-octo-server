@@ -135,8 +135,9 @@ This 51 GB quantization requires partial CPU offload on two RTX 3090 cards. Chec
 `ollama ps`, `nvidia-smi` and `free -h` during the first benchmark before exposing it through
 the router.
 
-Each tag has a dedicated manifest that pins its native 256k context. Reapply a manifest through
-a temporary tag so the stable name remains available:
+Each tag has a dedicated manifest. Interactive models pin their native context; the
+`mistral-medium-3.5:128b` IQ2_S writing model uses 32k for sied-poster. Reapply a manifest
+through a temporary tag so the stable name remains available:
 
 ```bash
 docker compose exec ollama ollama create qwen36-fable:configured \
