@@ -80,6 +80,7 @@ services:
     image: ${OLLAMA_IMAGE:-octofan/ollama:0.32.5-vram}
     container_name: octofan-ollama
     restart: unless-stopped
+    gpus: all
     environment:
       OLLAMA_HOST: 0.0.0.0:11434
       OLLAMA_KEEP_ALIVE: "${OLLAMA_KEEP_ALIVE:--1}"
@@ -98,13 +99,6 @@ services:
       timeout: 5s
       retries: 12
       start_period: 10s
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              device_ids: ["${OLLAMA_GPU_0:-0}", "${OLLAMA_GPU_1:-1}"]
-              capabilities: [gpu]
 
   llamacpp-llama31-pro:
     image: ${LLAMA31_PRO_IMAGE:-ghcr.io/ggml-org/llama.cpp:server-cuda}
