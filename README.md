@@ -113,7 +113,7 @@ The fan controller uses BME280 sensor `0` as intake/internal temperature when av
 
 ## Ollama
 
-The stack includes one Ollama instance with both NVIDIA GPUs visible. It processes one request
+The stack includes one Ollama instance with the two RTX 3090 GPUs (`0/1`) visible. It processes one request
 per model in parallel, packs a model into one GPU whenever it fits, uses a 4-bit KV cache to
 reduce context memory, and uses `OLLAMA_KEEP_ALIVE=-1` so idle models remain resident until the
 scheduler needs their memory for another model. Models that do not fit in one card are still
