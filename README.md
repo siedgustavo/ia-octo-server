@@ -142,6 +142,17 @@ docker compose exec ollama ollama ps
 
 The scheduler can distribute a model across both GPUs and unload idle models when another request needs their VRAM.
 
+Two small llama.cpp services remain permanently assigned to the RTX 3060 cards and keep the
+gateway's stable names: `llama3.1:8b` listens on port `8082` using GPU `2`, while the internal
+`qwen2.5-coder:7b` permission classifier listens on port `8083` using GPU `3`. Their GGUF files
+live under `${MODELS_DIR:-/opt/llamacpp/models}`. Start or validate them with:
+
+```bash
+docker compose up -d llamacpp-llama31-pro llamacpp-permission-classifier
+curl -fsS http://localhost:8082/v1/models
+curl -fsS http://localhost:8083/v1/models
+```
+
 The installed inventory uses only `name:parameter-count` tags:
 
 ```bash

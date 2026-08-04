@@ -80,16 +80,16 @@ class LlamaCppConfig(BaseModel):
     servers: list[LlamaCppServerConfig] = Field(
         default_factory=lambda: [
             LlamaCppServerConfig(
-                name="qwen3coder:30b",
-                gpu="0",
-                base_url="http://llamacpp-qwen3coder:8080",
-                expected_model="qwen3coder:30b",
+                name="llama3.1:8b",
+                gpu="2",
+                base_url="http://llamacpp-llama31-pro:8080",
+                expected_model="llama3.1:8b",
             ),
             LlamaCppServerConfig(
-                name="qwen3.6:35b",
-                gpu="1",
-                base_url="http://llamacpp-qwen36-uncensored:8080",
-                expected_model="qwen3.6:35b",
+                name="qwen2.5-coder:7b",
+                gpu="3",
+                base_url="http://llamacpp-permission-classifier:8080",
+                expected_model="qwen2.5-coder:7b",
             ),
         ]
     )

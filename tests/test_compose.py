@@ -17,16 +17,26 @@ def test_services_have_no_hard_memory_limits():
         assert "memswap_limit" not in service
 
 
-def test_migrated_models_are_not_in_compose():
+def test_migrated_models_run_on_their_dedicated_gpus():
     services = load_compose()["services"]
-    assert "llamacpp-llama31-pro" not in services
-    assert "llamacpp-permission-classifier" not in services
+    llama31 = services["llamacpp-llama31-pro"]
+    classifier = services["llamacpp-permission-classifier"]
+
+    assert llama31["container_name"] == "octofan-llamacpp-llama31-pro"
+    assert classifier["container_name"] == "octofan-llamacpp-permission-classifier"
+    assert llama31["ports"] == ["${LLAMA31_PRO_PORT:-8082}:8080"]
+    assert classifier["ports"] == ["${PERMISSION_CLASSIFIER_PORT:-8083}:8080"]
+    assert llama31["deploy"]["resources"]["reservations"]["devices"][0]["device_ids"] == ["${LLAMA31_PRO_GPU:-2}"]
+    assert classifier["deploy"]["resources"]["reservations"]["devices"][0]["device_ids"] == ["${PERMISSION_CLASSIFIER_GPU:-3}"]
     assert "comfyui" in services
 
 
-def test_llamacpp_services_are_not_in_compose():
+def test_only_migrated_llamacpp_services_are_in_compose():
     services = load_compose()["services"]
-    assert not any(name.startswith("llamacpp-") for name in services)
+    assert {name for name in services if name.startswith("llamacpp-")} == {
+        "llamacpp-llama31-pro",
+        "llamacpp-permission-classifier",
+    }
 
 
 def test_ollama_uses_gpu_scheduler_and_keeps_models_resident():
