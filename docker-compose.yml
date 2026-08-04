@@ -225,8 +225,6 @@ services:
       - ${DEEPSEEK_V4_CTX_SIZE:-1048576}
       - --split-mode
       - layer
-      - --tensor-split
-      - ${DEEPSEEK_V4_TENSOR_SPLIT:-1,1}
       - --parallel
       - "1"
       - --threads
@@ -240,7 +238,7 @@ services:
       - --flash-attn
       - "off"
       - --cache-type-k
-      - ${DEEPSEEK_V4_CACHE_TYPE_K:-q8_0}
+      - ${DEEPSEEK_V4_CACHE_TYPE_K:-f16}
       - --cache-type-v
       - ${DEEPSEEK_V4_CACHE_TYPE_V:-f16}
       - --no-repack

@@ -163,8 +163,9 @@ health instead of model counts or token throughput.
 The optional `deepseek-v4` profile serves the official DeepSeek V4 Flash 0731 release on the two
 RTX 3090 cards at `http://localhost:8084`. It uses Unsloth's `UD-IQ2_M` GGUF, keeps the model's
 native 1,048,576-token context and automatically offloads weights to host RAM. Flash Attention is
-disabled because current CUDA builds can corrupt multi-forward prompts for this architecture; the
-K cache uses `q8_0`, while V remains `f16` because quantized V requires Flash Attention.
+disabled because current CUDA builds can corrupt multi-forward prompts for this architecture. Both
+caches remain `f16`, as the model requires matching K/V types and quantized V requires Flash
+Attention. GPU weight distribution is left to llama.cpp's memory fitter.
 
 Download the three model shards, make sure `ollama ps` is empty, then start the service:
 
