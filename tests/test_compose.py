@@ -56,6 +56,7 @@ def test_deepseek_v4_uses_native_context_and_two_rtx_3090_gpus():
     assert command[command.index("--cache-type-k") + 1] == "${DEEPSEEK_V4_CACHE_TYPE_K:-f16}"
     assert command[command.index("--cache-type-v") + 1] == "${DEEPSEEK_V4_CACHE_TYPE_V:-f16}"
     assert "--tensor-split" not in command
+    assert "--cpu-moe" in command
     assert "--no-repack" in command
     assert service["deploy"]["resources"]["reservations"]["devices"][0]["device_ids"] == [
         "${DEEPSEEK_V4_GPU_0:-0}",

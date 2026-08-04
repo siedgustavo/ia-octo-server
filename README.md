@@ -166,6 +166,8 @@ native 1,048,576-token context and automatically offloads weights to host RAM. F
 disabled because current CUDA builds can corrupt multi-forward prompts for this architecture. Both
 caches remain `f16`, as the model requires matching K/V types and quantized V requires Flash
 Attention. GPU weight distribution is left to llama.cpp's memory fitter.
+The routed MoE experts remain in host RAM so the compressed-attention and shared layer operations
+stay together on CUDA.
 
 Download the three model shards, make sure `ollama ps` is empty, then start the service:
 

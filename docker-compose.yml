@@ -225,6 +225,7 @@ services:
       - ${DEEPSEEK_V4_CTX_SIZE:-1048576}
       - --split-mode
       - layer
+      - --cpu-moe
       - --parallel
       - "1"
       - --threads
