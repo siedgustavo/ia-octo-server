@@ -93,7 +93,7 @@ Important sections:
 - `watchdog`: hardware watchdog timeouts and HTTP/TCP health checks.
 - `display`: OLED profile and refresh interval.
 - `leds`: front-panel LED policy. By default LED `0` is orange warning, LED `1` is blue online and LED `2` is white activity.
-- `llamacpp`: legacy controller polling support; disabled in the active stack.
+- `llamacpp`: health and activity polling for the two dedicated llama.cpp services.
 
 The fan controller uses BME280 sensor `0` as intake/internal temperature when available, then falls back to `Temperature No. 0`.
 
@@ -152,6 +152,10 @@ docker compose up -d llamacpp-llama31-pro llamacpp-permission-classifier
 curl -fsS http://localhost:8082/v1/models
 curl -fsS http://localhost:8083/v1/models
 ```
+
+Both services use their models' native 128k context. The controller reports their health in the
+API, Prometheus metrics, front-panel LEDs and OLED; the display intentionally shows operational
+health instead of model counts or token throughput.
 
 The installed inventory uses only `name:parameter-count` tags:
 

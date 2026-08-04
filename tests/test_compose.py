@@ -28,6 +28,8 @@ def test_migrated_models_run_on_their_dedicated_gpus():
     assert classifier["ports"] == ["${PERMISSION_CLASSIFIER_PORT:-8083}:8080"]
     assert llama31["deploy"]["resources"]["reservations"]["devices"][0]["device_ids"] == ["${LLAMA31_PRO_GPU:-2}"]
     assert classifier["deploy"]["resources"]["reservations"]["devices"][0]["device_ids"] == ["${PERMISSION_CLASSIFIER_GPU:-3}"]
+    assert llama31["command"][llama31["command"].index("--ctx-size") + 1] == "${LLAMA31_PRO_CTX_SIZE:-131072}"
+    assert classifier["command"][classifier["command"].index("--ctx-size") + 1] == "${PERMISSION_CLASSIFIER_CTX_SIZE:-131072}"
     assert "comfyui" in services
 
 

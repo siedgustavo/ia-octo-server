@@ -8,6 +8,7 @@ services:
     environment:
       OCTOFAN_CONFIG: /config/octofan.yaml
       OCTOFAN_BIN: /opt/octofan/fan_controller_cli
+      OCTOFAN_DISPLAY_IP: "${OCTOFAN_DISPLAY_IP:-}"
       # Set to "1" to try the stack without Octofan USB hardware.
       OCTOFAN_MOCK: "${OCTOFAN_MOCK:-0}"
     volumes:
@@ -120,7 +121,7 @@ services:
       - --model
       - /models/${LLAMA31_PRO_MODEL:-Llama-3.1-Pro-Coder-v1.Q4_K_M.gguf}
       - --ctx-size
-      - ${LLAMA31_PRO_CTX_SIZE:-49152}
+      - ${LLAMA31_PRO_CTX_SIZE:-131072}
       - --n-gpu-layers
       - ${LLAMA31_PRO_N_GPU_LAYERS:-999}
       - --parallel

@@ -267,7 +267,13 @@ async def api_calibrate_fans() -> dict[str, Any]:
 async def _write_display(profile: str | None, force_eeprom: bool = False) -> list[str]:
     cfg: AppConfig = state["config"]
     display_cfg = cfg.display.model_copy(update={"profile": profile or cfg.display.profile})
-    lines = render_display(state["status"], display_cfg, state["target_fan"], state["llamacpp"])
+    lines = render_display(
+        state["status"],
+        display_cfg,
+        state["target_fan"],
+        state["llamacpp"],
+        state["nvidia"],
+    )
     try:
         signature = (resolve_display_title(display_cfg), display_cfg.profile)
         title_written = False

@@ -6,6 +6,7 @@ import socket
 
 from .config import DisplayConfig
 from .llamacpp import LlamaCppStatus
+from .nvidia import NvidiaStatus
 from .parser import ControllerStatus
 
 
@@ -19,7 +20,13 @@ def fit(text: str, width: int = WIDTH) -> str:
     return text[:width].ljust(width)
 
 
-def render_display(status: ControllerStatus, cfg: DisplayConfig, fan_percent: int | None, llamacpp: LlamaCppStatus) -> list[str]:
+def render_display(
+    status: ControllerStatus,
+    cfg: DisplayConfig,
+    fan_percent: int | None,
+    llamacpp: LlamaCppStatus,
+    nvidia: NvidiaStatus | None = None,
+) -> list[str]:
     lines = [fit(resolve_display_title(cfg), BIG_WIDTH), fit("")]
     host = socket.gethostname()
     intake = _fmt_temp(status.intake_temp_c)
@@ -31,13 +38,14 @@ def render_display(status: ControllerStatus, cfg: DisplayConfig, fan_percent: in
     elif cfg.profile == "power":
         lines += [fit(f"Power {power}"), fit(f"PSUs {len(status.psus)}"), fit(f"FW {status.version_fw or '-'} HW {status.version_hw or '-'}")]
     elif cfg.profile == "ai":
-        if not llamacpp.ok:
-            tps = "AI offline"
-        elif llamacpp.tokens_per_second_available and llamacpp.tokens_per_second is not None:
-            tps = f"{llamacpp.tokens_per_second:.1f} tok/s"
-        else:
-            tps = "TPS n/a"
-        lines += [fit(tps), fit(f"Models {llamacpp.available_models}/{llamacpp.running_models}"), fit(f"In {intake} Fan {fan_percent or 0}%"), fit(f"Power {power}")]
+        ai_health = "AI services OK" if llamacpp.ok else "AI degraded"
+        lines += [
+            fit(f"IP {resolve_host_ip()}"),
+            fit(ai_health),
+            fit(_fmt_gpu(nvidia)),
+            fit(f"In {intake} Fan {fan_percent or 0}%"),
+            fit(f"Power {power}"),
+        ]
     else:
         lines += [fit(host), fit(f"FW {status.version_fw or '-'} HW {status.version_hw or '-'}"), fit(f"In {intake} Out {exhaust}"), fit(f"Fan {fan_percent or 0}%")]
 
@@ -59,6 +67,34 @@ def resolve_display_title(cfg: DisplayConfig) -> str:
         or socket.gethostname()
     )
     return hostname.split(".", 1)[0].upper()
+
+
+def resolve_host_ip() -> str:
+    override = os.getenv("OCTOFAN_DISPLAY_IP", "").strip()
+    if override:
+        return override
+
+    hostname = _read_host_hostname()
+    if hostname:
+        try:
+            addresses = socket.getaddrinfo(hostname, None, family=socket.AF_INET)
+            for address in addresses:
+                ip = address[4][0]
+                if not ip.startswith("127."):
+                    return ip
+        except OSError:
+            pass
+    return "unavailable"
+
+
+def _fmt_gpu(nvidia: NvidiaStatus | None) -> str:
+    if not nvidia or not nvidia.ok or not nvidia.gpus:
+        return "GPU telemetry n/a"
+    temperatures = [gpu.temperature_gpu_c for gpu in nvidia.gpus if gpu.temperature_gpu_c is not None]
+    utilizations = [gpu.utilization_gpu_percent for gpu in nvidia.gpus if gpu.utilization_gpu_percent is not None]
+    temperature = f"{max(temperatures):.0f}C" if temperatures else "--C"
+    utilization = f"{max(utilizations):.0f}%" if utilizations else "--%"
+    return f"GPU {temperature} Load {utilization}"
 
 
 def _read_host_hostname() -> str | None:
