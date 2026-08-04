@@ -44,7 +44,11 @@ def test_ollama_uses_gpu_scheduler_and_keeps_models_resident():
 
     assert ollama["build"]["context"] == "./ollama"
     assert ollama["image"] == "${OLLAMA_IMAGE:-octofan/ollama:0.32.5-vram}"
-    assert ollama["gpus"] == "all"
+    assert "gpus" not in ollama
+    assert ollama["deploy"]["resources"]["reservations"]["devices"][0]["device_ids"] == [
+        "${OLLAMA_GPU_0:-0}",
+        "${OLLAMA_GPU_1:-1}",
+    ]
     assert ollama["environment"]["OLLAMA_KEEP_ALIVE"] == "${OLLAMA_KEEP_ALIVE:--1}"
     assert "OLLAMA_CONTEXT_LENGTH" not in ollama["environment"]
     assert ollama["environment"]["OLLAMA_KV_CACHE_TYPE"] == "${OLLAMA_KV_CACHE_TYPE:-q4_0}"
