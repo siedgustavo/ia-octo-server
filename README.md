@@ -153,7 +153,8 @@ curl -fsS http://localhost:8082/v1/models
 curl -fsS http://localhost:8083/v1/models
 ```
 
-Both services use their models' native 128k context. The controller reports their health in the
+Both services use their models' native 128k context. Llama 3.1 uses a quantized `q4_0` KV cache
+so the full context fits on its 12 GiB GPU. The controller reports their health in the
 API, Prometheus metrics, front-panel LEDs and OLED; the display intentionally shows operational
 health instead of model counts or token throughput.
 

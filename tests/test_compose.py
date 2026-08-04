@@ -30,6 +30,8 @@ def test_migrated_models_run_on_their_dedicated_gpus():
     assert classifier["deploy"]["resources"]["reservations"]["devices"][0]["device_ids"] == ["${PERMISSION_CLASSIFIER_GPU:-3}"]
     assert llama31["command"][llama31["command"].index("--ctx-size") + 1] == "${LLAMA31_PRO_CTX_SIZE:-131072}"
     assert classifier["command"][classifier["command"].index("--ctx-size") + 1] == "${PERMISSION_CLASSIFIER_CTX_SIZE:-131072}"
+    assert llama31["command"][llama31["command"].index("--cache-type-k") + 1] == "${LLAMA31_PRO_CACHE_TYPE:-q4_0}"
+    assert llama31["command"][llama31["command"].index("--cache-type-v") + 1] == "${LLAMA31_PRO_CACHE_TYPE:-q4_0}"
     assert "comfyui" in services
 
 

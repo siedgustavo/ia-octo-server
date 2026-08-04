@@ -130,6 +130,12 @@ services:
       - ${LLAMA31_PRO_BATCH_SIZE:-512}
       - --ubatch-size
       - ${LLAMA31_PRO_UBATCH_SIZE:-128}
+      - --flash-attn
+      - "on"
+      - --cache-type-k
+      - ${LLAMA31_PRO_CACHE_TYPE:-q4_0}
+      - --cache-type-v
+      - ${LLAMA31_PRO_CACHE_TYPE:-q4_0}
       - --no-mmap
     volumes:
       - ${MODELS_DIR:-/opt/llamacpp/models}:/models:ro
