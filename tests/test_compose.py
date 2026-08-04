@@ -53,7 +53,8 @@ def test_deepseek_v4_uses_native_context_and_two_rtx_3090_gpus():
     assert command[command.index("--ctx-size") + 1] == "${DEEPSEEK_V4_CTX_SIZE:-1048576}"
     assert command[command.index("--fit-ctx") + 1] == "${DEEPSEEK_V4_CTX_SIZE:-1048576}"
     assert command[command.index("--flash-attn") + 1] == "off"
-    assert command[command.index("--cache-type-k") + 1] == "${DEEPSEEK_V4_CACHE_TYPE:-q8_0}"
+    assert command[command.index("--cache-type-k") + 1] == "${DEEPSEEK_V4_CACHE_TYPE_K:-q8_0}"
+    assert command[command.index("--cache-type-v") + 1] == "${DEEPSEEK_V4_CACHE_TYPE_V:-f16}"
     assert "--no-repack" in command
     assert service["deploy"]["resources"]["reservations"]["devices"][0]["device_ids"] == [
         "${DEEPSEEK_V4_GPU_0:-0}",

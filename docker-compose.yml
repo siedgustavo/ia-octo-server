@@ -240,9 +240,9 @@ services:
       - --flash-attn
       - "off"
       - --cache-type-k
-      - ${DEEPSEEK_V4_CACHE_TYPE:-q8_0}
+      - ${DEEPSEEK_V4_CACHE_TYPE_K:-q8_0}
       - --cache-type-v
-      - ${DEEPSEEK_V4_CACHE_TYPE:-q8_0}
+      - ${DEEPSEEK_V4_CACHE_TYPE_V:-f16}
       - --no-repack
       - --metrics
     volumes:
