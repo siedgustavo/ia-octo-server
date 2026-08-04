@@ -178,8 +178,10 @@ curl -fsS http://localhost:8084/v1/models
 ```
 
 Ollama and DeepSeek share GPUs `0/1`; do not load an Ollama model while the DeepSeek service is
-running. Stop DeepSeek with `docker compose --profile deepseek-v4 stop llamacpp-deepseek-v4-flash`
-before returning those GPUs to Ollama.
+running. The 512-token batch and 128-token micro-batch are intentional: larger defaults make the
+DeepSeek V4 compute buffer exceed the 24 GiB available on one RTX 3090. Stop DeepSeek with
+`docker compose --profile deepseek-v4 stop llamacpp-deepseek-v4-flash` before returning those GPUs
+to Ollama.
 
 The installed inventory uses only `name:parameter-count` tags:
 

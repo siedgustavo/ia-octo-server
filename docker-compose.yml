@@ -233,9 +233,9 @@ services:
       - --threads-batch
       - ${DEEPSEEK_V4_THREADS_BATCH:-6}
       - --batch-size
-      - ${DEEPSEEK_V4_BATCH_SIZE:-2048}
+      - ${DEEPSEEK_V4_BATCH_SIZE:-512}
       - --ubatch-size
-      - ${DEEPSEEK_V4_UBATCH_SIZE:-512}
+      - ${DEEPSEEK_V4_UBATCH_SIZE:-128}
       - --flash-attn
       - "off"
       - --cache-type-k
