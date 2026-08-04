@@ -203,6 +203,66 @@ services:
               device_ids: ["${PERMISSION_CLASSIFIER_GPU:-3}"]
               capabilities: [gpu]
 
+  llamacpp-deepseek-v4-flash:
+    image: ${DEEPSEEK_V4_IMAGE:-ghcr.io/ggml-org/llama.cpp:server-cuda}
+    container_name: octofan-llamacpp-deepseek-v4-flash
+    profiles: ["deepseek-v4"]
+    restart: unless-stopped
+    command:
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"
+      - --alias
+      - ${DEEPSEEK_V4_ALIAS:-deepseek-v4-flash:304b}
+      - --model
+      - /models/${DEEPSEEK_V4_MODEL:-deepseek-v4-flash-0731/DeepSeek-V4-Flash-0731-UD-IQ2_M-00001-of-00003.gguf}
+      - --ctx-size
+      - ${DEEPSEEK_V4_CTX_SIZE:-1048576}
+      - --fit
+      - "on"
+      - --fit-ctx
+      - ${DEEPSEEK_V4_CTX_SIZE:-1048576}
+      - --split-mode
+      - layer
+      - --tensor-split
+      - ${DEEPSEEK_V4_TENSOR_SPLIT:-1,1}
+      - --parallel
+      - "1"
+      - --threads
+      - ${DEEPSEEK_V4_THREADS:-6}
+      - --threads-batch
+      - ${DEEPSEEK_V4_THREADS_BATCH:-6}
+      - --batch-size
+      - ${DEEPSEEK_V4_BATCH_SIZE:-2048}
+      - --ubatch-size
+      - ${DEEPSEEK_V4_UBATCH_SIZE:-512}
+      - --flash-attn
+      - "off"
+      - --cache-type-k
+      - ${DEEPSEEK_V4_CACHE_TYPE:-q8_0}
+      - --cache-type-v
+      - ${DEEPSEEK_V4_CACHE_TYPE:-q8_0}
+      - --no-repack
+      - --metrics
+    volumes:
+      - ${MODELS_DIR:-/opt/llamacpp/models}:/models:ro
+    ports:
+      - "${DEEPSEEK_V4_PORT:-8084}:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 120
+      start_period: 120s
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["${DEEPSEEK_V4_GPU_0:-0}", "${DEEPSEEK_V4_GPU_1:-1}"]
+              capabilities: [gpu]
+
   comfyui:
     image: ${COMFYUI_IMAGE:-yanwk/comfyui-boot:cu126-slim}
     container_name: octofan-comfyui

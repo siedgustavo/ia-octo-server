@@ -38,9 +38,27 @@ def test_migrated_models_run_on_their_dedicated_gpus():
 def test_only_migrated_llamacpp_services_are_in_compose():
     services = load_compose()["services"]
     assert {name for name in services if name.startswith("llamacpp-")} == {
+        "llamacpp-deepseek-v4-flash",
         "llamacpp-llama31-pro",
         "llamacpp-permission-classifier",
     }
+
+
+def test_deepseek_v4_uses_native_context_and_two_rtx_3090_gpus():
+    service = load_compose()["services"]["llamacpp-deepseek-v4-flash"]
+    command = service["command"]
+
+    assert service["profiles"] == ["deepseek-v4"]
+    assert service["ports"] == ["${DEEPSEEK_V4_PORT:-8084}:8080"]
+    assert command[command.index("--ctx-size") + 1] == "${DEEPSEEK_V4_CTX_SIZE:-1048576}"
+    assert command[command.index("--fit-ctx") + 1] == "${DEEPSEEK_V4_CTX_SIZE:-1048576}"
+    assert command[command.index("--flash-attn") + 1] == "off"
+    assert command[command.index("--cache-type-k") + 1] == "${DEEPSEEK_V4_CACHE_TYPE:-q8_0}"
+    assert "--no-repack" in command
+    assert service["deploy"]["resources"]["reservations"]["devices"][0]["device_ids"] == [
+        "${DEEPSEEK_V4_GPU_0:-0}",
+        "${DEEPSEEK_V4_GPU_1:-1}",
+    ]
 
 
 def test_ollama_uses_gpu_scheduler_and_keeps_models_resident():

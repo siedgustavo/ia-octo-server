@@ -158,6 +158,25 @@ so the full context fits on its 12 GiB GPU. The controller reports their health 
 API, Prometheus metrics, front-panel LEDs and OLED; the display intentionally shows operational
 health instead of model counts or token throughput.
 
+### DeepSeek V4 Flash 0731
+
+The optional `deepseek-v4` profile serves the official DeepSeek V4 Flash 0731 release on the two
+RTX 3090 cards at `http://localhost:8084`. It uses Unsloth's `UD-IQ2_M` GGUF, keeps the model's
+native 1,048,576-token context and automatically offloads weights to host RAM. Flash Attention is
+disabled because current CUDA builds can corrupt multi-forward prompts for this architecture.
+
+Download the three model shards, make sure `ollama ps` is empty, then start the service:
+
+```bash
+scripts/download-deepseek-v4-flash.sh
+docker compose --profile deepseek-v4 up -d llamacpp-deepseek-v4-flash
+curl -fsS http://localhost:8084/v1/models
+```
+
+Ollama and DeepSeek share GPUs `0/1`; do not load an Ollama model while the DeepSeek service is
+running. Stop DeepSeek with `docker compose --profile deepseek-v4 stop llamacpp-deepseek-v4-flash`
+before returning those GPUs to Ollama.
+
 The installed inventory uses only `name:parameter-count` tags:
 
 ```bash
