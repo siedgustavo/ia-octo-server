@@ -89,12 +89,12 @@
         },
         "textMode": "auto"
       },
-      "targets": [
-        {
-          "expr": "1 - node_memory_MemAvailable_bytes{job=\"node-exporter\",instance=\"host.docker.internal:9100\"} / node_memory_MemTotal_bytes{job=\"node-exporter\",instance=\"host.docker.internal:9100\"}",
-          "legendFormat": "memory"
-        }
-      ],
+       "targets": [
+         {
+           "expr": "(node_memory_MemTotal_bytes{job=\"node-exporter\",instance=\"host.docker.internal:9100\"} - node_memory_MemFree_bytes{job=\"node-exporter\",instance=\"host.docker.internal:9100\"}) / node_memory_MemTotal_bytes{job=\"node-exporter\",instance=\"host.docker.internal:9100\"}",
+           "legendFormat": "memory"
+         }
+       ],
       "title": "Memory Used",
       "type": "stat"
     },
@@ -212,17 +212,21 @@
         "x": 8,
         "y": 4
       },
-      "id": 6,
-      "targets": [
-        {
-          "expr": "node_memory_MemTotal_bytes{job=\"node-exporter\",instance=\"host.docker.internal:9100\"} - node_memory_MemAvailable_bytes{job=\"node-exporter\",instance=\"host.docker.internal:9100\"}",
-          "legendFormat": "used"
-        },
-        {
-          "expr": "node_memory_MemAvailable_bytes{job=\"node-exporter\",instance=\"host.docker.internal:9100\"}",
-          "legendFormat": "available"
-        }
-      ],
+       "id": 6,
+       "targets": [
+         {
+           "expr": "node_memory_MemTotal_bytes{job=\"node-exporter\",instance=\"host.docker.internal:9100\"} - node_memory_MemFree_bytes{job=\"node-exporter\",instance=\"host.docker.internal:9100\"}",
+           "legendFormat": "used (incl cache)"
+         },
+         {
+           "expr": "node_memory_MemFree_bytes{job=\"node-exporter\",instance=\"host.docker.internal:9100\"}",
+           "legendFormat": "free"
+         },
+         {
+           "expr": "node_memory_MemTotal_bytes{job=\"node-exporter\",instance=\"host.docker.internal:9100\"}",
+           "legendFormat": "total"
+         }
+       ],
       "title": "Memory",
       "type": "timeseries"
     },
