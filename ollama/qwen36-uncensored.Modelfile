@@ -1,4 +1,5 @@
-FROM /models/qwen3.6-uncensored.gguf
+FROM /models-archive/qwen3.6/hauhaucs-aggressive-q8_k_p/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive-Q8_K_P.gguf
+FROM /models-archive/qwen3.6/hauhaucs-aggressive-q8_k_p/mmproj-Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive-f16.gguf
 
 PARAMETER num_ctx 262144
 PARAMETER num_batch 128

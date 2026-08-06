@@ -83,6 +83,10 @@ def test_ollama_uses_gpu_scheduler_and_keeps_models_resident():
     assert ollama["environment"]["OLLAMA_NUM_PARALLEL"] == "${OLLAMA_NUM_PARALLEL:-1}"
     assert ollama["environment"]["OLLAMA_SCHED_SPREAD"] == "${OLLAMA_SCHED_SPREAD:-false}"
     assert "${MODELS_DIR:-/opt/llamacpp/models}:/models:ro" in ollama["volumes"]
+    assert (
+        "${MODELS_ARCHIVE_DIR:-/opt/models-archive}:/models-archive:ro"
+        in ollama["volumes"]
+    )
 
 
 def test_ollama_scheduler_patch_uses_all_available_vram_for_single_gpu_placement():
@@ -107,6 +111,20 @@ def test_ollama_local_models_use_tuned_inference_parameters():
         assert "PARAMETER num_batch 128" in definition
         assert "PARAMETER num_gpu" not in definition
         assert "PARAMETER repeat_penalty 1.0" in definition
+
+
+def test_archived_local_models_use_the_read_only_archive_mount():
+    qwen36 = (ROOT / "ollama" / "qwen36-uncensored.Modelfile").read_text(
+        encoding="utf-8"
+    )
+    qwen3coder = (ROOT / "ollama" / "qwen3coder.Modelfile").read_text(
+        encoding="utf-8"
+    )
+
+    assert "FROM /models-archive/qwen3.6/" in qwen36
+    assert "Aggressive-Q8_K_P.gguf" in qwen36
+    assert "mmproj-Qwen3.6-35B" in qwen36
+    assert "FROM /models-archive/qwen3coder/30b-iq4_xs/" in qwen3coder
 
 
 def test_qwen36_fable_uses_its_native_maximum_context():

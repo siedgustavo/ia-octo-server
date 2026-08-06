@@ -86,7 +86,7 @@ per request with `keep_alive`.
 
 Both local model definitions set `num_batch=128` and `repeat_penalty=1.0`. The batch setting reduces GPU compute-buffer usage for their large context windows. The repetition penalty setting matches the former llama.cpp behavior and avoids a measured twofold generation slowdown on these models.
 
-Create the two local models from the existing read-only GGUF mount:
+Create local models from the read-only archive mount. Importing registers an active Ollama copy while preserving the cold GGUF in `/opt/models-archive`:
 
 ```bash
 docker compose up -d ollama

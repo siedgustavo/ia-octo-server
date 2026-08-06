@@ -119,7 +119,7 @@ reduce context memory, and uses `OLLAMA_KEEP_ALIVE=-1` so idle models remain res
 scheduler needs their memory for another model. Models that do not fit in one card are still
 split across both GPUs automatically.
 
-Ollama stores its model inventory under `${OLLAMA_DATA_DIR:-/opt/ollama}`. The two existing GGUF files can be registered without downloading them again:
+Ollama stores its active model inventory under `${OLLAMA_DATA_DIR:-/opt/ollama}`. Cold GGUF files live under `${MODELS_ARCHIVE_DIR:-/opt/models-archive}`, mounted read-only at `/models-archive`, and can be registered without downloading them again:
 
 ```bash
 docker compose up -d ollama
