@@ -227,6 +227,8 @@ services:
       - --split-mode
       - layer
       - --cpu-moe
+      - --numa
+      - distribute
       - --parallel
       - "1"
       - --threads
