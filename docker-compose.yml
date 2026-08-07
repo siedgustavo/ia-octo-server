@@ -230,9 +230,9 @@ services:
       - --parallel
       - "1"
       - --threads
-      - ${DEEPSEEK_V4_THREADS:-6}
+      - ${DEEPSEEK_V4_THREADS:-28}
       - --threads-batch
-      - ${DEEPSEEK_V4_THREADS_BATCH:-6}
+      - ${DEEPSEEK_V4_THREADS_BATCH:-28}
       - --batch-size
       - ${DEEPSEEK_V4_BATCH_SIZE:-512}
       - --ubatch-size
