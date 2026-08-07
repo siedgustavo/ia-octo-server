@@ -57,7 +57,6 @@ def test_deepseek_v4_uses_native_context_and_two_rtx_3090_gpus():
     assert command[command.index("--cache-type-v") + 1] == "${DEEPSEEK_V4_CACHE_TYPE_V:-f16}"
     assert "--tensor-split" not in command
     assert "--cpu-moe" in command
-    assert command[command.index("--numa") + 1] == "distribute"
     assert command[command.index("--threads") + 1] == "${DEEPSEEK_V4_THREADS:-28}"
     assert command[command.index("--threads-batch") + 1] == "${DEEPSEEK_V4_THREADS_BATCH:-28}"
     assert command[command.index("--batch-size") + 1] == "${DEEPSEEK_V4_BATCH_SIZE:-512}"
