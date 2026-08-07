@@ -244,6 +244,7 @@ services:
       - --cache-type-v
       - ${DEEPSEEK_V4_CACHE_TYPE_V:-f16}
       - --no-repack
+      - --no-mmap
       - --metrics
     volumes:
       - ${MODELS_DIR:-/opt/llamacpp/models}:/models:ro

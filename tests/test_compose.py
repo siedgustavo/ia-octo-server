@@ -60,6 +60,7 @@ def test_deepseek_v4_uses_native_context_and_two_rtx_3090_gpus():
     assert command[command.index("--batch-size") + 1] == "${DEEPSEEK_V4_BATCH_SIZE:-512}"
     assert command[command.index("--ubatch-size") + 1] == "${DEEPSEEK_V4_UBATCH_SIZE:-128}"
     assert "--no-repack" in command
+    assert "--no-mmap" in command
     assert service["deploy"]["resources"]["reservations"]["devices"][0]["device_ids"] == [
         "${DEEPSEEK_V4_GPU_0:-0}",
         "${DEEPSEEK_V4_GPU_1:-1}",
