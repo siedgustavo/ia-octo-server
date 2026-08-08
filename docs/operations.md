@@ -240,13 +240,29 @@ If `enabled` is true and any check fails for `unhealthy_failures_before_reset` c
 
 ## Fan Control
 
-Auto mode uses the intake/internal sensor:
+Auto mode calculates independent demand from intake, exhaust and the hottest NVIDIA GPU, then
+uses the highest demand. Production uses these linear curves:
 
-1. BME280 No. 0 temperature when present.
-2. `Temperature No. 0` fallback.
-3. First sane controller temperature fallback.
+| Signal | Quiet minimum | Full speed | Immediate critical |
+| --- | ---: | ---: | ---: |
+| Intake | <=30C | 40C | 45C |
+| Exhaust | <=32C | 50C | 55C |
+| Hottest GPU | <=45C | 80C | 82C |
 
-Impossible sensor values below `-20C` or above `120C` are ignored. If the controller cannot be read or no sane temperature is available, fans ramp toward `fail_safe_percent` by `max_step_percent` per poll while `fail_safe_ramp` is enabled. Set `fail_safe_ramp: false` to jump directly to `fail_safe_percent`.
+Between the quiet and full-speed points, demand is interpolated from `min_percent` to
+`max_percent`. Normal increases are limited by `max_step_percent` per poll; decreases use the
+slower `max_down_step_percent`. Changes within `target_deadband_percent` are ignored. Crossing any
+critical threshold immediately selects `max_percent` without slew limiting.
+
+Intake prefers BME280 No. 0 and exhaust prefers BME280 No. 1 or `Temperature No. 1`, with sane
+fallbacks. Temperatures below `-20C` or above `120C` are ignored. If the controller cannot be read
+or no thermal signal remains, fans ramp toward `fail_safe_percent`; setting `fail_safe_ramp: false`
+makes that transition immediate. GPU telemetry failure does not force full speed while valid
+intake/exhaust sensors remain available.
+
+The API exposes the complete decision as `fan_control`. Prometheus exports pre-slew demands as
+`octofan_fan_control_target_percent{source="intake|exhaust|gpu|combined"}`, shown in the Cooling
+dashboard's `Automatic Policy Demand` panel.
 
 To let the chassis fans settle at the lowest active speed while GPUs are idle, enable the GPU idle policy and set `min_percent` to the measured hardware floor:
 

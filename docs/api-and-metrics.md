@@ -4,7 +4,9 @@
 
 ### `GET /api/status`
 
-Returns current controller status, fan data, PSU data, BME280 readings, watchdog result, llama.cpp status and recent events.
+Returns current controller status, fan data, PSU data, BME280 readings, watchdog result, llama.cpp
+status, recent events and `fan_control`, including applied/raw targets, the controlling reason and
+the intake, exhaust and GPU demands.
 
 When GPU idle stop is enabled, the response also includes `gpu_idle_seconds` and `gpu_idle_stop_active`.
 
@@ -63,6 +65,7 @@ Core:
 - `octofan_controller_up`
 - `octofan_controller_version{type="cli|fw|hw|boot"}`
 - `octofan_target_fan_percent`
+- `octofan_fan_control_target_percent{source="intake|exhaust|gpu|combined"}`
 - `octofan_voltage_volts{id}`
 
 Thermal:

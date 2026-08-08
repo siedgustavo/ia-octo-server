@@ -3,6 +3,7 @@ from __future__ import annotations
 from prometheus_client import Gauge, generate_latest
 from prometheus_client.core import REGISTRY
 
+from .control import FanControlDecision
 from .llamacpp import LlamaCppStatus
 from .nvidia import NvidiaStatus
 from .parser import ControllerStatus
@@ -29,15 +30,34 @@ ai_models = Gauge("octofan_ai_running_models", "AI running models", ["source"])
 llamacpp_up = Gauge("octofan_llamacpp_up", "llama.cpp server health", ["name", "gpu", "model"])
 llamacpp_slots = Gauge("octofan_llamacpp_slots", "llama.cpp server slots", ["name", "gpu", "state"])
 target_fan = Gauge("octofan_target_fan_percent", "Last target case fan percent")
+fan_control_target = Gauge(
+    "octofan_fan_control_target_percent",
+    "Fan target requested by each thermal signal before slew limiting",
+    ["source"],
+)
 nvidia_up = Gauge("octofan_nvidia_smi_up", "nvidia-smi read success")
 nvidia_info = Gauge("octofan_nvidia_gpu_info", "NVIDIA GPU info", ["index", "uuid", "name", "pci_bus_id", "driver_version", "vbios_version"])
 nvidia_metric = Gauge("octofan_nvidia_gpu_metric", "NVIDIA GPU metric from nvidia-smi", ["index", "uuid", "name", "metric"])
 
 
-def update_metrics(status: ControllerStatus, llamacpp: LlamaCppStatus, current_target_fan: int | None, nvidia: NvidiaStatus | None = None) -> None:
+def update_metrics(
+    status: ControllerStatus,
+    llamacpp: LlamaCppStatus,
+    current_target_fan: int | None,
+    nvidia: NvidiaStatus | None = None,
+    fan_control: FanControlDecision | None = None,
+) -> None:
     controller_up.set(1 if status.ok else 0)
     if current_target_fan is not None:
         target_fan.set(current_target_fan)
+    if fan_control is not None:
+        fan_control_target.labels("combined").set(fan_control.raw_target_percent)
+        for source, value in (
+            ("intake", fan_control.intake_target_percent),
+            ("exhaust", fan_control.exhaust_target_percent),
+            ("gpu", fan_control.gpu_target_percent),
+        ):
+            fan_control_target.labels(source).set(value if value is not None else float("nan"))
     if status.version_cli is not None:
         version_metric.labels("cli").set(status.version_cli)
     if status.version_fw is not None:

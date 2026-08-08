@@ -1,11 +1,20 @@
 fans:
   mode: manual
-  target_temp_c: 38.0
-  hysteresis_c: 2.0
   min_percent: 10
   max_percent: 100
   manual_percent: 10
   max_step_percent: 8
+  max_down_step_percent: 4
+  target_deadband_percent: 2
+  intake_ramp_start_c: 30.0
+  intake_full_speed_c: 40.0
+  intake_critical_c: 45.0
+  exhaust_ramp_start_c: 32.0
+  exhaust_full_speed_c: 50.0
+  exhaust_critical_c: 55.0
+  gpu_ramp_start_c: 45.0
+  gpu_full_speed_c: 80.0
+  gpu_critical_c: 82.0
   ai_load_assist: false
   ai_load_boost_percent: 10
   fail_safe_percent: 100

@@ -95,7 +95,9 @@ Important sections:
 - `leds`: front-panel LED policy. By default LED `0` is orange warning, LED `1` is blue online and LED `2` is white activity.
 - `llamacpp`: health and activity polling for the dedicated llama.cpp service.
 
-The fan controller uses BME280 sensor `0` as intake/internal temperature when available, then falls back to `Temperature No. 0`.
+Automatic fan control combines BME280 intake, exhaust and hottest-GPU temperatures and applies the
+highest resulting demand. Invalid sensors are filtered independently, while critical temperatures
+override normal slew limits. The API, Prometheus and Cooling dashboard expose each signal's demand.
 
 `fans.gpu_idle_stop_enabled` can hold the chassis fans at the lowest active configured speed while NVIDIA GPUs are idle and cool. Manual and automatic targets are clamped to `fans.min_percent..fans.max_percent`, and the idle policy falls back to the normal auto curve when GPU load, GPU temperature, intake temperature or telemetry health no longer matches the configured idle thresholds.
 

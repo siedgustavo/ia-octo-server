@@ -14,6 +14,7 @@ from octofan_controller.app import (
     state,
 )
 from octofan_controller.config import AppConfig, load_config
+from octofan_controller.control import FanControlDecision
 from octofan_controller.llamacpp import LlamaCppServerStatus, LlamaCppStatus
 from octofan_controller.metrics import metrics_payload, update_metrics
 from octofan_controller.nvidia import GpuStatus, NvidiaStatus
@@ -165,9 +166,19 @@ def test_metrics_exports_llamacpp_server_status():
             )
         ],
     )
-    update_metrics(ControllerStatus(), llamacpp, None)
+    fan_control = FanControlDecision(
+        target_percent=18,
+        raw_target_percent=64,
+        reason="gpu",
+        intake_target_percent=10,
+        exhaust_target_percent=30,
+        gpu_target_percent=64,
+    )
+    update_metrics(ControllerStatus(), llamacpp, 18, fan_control=fan_control)
 
     metrics = metrics_payload().decode()
 
     assert 'octofan_ai_available_models{source="llamacpp"}' in metrics
     assert 'octofan_llamacpp_up{gpu="0",model="qwen3coder:30b",name="qwen3coder:30b"}' in metrics
+    assert 'octofan_fan_control_target_percent{source="gpu"} 64.0' in metrics
+    assert 'octofan_fan_control_target_percent{source="combined"} 64.0' in metrics

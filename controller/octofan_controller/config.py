@@ -4,17 +4,26 @@ from pathlib import Path
 from typing import Literal
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class FanConfig(BaseModel):
     mode: Literal["auto", "manual"] = "auto"
-    target_temp_c: float = 38.0
-    hysteresis_c: float = 2.0
     min_percent: int = Field(default=35, ge=1, le=100)
     max_percent: int = Field(default=100, ge=1, le=100)
     manual_percent: int = Field(default=70, ge=1, le=100)
     max_step_percent: int = Field(default=8, ge=1, le=100)
+    max_down_step_percent: int = Field(default=4, ge=1, le=100)
+    target_deadband_percent: int = Field(default=2, ge=0, le=20)
+    intake_ramp_start_c: float = Field(default=30.0, ge=-20.0, le=120.0)
+    intake_full_speed_c: float = Field(default=40.0, ge=-20.0, le=120.0)
+    intake_critical_c: float = Field(default=45.0, ge=-20.0, le=120.0)
+    exhaust_ramp_start_c: float = Field(default=32.0, ge=-20.0, le=120.0)
+    exhaust_full_speed_c: float = Field(default=50.0, ge=-20.0, le=120.0)
+    exhaust_critical_c: float = Field(default=55.0, ge=-20.0, le=120.0)
+    gpu_ramp_start_c: float = Field(default=45.0, ge=0.0, le=120.0)
+    gpu_full_speed_c: float = Field(default=80.0, ge=0.0, le=120.0)
+    gpu_critical_c: float = Field(default=82.0, ge=0.0, le=120.0)
     ai_load_assist: bool = True
     ai_load_boost_percent: int = Field(default=10, ge=0, le=50)
     fail_safe_percent: int = Field(default=100, ge=1, le=100)
@@ -27,6 +36,20 @@ class FanConfig(BaseModel):
     gpu_idle_power_watts: float = Field(default=25.0, ge=0.0, le=1000.0)
     gpu_idle_max_gpu_temp_c: float = Field(default=45.0, ge=0.0, le=120.0)
     gpu_idle_max_intake_temp_c: float = Field(default=35.0, ge=0.0, le=120.0)
+
+    @model_validator(mode="after")
+    def validate_thermal_curves(self) -> "FanConfig":
+        for source in ("intake", "exhaust", "gpu"):
+            start = getattr(self, f"{source}_ramp_start_c")
+            full = getattr(self, f"{source}_full_speed_c")
+            critical = getattr(self, f"{source}_critical_c")
+            if not start < full <= critical:
+                raise ValueError(
+                    f"{source} temperatures must satisfy ramp_start < full_speed <= critical"
+                )
+        if self.min_percent > self.max_percent:
+            raise ValueError("min_percent must not exceed max_percent")
+        return self
 
 
 class WatchdogCheck(BaseModel):

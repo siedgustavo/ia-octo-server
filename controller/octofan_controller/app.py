@@ -13,7 +13,7 @@ from pydantic import BaseModel
 
 from .cli import OctofanCli, percent_to_pwm
 from .config import AppConfig, load_config, save_config
-from .control import calculate_target_fan_percent, clamp_active_fan_percent
+from .control import calculate_fan_control_decision, clamp_active_fan_percent
 from .display import render_display, resolve_display_title
 from .llamacpp import LlamaCppClient, LlamaCppStatus
 from .metrics import metrics_payload, update_metrics
@@ -52,6 +52,7 @@ state: dict[str, Any] = {
     "llamacpp": LlamaCppStatus(),
     "nvidia": NvidiaStatus(ok=False, gpus=[], error="not polled yet"),
     "target_fan": None,
+    "fan_control": None,
     "applied_fan_target": None,
     "applied_fan_ids": [],
     "gpu_idle_since": None,
@@ -78,13 +79,15 @@ async def poll_loop() -> None:
         llamacpp = await llamacpp_client.status(cfg.llamacpp)
         nvidia = nvidia_smi.status()
         gpu_idle_stop_active = _gpu_idle_stop_active(cfg, status, nvidia, llamacpp)
-        target = calculate_target_fan_percent(
+        fan_control = calculate_fan_control_decision(
             status,
             cfg.fans,
             state["target_fan"],
             llamacpp.generating,
             gpu_idle_stop_active,
+            nvidia,
         )
+        target = fan_control.target_percent
         fan_ids = sorted(status.fans.keys()) if status.ok and status.fans else list(range(12))
         desired_pwm = percent_to_pwm(target)
         hardware_drifted = any(
@@ -103,9 +106,10 @@ async def poll_loop() -> None:
             llamacpp=llamacpp,
             nvidia=nvidia,
             target_fan=target,
+            fan_control=fan_control,
             gpu_idle_stop_active=gpu_idle_stop_active,
         )
-        update_metrics(status, llamacpp, target, nvidia)
+        update_metrics(status, llamacpp, target, nvidia, fan_control)
         await asyncio.sleep(cfg.fans.poll_interval_seconds)
 
 
@@ -328,6 +332,7 @@ def serialize_status() -> dict[str, Any]:
             "modes": dict(state["led_modes"]),
         },
         "target_fan_percent": state["target_fan"],
+        "fan_control": vars(state["fan_control"]) if state["fan_control"] else None,
         "gpu_idle_seconds": None if gpu_idle_since is None else round(time.monotonic() - gpu_idle_since, 1),
         "gpu_idle_stop_active": state["gpu_idle_stop_active"],
         "events": state["events"][-50:],
@@ -457,10 +462,20 @@ UI_HTML = """
   <section>
     <h2>Fans</h2>
     <label>Mode <select id="fanMode"><option>auto</option><option>manual</option></select></label>
-    <label>Target temp C <input id="targetTemp" type="number" step="0.5"></label>
-    <label>Min fan % <input id="minFan" type="number"></label>
-    <label>Max fan % <input id="maxFan" type="number"></label>
-    <label>Manual fan % <input id="manualFan" type="number"></label>
+    <div class="grid">
+      <label>Min fan % <input id="minFan" type="number"></label>
+      <label>Max fan % <input id="maxFan" type="number"></label>
+      <label>Manual fan % <input id="manualFan" type="number"></label>
+      <label>Intake ramp start C <input id="intakeStart" type="number" step="0.5"></label>
+      <label>Intake full speed C <input id="intakeFull" type="number" step="0.5"></label>
+      <label>Intake critical C <input id="intakeCritical" type="number" step="0.5"></label>
+      <label>Exhaust ramp start C <input id="exhaustStart" type="number" step="0.5"></label>
+      <label>Exhaust full speed C <input id="exhaustFull" type="number" step="0.5"></label>
+      <label>Exhaust critical C <input id="exhaustCritical" type="number" step="0.5"></label>
+      <label>GPU ramp start C <input id="gpuStart" type="number" step="0.5"></label>
+      <label>GPU full speed C <input id="gpuFull" type="number" step="0.5"></label>
+      <label>GPU critical C <input id="gpuCritical" type="number" step="0.5"></label>
+    </div>
     <button onclick="saveConfig()">Save config</button>
     <button onclick="applyManualFan()">Apply manual fan</button>
     <button onclick="autoFan()">Auto mode</button>
@@ -488,8 +503,11 @@ let cfg={}
 async function refresh(){
   cfg=await (await fetch('/api/config')).json()
   const st=await (await fetch('/api/status')).json()
-  fanMode.value=cfg.fans.mode; targetTemp.value=cfg.fans.target_temp_c; minFan.value=cfg.fans.min_percent
+  fanMode.value=cfg.fans.mode; minFan.value=cfg.fans.min_percent
   maxFan.value=cfg.fans.max_percent; manualFan.value=cfg.fans.manual_percent
+  intakeStart.value=cfg.fans.intake_ramp_start_c; intakeFull.value=cfg.fans.intake_full_speed_c; intakeCritical.value=cfg.fans.intake_critical_c
+  exhaustStart.value=cfg.fans.exhaust_ramp_start_c; exhaustFull.value=cfg.fans.exhaust_full_speed_c; exhaustCritical.value=cfg.fans.exhaust_critical_c
+  gpuStart.value=cfg.fans.gpu_ramp_start_c; gpuFull.value=cfg.fans.gpu_full_speed_c; gpuCritical.value=cfg.fans.gpu_critical_c
   displayProfile.value=cfg.display.profile; watchdogEnabled.checked=cfg.watchdog.enabled
   watchdogTarget.value=(cfg.watchdog.checks[0]||{target:'host.docker.internal:22'}).target
   metrics.innerHTML=[
@@ -497,6 +515,7 @@ async function refresh(){
     ['Intake', st.controller.intake_temp_c+' C'],
     ['Exhaust', st.controller.exhaust_temp_c+' C'],
     ['Target fan', st.target_fan_percent+' %'],
+    ['Fan policy', st.fan_control ? st.fan_control.reason+' ('+st.fan_control.raw_target_percent+' % demand)' : '--'],
     ['Power', st.controller.power_ac_total_w+' W'],
     ['llama.cpp', st.llamacpp.available_models+' available / '+st.llamacpp.running_models+' generating'],
     ['AI activity', (st.nvidia.gpus||[]).some(g=>g.utilization_gpu_percent>=cfg.leds.gpu_activity_utilization_percent || g.power_draw_watts>=cfg.leds.gpu_activity_power_watts) ? 'GPU active' : 'idle'],
@@ -507,8 +526,11 @@ async function refresh(){
   raw.textContent=JSON.stringify(st,null,2)
 }
 async function saveConfig(){
-  cfg.fans.mode=fanMode.value; cfg.fans.target_temp_c=parseFloat(targetTemp.value)
+  cfg.fans.mode=fanMode.value
   cfg.fans.min_percent=parseInt(minFan.value); cfg.fans.max_percent=parseInt(maxFan.value); cfg.fans.manual_percent=parseInt(manualFan.value)
+  cfg.fans.intake_ramp_start_c=parseFloat(intakeStart.value); cfg.fans.intake_full_speed_c=parseFloat(intakeFull.value); cfg.fans.intake_critical_c=parseFloat(intakeCritical.value)
+  cfg.fans.exhaust_ramp_start_c=parseFloat(exhaustStart.value); cfg.fans.exhaust_full_speed_c=parseFloat(exhaustFull.value); cfg.fans.exhaust_critical_c=parseFloat(exhaustCritical.value)
+  cfg.fans.gpu_ramp_start_c=parseFloat(gpuStart.value); cfg.fans.gpu_full_speed_c=parseFloat(gpuFull.value); cfg.fans.gpu_critical_c=parseFloat(gpuCritical.value)
   cfg.display.profile=displayProfile.value; cfg.watchdog.enabled=watchdogEnabled.checked
   cfg.watchdog.checks=[{type: watchdogTarget.value.startsWith('http')?'http':'tcp', target: watchdogTarget.value, timeout_seconds:1}]
   await fetch('/api/config',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(cfg)})
