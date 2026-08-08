@@ -85,12 +85,6 @@ class LlamaCppConfig(BaseModel):
                 base_url="http://llamacpp-llama31-pro:8080",
                 expected_model="llama3.1:8b",
             ),
-            LlamaCppServerConfig(
-                name="qwen2.5-coder:7b",
-                gpu="3",
-                base_url="http://llamacpp-permission-classifier:8080",
-                expected_model="qwen2.5-coder:7b",
-            ),
         ]
     )
 

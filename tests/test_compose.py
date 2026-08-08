@@ -17,22 +17,23 @@ def test_services_have_no_hard_memory_limits():
         assert "memswap_limit" not in service
 
 
-def test_migrated_models_run_on_their_dedicated_gpus():
+def test_llama_and_comfyui_run_on_their_dedicated_gpus():
     services = load_compose()["services"]
     llama31 = services["llamacpp-llama31-pro"]
-    classifier = services["llamacpp-permission-classifier"]
+    comfyui = services["comfyui"]
 
     assert llama31["container_name"] == "octofan-llamacpp-llama31-pro"
-    assert classifier["container_name"] == "octofan-llamacpp-permission-classifier"
+    assert comfyui["container_name"] == "octofan-comfyui"
     assert llama31["ports"] == ["${LLAMA31_PRO_PORT:-8082}:8080"]
-    assert classifier["ports"] == ["${PERMISSION_CLASSIFIER_PORT:-8083}:8080"]
+    assert comfyui["ports"] == ["${COMFYUI_PORT:-8188}:8188"]
     assert llama31["deploy"]["resources"]["reservations"]["devices"][0]["device_ids"] == ["${LLAMA31_PRO_GPU:-2}"]
-    assert classifier["deploy"]["resources"]["reservations"]["devices"][0]["device_ids"] == ["${PERMISSION_CLASSIFIER_GPU:-3}"]
+    assert comfyui["deploy"]["resources"]["reservations"]["devices"][0]["device_ids"] == ["${COMFYUI_GPU:-3}"]
     assert llama31["command"][llama31["command"].index("--ctx-size") + 1] == "${LLAMA31_PRO_CTX_SIZE:-131072}"
-    assert classifier["command"][classifier["command"].index("--ctx-size") + 1] == "${PERMISSION_CLASSIFIER_CTX_SIZE:-131072}"
     assert llama31["command"][llama31["command"].index("--cache-type-k") + 1] == "${LLAMA31_PRO_CACHE_TYPE:-q4_0}"
     assert llama31["command"][llama31["command"].index("--cache-type-v") + 1] == "${LLAMA31_PRO_CACHE_TYPE:-q4_0}"
-    assert "comfyui" in services
+    assert "profiles" not in comfyui
+    assert "--lowvram" in comfyui["environment"]["CLI_ARGS"]
+    assert "${COMFYUI_MODELS_DIR:-/opt/imagegen/comfyui/models}:/root/ComfyUI/models" in comfyui["volumes"]
 
 
 def test_only_migrated_llamacpp_services_are_in_compose():
@@ -40,8 +41,8 @@ def test_only_migrated_llamacpp_services_are_in_compose():
     assert {name for name in services if name.startswith("llamacpp-")} == {
         "llamacpp-deepseek-v4-flash",
         "llamacpp-llama31-pro",
-        "llamacpp-permission-classifier",
     }
+    assert "llamacpp-permission-classifier" not in services
 
 
 def test_deepseek_v4_uses_native_context_and_two_rtx_3090_gpus():

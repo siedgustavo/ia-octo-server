@@ -156,10 +156,12 @@ docker compose exec ollama ollama rm qwen3-coder-next:configured
 
 ## ComfyUI Image Generation
 
-The optional `comfyui` service is exposed on port `8188` and is disabled by default through the `imagegen` profile. It defaults to GPU 1, so avoid running it alongside a memory-intensive inference workload on that GPU:
+The `comfyui` service replaces the permission classifier on GPU 3 and is exposed on port `8188`.
+Its active models remain on the NVMe; the SATA is archive-only:
 
 ```bash
-docker compose --profile imagegen up -d comfyui
+scripts/download-flux1-dev.sh
+docker compose up -d comfyui
 curl -fsS http://localhost:8188/system_stats
 ```
 
@@ -171,40 +173,20 @@ COMFYUI_OUTPUT_DIR=/opt/imagegen/comfyui/output
 COMFYUI_CUSTOM_NODES_DIR=/opt/imagegen/comfyui/custom_nodes
 ```
 
-For a Chroma FP8 workflow, use these model locations:
+The downloader installs the 17.2 GB single-file checkpoint at:
 
 ```text
-/opt/imagegen/comfyui/models/diffusion_models/Chroma1-HD-fp8_scaled_defaultloader_hybrid_large_rev2.safetensors
-/opt/imagegen/comfyui/models/text_encoders/t5xxl_fp8_e4m3fn_scaled.safetensors
-/opt/imagegen/comfyui/models/clip/t5xxl_fp8_e4m3fn_scaled.safetensors -> ../text_encoders/t5xxl_fp8_e4m3fn_scaled.safetensors
-/opt/imagegen/comfyui/models/vae/ae.safetensors
+/opt/imagegen/comfyui/models/checkpoints/flux1-dev-fp8.safetensors
 ```
 
-Suggested downloads:
+Exercise the native API with:
 
 ```bash
-mkdir -p /opt/imagegen/comfyui/models/diffusion_models \
-  /opt/imagegen/comfyui/models/text_encoders \
-  /opt/imagegen/comfyui/models/clip \
-  /opt/imagegen/comfyui/models/vae
-
-curl -L --fail --continue-at - \
-  -o /opt/imagegen/comfyui/models/diffusion_models/Chroma1-HD-fp8_scaled_defaultloader_hybrid_large_rev2.safetensors \
-  https://huggingface.co/silveroxides/Chroma1-HD-fp8-scaled/resolve/main/Chroma1-HD-fp8_scaled_defaultloader_hybrid_large_rev2.safetensors
-
-curl -L --fail --continue-at - \
-  -o /opt/imagegen/comfyui/models/text_encoders/t5xxl_fp8_e4m3fn_scaled.safetensors \
-  https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/t5xxl_fp8_e4m3fn_scaled.safetensors
-
-ln -sfn ../text_encoders/t5xxl_fp8_e4m3fn_scaled.safetensors \
-  /opt/imagegen/comfyui/models/clip/t5xxl_fp8_e4m3fn_scaled.safetensors
-
-curl -L --fail --continue-at - \
-  -o /opt/imagegen/comfyui/models/vae/ae.safetensors \
-  https://huggingface.co/Comfy-Org/Lumina_Image_2.0_Repackaged/resolve/main/split_files/vae/ae.safetensors
+scripts/comfyui-flux-api.py "an octopus operating an AI server" -o /tmp/octopus.png
 ```
 
-ComfyUI is not part of the controller's AI health model yet; use the ComfyUI UI/API directly while image workflows are experimental.
+ComfyUI is not part of the controller's AI health model yet. FLUX.1-dev weights have a
+non-commercial license; review it before providing third-party or production access.
 
 ## Front LEDs
 

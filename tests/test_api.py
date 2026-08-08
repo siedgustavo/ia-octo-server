@@ -49,7 +49,8 @@ def test_load_config_migrates_enabled_ollama_to_llamacpp(tmp_path):
     cfg = load_config(path)
 
     assert cfg.llamacpp.enabled
-    assert len(cfg.llamacpp.servers) == 2
+    assert len(cfg.llamacpp.servers) == 1
+    assert cfg.llamacpp.servers[0].name == "llama3.1:8b"
 
 
 def test_gpu_idle_stop_candidate_requires_cool_idle_gpus():

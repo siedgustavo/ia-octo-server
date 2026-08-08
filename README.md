@@ -26,7 +26,7 @@ The original HiveOS package files are preserved only as reference material under
 - `node-exporter`: host system and network metrics, running in the host network namespace.
 - `grafana`: dashboard at `http://localhost:3000` (`admin` / `octofan`).
 - `ollama`: on-demand Ollama API at `http://localhost:11434`, with both GPUs visible.
-- `comfyui`: optional ComfyUI image generation workspace at `http://localhost:8188`.
+- `comfyui`: ComfyUI with FLUX.1-dev FP8 on GPU 3, exposed at `http://localhost:8188` for UI/API use.
 
 ## Repository Layout
 
@@ -93,7 +93,7 @@ Important sections:
 - `watchdog`: hardware watchdog timeouts and HTTP/TCP health checks.
 - `display`: OLED profile and refresh interval.
 - `leds`: front-panel LED policy. By default LED `0` is orange warning, LED `1` is blue online and LED `2` is white activity.
-- `llamacpp`: health and activity polling for the two dedicated llama.cpp services.
+- `llamacpp`: health and activity polling for the dedicated llama.cpp service.
 
 The fan controller uses BME280 sensor `0` as intake/internal temperature when available, then falls back to `Temperature No. 0`.
 
@@ -142,19 +142,16 @@ docker compose exec ollama ollama ps
 
 The scheduler can distribute a model across both GPUs and unload idle models when another request needs their VRAM.
 
-Two small llama.cpp services remain permanently assigned to the RTX 3060 cards and keep the
-gateway's stable names: `llama3.1:8b` listens on port `8082` using GPU `2`, while the internal
-`qwen2.5-coder:7b` permission classifier listens on port `8083` using GPU `3`. Their GGUF files
-live under `${MODELS_DIR:-/opt/llamacpp/models}`. Start or validate them with:
+The `llama3.1:8b` llama.cpp service remains assigned to RTX 3060 GPU `2` and listens on port
+`8082`. Its GGUF file lives under `${MODELS_DIR:-/opt/llamacpp/models}`. Start or validate it with:
 
 ```bash
-docker compose up -d llamacpp-llama31-pro llamacpp-permission-classifier
+docker compose up -d llamacpp-llama31-pro
 curl -fsS http://localhost:8082/v1/models
-curl -fsS http://localhost:8083/v1/models
 ```
 
-Both services use their models' native 128k context. Llama 3.1 uses a quantized `q4_0` KV cache
-so the full context fits on its 12 GiB GPU. The controller reports their health in the
+The service uses its model's native 128k context and a quantized `q4_0` KV cache
+so the full context fits on its 12 GiB GPU. The controller reports its health in the
 API, Prometheus metrics, front-panel LEDs and OLED; the display intentionally shows operational
 health instead of model counts or token throughput.
 
@@ -208,16 +205,27 @@ model can evict the smaller resident models; benchmark it before routing product
 
 ## Image Generation
 
-The compose stack includes an optional ComfyUI workspace exposed at `http://localhost:8188`. Start it explicitly with `docker compose --profile imagegen up -d comfyui`; it defaults to GPU 1 and should not run alongside a memory-intensive inference workload on that GPU.
+ComfyUI replaces the permission classifier on RTX 3060 GPU `3` and is exposed at
+`http://localhost:8188`. It runs with `--lowvram` and the single-file FLUX.1-dev FP8 checkpoint,
+which is suitable for the card's 12 GiB VRAM. Install the checkpoint on the NVMe and start it with:
 
-Persistent directories live under `${COMFYUI_MODELS_DIR:-/opt/imagegen/comfyui/models}` and sibling paths for cache, input, output, user data and custom nodes. For Chroma/Flux-style workflows, place files in:
+```bash
+scripts/download-flux1-dev.sh
+docker compose up -d comfyui
+curl -fsS http://localhost:8188/system_stats
+```
 
-- `diffusion_models/`: Chroma checkpoint, for example `Chroma1-HD-fp8_scaled_defaultloader_hybrid_large_rev2.safetensors`.
-- `text_encoders/`: T5 XXL text encoder, for example `t5xxl_fp8_e4m3fn_scaled.safetensors`.
-- `clip/`: compatibility symlink to the same T5 file for workflows that still look under `models/clip`.
-- `vae/`: Flux VAE, for example `ae.safetensors`.
+Persistent models live on the NVMe under `${COMFYUI_MODELS_DIR:-/opt/imagegen/comfyui/models}`;
+cache, input, output, user data and custom nodes use sibling directories. Generate through the
+native ComfyUI API and download the result with the included client:
 
-ComfyUI is intentionally not polled by `octofan-controller` yet. Use it directly through the ComfyUI web UI or API while workflows are experimental.
+```bash
+scripts/comfyui-flux-api.py "a cinematic photograph of Patagonia at sunrise" -o patagonia.png
+```
+
+The script submits a standard workflow to `POST /prompt`, waits on `/history/{prompt_id}` and
+downloads the image through `/view`. FLUX.1-dev model weights are licensed for non-commercial use;
+review the Black Forest Labs license before exposing this API to clients.
 
 ## Validation
 
