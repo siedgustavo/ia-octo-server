@@ -65,7 +65,7 @@ sg docker -c 'docker compose ps'
 Ollama sees both NVIDIA GPUs through `gpus: all`. The service defaults to:
 
 ```env
-OLLAMA_KEEP_ALIVE=-1
+OLLAMA_KEEP_ALIVE=3h
 OLLAMA_KV_CACHE_TYPE=q4_0
 OLLAMA_NUM_PARALLEL=1
 OLLAMA_SCHED_SPREAD=false
@@ -73,7 +73,7 @@ OLLAMA_SCHED_SPREAD=false
 
 This packs a model into one GPU whenever its weights, context and compute buffers fit, and only
 splits it across both GPUs when necessary. The 4-bit KV cache quarters KV-cache memory relative
-to `f16`, while `OLLAMA_KEEP_ALIVE=-1` keeps idle models resident. Context is pinned in each
+to `f16`, while `OLLAMA_KEEP_ALIVE=3h` unloads models after three idle hours. Context is pinned in each
 model manifest to that model's native maximum; there is deliberately no container-wide context
 override. Operational context must never be lower than 128k even when the larger context reduces
 throughput. The local Ollama image is built from 0.32.5 with a
@@ -82,7 +82,8 @@ when selecting a single GPU. Its placement estimate also honors the configured q
 cache and recurrent layers instead of assuming an `f16` cache for every layer. The official CUDA
 and llama-server libraries remain unchanged. When another model truly needs memory, Ollama queues
 the request and unloads idle models as necessary. API callers can override the residency policy
-per request with `keep_alive`.
+per request with `keep_alive`. A request-level value overrides the global three-hour default;
+clients must not send a negative value unless they intentionally want indefinite residency.
 
 Both local model definitions set `num_batch=128` and `repeat_penalty=1.0`. The batch setting reduces GPU compute-buffer usage for their large context windows. The repetition penalty setting matches the former llama.cpp behavior and avoids a measured twofold generation slowdown on these models.
 

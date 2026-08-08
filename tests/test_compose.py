@@ -70,7 +70,7 @@ def test_deepseek_v4_uses_native_context_and_two_rtx_3090_gpus():
     ]
 
 
-def test_ollama_uses_gpu_scheduler_and_keeps_models_resident():
+def test_ollama_uses_gpu_scheduler_and_unloads_models_after_three_idle_hours():
     ollama = load_compose()["services"]["ollama"]
 
     assert ollama["build"]["context"] == "./ollama"
@@ -80,7 +80,7 @@ def test_ollama_uses_gpu_scheduler_and_keeps_models_resident():
         "${OLLAMA_GPU_0:-0}",
         "${OLLAMA_GPU_1:-1}",
     ]
-    assert ollama["environment"]["OLLAMA_KEEP_ALIVE"] == "${OLLAMA_KEEP_ALIVE:--1}"
+    assert ollama["environment"]["OLLAMA_KEEP_ALIVE"] == "${OLLAMA_KEEP_ALIVE:-3h}"
     assert "OLLAMA_CONTEXT_LENGTH" not in ollama["environment"]
     assert ollama["environment"]["OLLAMA_KV_CACHE_TYPE"] == "${OLLAMA_KV_CACHE_TYPE:-q4_0}"
     assert "OLLAMA_MAX_LOADED_MODELS" not in ollama["environment"]

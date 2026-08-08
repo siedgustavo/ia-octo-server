@@ -83,7 +83,7 @@ services:
     restart: unless-stopped
     environment:
       OLLAMA_HOST: 0.0.0.0:11434
-      OLLAMA_KEEP_ALIVE: "${OLLAMA_KEEP_ALIVE:--1}"
+      OLLAMA_KEEP_ALIVE: "${OLLAMA_KEEP_ALIVE:-3h}"
       OLLAMA_KV_CACHE_TYPE: "${OLLAMA_KV_CACHE_TYPE:-q4_0}"
       OLLAMA_NUM_PARALLEL: "${OLLAMA_NUM_PARALLEL:-1}"
       OLLAMA_SCHED_SPREAD: "${OLLAMA_SCHED_SPREAD:-false}"

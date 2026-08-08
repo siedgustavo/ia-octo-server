@@ -117,8 +117,8 @@ override normal slew limits. The API, Prometheus and Cooling dashboard expose ea
 
 The stack includes one Ollama instance with the two RTX 3090 GPUs (`0/1`) visible. It processes one request
 per model in parallel, packs a model into one GPU whenever it fits, uses a 4-bit KV cache to
-reduce context memory, and uses `OLLAMA_KEEP_ALIVE=-1` so idle models remain resident until the
-scheduler needs their memory for another model. Models that do not fit in one card are still
+reduce context memory, and uses `OLLAMA_KEEP_ALIVE=3h` so models unload after three hours without
+requests. Request-level `keep_alive` can override this default. Models that do not fit in one card are still
 split across both GPUs automatically.
 
 Ollama stores its active model inventory under `${OLLAMA_DATA_DIR:-/opt/ollama}`. Cold GGUF files live under `${MODELS_ARCHIVE_DIR:-/opt/models-archive}`, mounted read-only at `/models-archive`, and can be registered without downloading them again:
