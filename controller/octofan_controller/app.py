@@ -13,7 +13,11 @@ from pydantic import BaseModel
 
 from .cli import OctofanCli, percent_to_pwm
 from .config import AppConfig, load_config, save_config
-from .control import calculate_fan_control_decision, clamp_active_fan_percent
+from .control import (
+    CriticalTemperatureGuard,
+    calculate_fan_control_decision,
+    clamp_active_fan_percent,
+)
 from .display import render_display, resolve_display_title
 from .llamacpp import LlamaCppClient, LlamaCppStatus
 from .metrics import metrics_payload, update_metrics
@@ -46,6 +50,7 @@ app = FastAPI(title="Octofan AI Controller", version="0.1.0", lifespan=lifespan)
 cli = OctofanCli(BIN_PATH)
 llamacpp_client = LlamaCppClient()
 nvidia_smi = NvidiaSmi()
+critical_temperature_guard = CriticalTemperatureGuard()
 state: dict[str, Any] = {
     "config": load_config(CONFIG_PATH),
     "status": ControllerStatus(ok=False, error="not polled yet"),
@@ -79,6 +84,7 @@ async def poll_loop() -> None:
         llamacpp = await llamacpp_client.status(cfg.llamacpp)
         nvidia = nvidia_smi.status()
         gpu_idle_stop_active = _gpu_idle_stop_active(cfg, status, nvidia, llamacpp)
+        critical_confirmed = critical_temperature_guard.observe(status, cfg.fans, nvidia)
         fan_control = calculate_fan_control_decision(
             status,
             cfg.fans,
@@ -86,6 +92,7 @@ async def poll_loop() -> None:
             llamacpp.generating,
             gpu_idle_stop_active,
             nvidia,
+            critical_confirmed,
         )
         target = fan_control.target_percent
         fan_ids = sorted(status.fans.keys()) if status.ok and status.fans else list(range(12))

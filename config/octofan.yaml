@@ -6,6 +6,7 @@ fans:
   max_step_percent: 8
   max_down_step_percent: 4
   target_deadband_percent: 2
+  critical_confirm_samples: 2
   intake_ramp_start_c: 30.0
   intake_full_speed_c: 40.0
   intake_critical_c: 45.0

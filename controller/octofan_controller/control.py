@@ -19,6 +19,30 @@ class FanControlDecision:
     gpu_target_percent: int | None = None
 
 
+@dataclass
+class CriticalTemperatureGuard:
+    source: str | None = None
+    consecutive_samples: int = 0
+
+    def observe(
+        self,
+        status: ControllerStatus,
+        cfg: FanConfig,
+        nvidia: NvidiaStatus | None = None,
+    ) -> bool:
+        source = critical_temperature_source(status, cfg, nvidia)
+        if source is None:
+            self.source = None
+            self.consecutive_samples = 0
+            return False
+        if source == self.source:
+            self.consecutive_samples += 1
+        else:
+            self.source = source
+            self.consecutive_samples = 1
+        return self.consecutive_samples >= cfg.critical_confirm_samples
+
+
 def calculate_target_fan_percent(
     status: ControllerStatus,
     cfg: FanConfig,
@@ -44,6 +68,7 @@ def calculate_fan_control_decision(
     ai_generating: bool = False,
     gpu_idle_stop_active: bool = False,
     nvidia: NvidiaStatus | None = None,
+    critical_confirmed: bool = True,
 ) -> FanControlDecision:
     if not status.ok:
         if cfg.mode == "manual":
@@ -117,22 +142,19 @@ def calculate_fan_control_decision(
         reason += "+ai_load"
     raw_target = clamp_active_fan_percent(raw_target, cfg)
 
-    critical = (
-        (intake is not None and intake >= cfg.intake_critical_c)
-        or (exhaust is not None and exhaust >= cfg.exhaust_critical_c)
-        or (temperature_delta is not None and temperature_delta >= cfg.delta_critical_c)
-        or (max_gpu_temp is not None and max_gpu_temp >= cfg.gpu_critical_c)
-    )
-    if critical:
+    critical_source = critical_temperature_source(status, cfg, nvidia)
+    if critical_source is not None and critical_confirmed:
         raw_target = cfg.max_percent
         target = cfg.max_percent
-        reason = "critical_" + reason
+        reason = "critical_" + critical_source
     elif gpu_idle_stop_active:
         raw_target = clamp_active_fan_percent(cfg.gpu_idle_stop_percent, cfg)
         target = raw_target
         reason = "gpu_idle"
     else:
         target = _slew_target(raw_target, previous_percent, cfg)
+        if critical_source is not None:
+            reason = "critical_" + critical_source + "_pending"
 
     return FanControlDecision(
         target_percent=target,
@@ -144,6 +166,32 @@ def calculate_fan_control_decision(
         delta_target_percent=delta_target,
         gpu_target_percent=gpu_target,
     )
+
+
+def critical_temperature_source(
+    status: ControllerStatus,
+    cfg: FanConfig,
+    nvidia: NvidiaStatus | None = None,
+) -> str | None:
+    if not status.ok:
+        return None
+    intake = status.intake_temp_c
+    exhaust = status.exhaust_temp_c
+    if intake is not None and intake >= cfg.intake_critical_c:
+        return "intake"
+    if exhaust is not None and exhaust >= cfg.exhaust_critical_c:
+        return "exhaust"
+    if intake is not None and exhaust is not None:
+        if max(0.0, exhaust - intake) >= cfg.delta_critical_c:
+            return "delta"
+    if nvidia is not None and nvidia.ok:
+        if any(
+            is_sane_temperature(gpu.temperature_gpu_c)
+            and gpu.temperature_gpu_c >= cfg.gpu_critical_c
+            for gpu in nvidia.gpus
+        ):
+            return "gpu"
+    return None
 
 
 def _temperature_curve_target(

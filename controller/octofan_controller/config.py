@@ -15,6 +15,7 @@ class FanConfig(BaseModel):
     max_step_percent: int = Field(default=8, ge=1, le=100)
     max_down_step_percent: int = Field(default=4, ge=1, le=100)
     target_deadband_percent: int = Field(default=2, ge=0, le=20)
+    critical_confirm_samples: int = Field(default=2, ge=1, le=10)
     intake_ramp_start_c: float = Field(default=30.0, ge=-20.0, le=120.0)
     intake_full_speed_c: float = Field(default=40.0, ge=-20.0, le=120.0)
     intake_critical_c: float = Field(default=45.0, ge=-20.0, le=120.0)

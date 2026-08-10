@@ -1,5 +1,6 @@
 from octofan_controller.config import FanConfig
 from octofan_controller.control import (
+    CriticalTemperatureGuard,
     calculate_fan_control_decision,
     calculate_target_fan_percent,
 )
@@ -113,6 +114,44 @@ def test_critical_gpu_temperature_goes_immediately_to_full_speed():
 def test_critical_exhaust_temperature_goes_immediately_to_full_speed():
     decision = calculate_fan_control_decision(
         status_with_temps(exhaust=50), automatic_config(), 10, nvidia=nvidia_with_temp(30)
+    )
+
+    assert decision.target_percent == 100
+    assert decision.reason == "critical_exhaust"
+
+
+def test_isolated_critical_exhaust_sample_uses_normal_slew_rate():
+    cfg = automatic_config(max_step_percent=8, critical_confirm_samples=2)
+    guard = CriticalTemperatureGuard()
+    spike = status_with_temps(exhaust=53)
+
+    decision = calculate_fan_control_decision(
+        spike,
+        cfg,
+        12,
+        nvidia=nvidia_with_temp(30),
+        critical_confirmed=guard.observe(spike, cfg, nvidia_with_temp(30)),
+    )
+
+    assert decision.target_percent == 20
+    assert decision.raw_target_percent == 100
+    assert decision.reason == "critical_exhaust_pending"
+
+    normal = status_with_temps(exhaust=26)
+    assert guard.observe(normal, cfg, nvidia_with_temp(30)) is False
+    assert guard.consecutive_samples == 0
+
+
+def test_sustained_critical_exhaust_temperature_is_confirmed():
+    cfg = automatic_config(critical_confirm_samples=2)
+    guard = CriticalTemperatureGuard()
+    hot = status_with_temps(exhaust=53)
+    nvidia = nvidia_with_temp(30)
+
+    assert guard.observe(hot, cfg, nvidia) is False
+    assert guard.observe(hot, cfg, nvidia) is True
+    decision = calculate_fan_control_decision(
+        hot, cfg, 18, nvidia=nvidia, critical_confirmed=True
     )
 
     assert decision.target_percent == 100
