@@ -12,8 +12,10 @@ class FanControlDecision:
     target_percent: int
     raw_target_percent: int
     reason: str
+    temperature_delta_c: float | None = None
     intake_target_percent: int | None = None
     exhaust_target_percent: int | None = None
+    delta_target_percent: int | None = None
     gpu_target_percent: int | None = None
 
 
@@ -58,6 +60,15 @@ def calculate_fan_control_decision(
     exhaust_target = _temperature_curve_target(
         exhaust, cfg.exhaust_ramp_start_c, cfg.exhaust_full_speed_c, cfg
     )
+    temperature_delta = None
+    if intake is not None and exhaust is not None:
+        temperature_delta = max(0.0, exhaust - intake)
+    delta_target = _temperature_curve_target(
+        temperature_delta,
+        cfg.delta_ramp_start_c,
+        cfg.delta_full_speed_c,
+        cfg,
+    )
 
     gpu_temperatures = []
     if nvidia is not None and nvidia.ok:
@@ -68,12 +79,17 @@ def calculate_fan_control_decision(
         ]
     max_gpu_temp = max(gpu_temperatures, default=None)
     gpu_target = _temperature_curve_target(
-        max_gpu_temp, cfg.gpu_ramp_start_c, cfg.gpu_full_speed_c, cfg
+        max_gpu_temp,
+        cfg.gpu_ramp_start_c,
+        cfg.gpu_full_speed_c,
+        cfg,
+        cfg.gpu_curve_max_percent,
     )
 
     candidates = {
         "intake": intake_target,
         "exhaust": exhaust_target,
+        "delta": delta_target,
         "gpu": gpu_target,
     }
     available = {name: target for name, target in candidates.items() if target is not None}
@@ -84,8 +100,10 @@ def calculate_fan_control_decision(
             target_percent=target,
             raw_target_percent=auto_demand,
             reason="manual",
+            temperature_delta_c=temperature_delta,
             intake_target_percent=intake_target,
             exhaust_target_percent=exhaust_target,
+            delta_target_percent=delta_target,
             gpu_target_percent=gpu_target,
         )
     if not available:
@@ -102,6 +120,7 @@ def calculate_fan_control_decision(
     critical = (
         (intake is not None and intake >= cfg.intake_critical_c)
         or (exhaust is not None and exhaust >= cfg.exhaust_critical_c)
+        or (temperature_delta is not None and temperature_delta >= cfg.delta_critical_c)
         or (max_gpu_temp is not None and max_gpu_temp >= cfg.gpu_critical_c)
     )
     if critical:
@@ -119,8 +138,10 @@ def calculate_fan_control_decision(
         target_percent=target,
         raw_target_percent=raw_target,
         reason=reason,
+        temperature_delta_c=temperature_delta,
         intake_target_percent=intake_target,
         exhaust_target_percent=exhaust_target,
+        delta_target_percent=delta_target,
         gpu_target_percent=gpu_target,
     )
 
@@ -130,16 +151,18 @@ def _temperature_curve_target(
     ramp_start_c: float,
     full_speed_c: float,
     cfg: FanConfig,
+    curve_max_percent: int | None = None,
 ) -> int | None:
     if not is_sane_temperature(temperature_c):
         return None
     if temperature_c <= ramp_start_c:
         return cfg.min_percent
+    maximum = curve_max_percent if curve_max_percent is not None else cfg.max_percent
     if temperature_c >= full_speed_c:
-        return cfg.max_percent
+        return maximum
     span = max(0.1, full_speed_c - ramp_start_c)
     ratio = (temperature_c - ramp_start_c) / span
-    return round(cfg.min_percent + (cfg.max_percent - cfg.min_percent) * ratio)
+    return round(cfg.min_percent + (maximum - cfg.min_percent) * ratio)
 
 
 def _slew_target(raw_target: int, previous_percent: int | None, cfg: FanConfig) -> int:

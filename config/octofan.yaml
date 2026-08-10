@@ -9,12 +9,16 @@ fans:
   intake_ramp_start_c: 30.0
   intake_full_speed_c: 40.0
   intake_critical_c: 45.0
-  exhaust_ramp_start_c: 32.0
-  exhaust_full_speed_c: 50.0
-  exhaust_critical_c: 55.0
-  gpu_ramp_start_c: 45.0
-  gpu_full_speed_c: 80.0
-  gpu_critical_c: 82.0
+  exhaust_ramp_start_c: 30.0
+  exhaust_full_speed_c: 45.0
+  exhaust_critical_c: 50.0
+  delta_ramp_start_c: 7.0
+  delta_full_speed_c: 18.0
+  delta_critical_c: 22.0
+  gpu_ramp_start_c: 75.0
+  gpu_full_speed_c: 85.0
+  gpu_critical_c: 88.0
+  gpu_curve_max_percent: 40
   ai_load_assist: false
   ai_load_boost_percent: 10
   fail_safe_percent: 100

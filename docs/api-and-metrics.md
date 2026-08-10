@@ -65,7 +65,7 @@ Core:
 - `octofan_controller_up`
 - `octofan_controller_version{type="cli|fw|hw|boot"}`
 - `octofan_target_fan_percent`
-- `octofan_fan_control_target_percent{source="intake|exhaust|gpu|combined"}`
+- `octofan_fan_control_target_percent{source="intake|exhaust|delta|gpu|combined"}`
 - `octofan_voltage_volts{id}`
 
 Thermal:
@@ -73,6 +73,7 @@ Thermal:
 - `octofan_temperature_celsius{source,id}`
 - `octofan_intake_temperature_celsius`
 - `octofan_exhaust_temperature_celsius`
+- `octofan_temperature_delta_celsius`
 - `octofan_bme_humidity_percent{id}`
 - `octofan_bme_pressure_hpa{id}`
 

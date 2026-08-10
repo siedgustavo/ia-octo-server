@@ -40,12 +40,14 @@ def test_cool_system_stays_at_quiet_minimum():
 
     assert decision.target_percent == 10
     assert decision.raw_target_percent == 10
+    assert decision.temperature_delta_c == 1
     assert decision.intake_target_percent == 10
     assert decision.exhaust_target_percent == 10
+    assert decision.delta_target_percent == 10
     assert decision.gpu_target_percent == 10
 
 
-def test_hottest_signal_wins_and_ramps_up():
+def test_hottest_chassis_signal_wins_and_ramps_up():
     decision = calculate_fan_control_decision(
         status_with_temps(intake=35, exhaust=36),
         automatic_config(max_step_percent=8),
@@ -54,11 +56,35 @@ def test_hottest_signal_wins_and_ramps_up():
     )
 
     assert decision.intake_target_percent == 55
-    assert decision.exhaust_target_percent == 30
-    assert decision.gpu_target_percent == 64
-    assert decision.raw_target_percent == 64
+    assert decision.exhaust_target_percent == 46
+    assert decision.delta_target_percent == 10
+    assert decision.gpu_target_percent == 10
+    assert decision.raw_target_percent == 55
     assert decision.target_percent == 28
-    assert decision.reason == "gpu"
+    assert decision.reason == "intake"
+
+
+def test_normal_gpu_temperature_does_not_raise_chassis_fans():
+    decision = calculate_fan_control_decision(
+        status_with_temps(), automatic_config(), 10, nvidia=nvidia_with_temp(70)
+    )
+
+    assert decision.gpu_target_percent == 10
+    assert decision.raw_target_percent == 10
+
+
+def test_hot_gpu_assistance_is_capped_below_critical_temperature():
+    cfg = automatic_config(gpu_curve_max_percent=40)
+    warm = calculate_fan_control_decision(
+        status_with_temps(), cfg, 10, nvidia=nvidia_with_temp(80)
+    )
+    hot = calculate_fan_control_decision(
+        status_with_temps(), cfg, 10, nvidia=nvidia_with_temp(85)
+    )
+
+    assert warm.gpu_target_percent == 25
+    assert hot.gpu_target_percent == 40
+    assert hot.raw_target_percent == 40
 
 
 def test_fans_ramp_down_more_slowly_than_they_ramp_up():
@@ -76,7 +102,7 @@ def test_small_target_changes_are_absorbed_by_deadband():
 
 def test_critical_gpu_temperature_goes_immediately_to_full_speed():
     decision = calculate_fan_control_decision(
-        status_with_temps(), automatic_config(), 10, nvidia=nvidia_with_temp(82)
+        status_with_temps(), automatic_config(), 10, nvidia=nvidia_with_temp(88)
     )
 
     assert decision.target_percent == 100
@@ -86,11 +112,23 @@ def test_critical_gpu_temperature_goes_immediately_to_full_speed():
 
 def test_critical_exhaust_temperature_goes_immediately_to_full_speed():
     decision = calculate_fan_control_decision(
-        status_with_temps(exhaust=55), automatic_config(), 10, nvidia=nvidia_with_temp(30)
+        status_with_temps(exhaust=50), automatic_config(), 10, nvidia=nvidia_with_temp(30)
     )
 
     assert decision.target_percent == 100
     assert decision.reason == "critical_exhaust"
+
+
+def test_critical_intake_exhaust_delta_goes_immediately_to_full_speed():
+    decision = calculate_fan_control_decision(
+        status_with_temps(intake=18, exhaust=40),
+        automatic_config(),
+        10,
+        nvidia=nvidia_with_temp(30),
+    )
+
+    assert decision.target_percent == 100
+    assert decision.reason == "critical_delta"
 
 
 def test_fail_safe_ramps_up_on_bad_controller_read():
@@ -116,13 +154,14 @@ def test_manual_mode_ignores_bad_read_and_gpu_temperature():
 def test_manual_mode_exposes_shadow_automatic_demand():
     cfg = FanConfig(mode="manual", min_percent=10, manual_percent=10)
     decision = calculate_fan_control_decision(
-        status_with_temps(exhaust=40), cfg, 10, nvidia=nvidia_with_temp(66)
+        status_with_temps(intake=30, exhaust=35), cfg, 10, nvidia=nvidia_with_temp(80)
     )
 
     assert decision.target_percent == 10
-    assert decision.raw_target_percent == 64
-    assert decision.exhaust_target_percent == 50
-    assert decision.gpu_target_percent == 64
+    assert decision.raw_target_percent == 40
+    assert decision.exhaust_target_percent == 40
+    assert decision.delta_target_percent == 10
+    assert decision.gpu_target_percent == 25
     assert decision.reason == "manual"
 
 

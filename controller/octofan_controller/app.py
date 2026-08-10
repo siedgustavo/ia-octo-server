@@ -472,9 +472,13 @@ UI_HTML = """
       <label>Exhaust ramp start C <input id="exhaustStart" type="number" step="0.5"></label>
       <label>Exhaust full speed C <input id="exhaustFull" type="number" step="0.5"></label>
       <label>Exhaust critical C <input id="exhaustCritical" type="number" step="0.5"></label>
+      <label>Delta ramp start C <input id="deltaStart" type="number" step="0.5"></label>
+      <label>Delta full speed C <input id="deltaFull" type="number" step="0.5"></label>
+      <label>Delta critical C <input id="deltaCritical" type="number" step="0.5"></label>
       <label>GPU ramp start C <input id="gpuStart" type="number" step="0.5"></label>
       <label>GPU full speed C <input id="gpuFull" type="number" step="0.5"></label>
       <label>GPU critical C <input id="gpuCritical" type="number" step="0.5"></label>
+      <label>GPU curve max fan % <input id="gpuCurveMax" type="number"></label>
     </div>
     <button onclick="saveConfig()">Save config</button>
     <button onclick="applyManualFan()">Apply manual fan</button>
@@ -507,7 +511,9 @@ async function refresh(){
   maxFan.value=cfg.fans.max_percent; manualFan.value=cfg.fans.manual_percent
   intakeStart.value=cfg.fans.intake_ramp_start_c; intakeFull.value=cfg.fans.intake_full_speed_c; intakeCritical.value=cfg.fans.intake_critical_c
   exhaustStart.value=cfg.fans.exhaust_ramp_start_c; exhaustFull.value=cfg.fans.exhaust_full_speed_c; exhaustCritical.value=cfg.fans.exhaust_critical_c
+  deltaStart.value=cfg.fans.delta_ramp_start_c; deltaFull.value=cfg.fans.delta_full_speed_c; deltaCritical.value=cfg.fans.delta_critical_c
   gpuStart.value=cfg.fans.gpu_ramp_start_c; gpuFull.value=cfg.fans.gpu_full_speed_c; gpuCritical.value=cfg.fans.gpu_critical_c
+  gpuCurveMax.value=cfg.fans.gpu_curve_max_percent
   displayProfile.value=cfg.display.profile; watchdogEnabled.checked=cfg.watchdog.enabled
   watchdogTarget.value=(cfg.watchdog.checks[0]||{target:'host.docker.internal:22'}).target
   metrics.innerHTML=[
@@ -530,7 +536,9 @@ async function saveConfig(){
   cfg.fans.min_percent=parseInt(minFan.value); cfg.fans.max_percent=parseInt(maxFan.value); cfg.fans.manual_percent=parseInt(manualFan.value)
   cfg.fans.intake_ramp_start_c=parseFloat(intakeStart.value); cfg.fans.intake_full_speed_c=parseFloat(intakeFull.value); cfg.fans.intake_critical_c=parseFloat(intakeCritical.value)
   cfg.fans.exhaust_ramp_start_c=parseFloat(exhaustStart.value); cfg.fans.exhaust_full_speed_c=parseFloat(exhaustFull.value); cfg.fans.exhaust_critical_c=parseFloat(exhaustCritical.value)
+  cfg.fans.delta_ramp_start_c=parseFloat(deltaStart.value); cfg.fans.delta_full_speed_c=parseFloat(deltaFull.value); cfg.fans.delta_critical_c=parseFloat(deltaCritical.value)
   cfg.fans.gpu_ramp_start_c=parseFloat(gpuStart.value); cfg.fans.gpu_full_speed_c=parseFloat(gpuFull.value); cfg.fans.gpu_critical_c=parseFloat(gpuCritical.value)
+  cfg.fans.gpu_curve_max_percent=parseInt(gpuCurveMax.value)
   cfg.display.profile=displayProfile.value; cfg.watchdog.enabled=watchdogEnabled.checked
   cfg.watchdog.checks=[{type: watchdogTarget.value.startsWith('http')?'http':'tcp', target: watchdogTarget.value, timeout_seconds:1}]
   await fetch('/api/config',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(cfg)})

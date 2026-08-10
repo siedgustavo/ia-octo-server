@@ -18,12 +18,16 @@ class FanConfig(BaseModel):
     intake_ramp_start_c: float = Field(default=30.0, ge=-20.0, le=120.0)
     intake_full_speed_c: float = Field(default=40.0, ge=-20.0, le=120.0)
     intake_critical_c: float = Field(default=45.0, ge=-20.0, le=120.0)
-    exhaust_ramp_start_c: float = Field(default=32.0, ge=-20.0, le=120.0)
-    exhaust_full_speed_c: float = Field(default=50.0, ge=-20.0, le=120.0)
-    exhaust_critical_c: float = Field(default=55.0, ge=-20.0, le=120.0)
-    gpu_ramp_start_c: float = Field(default=45.0, ge=0.0, le=120.0)
-    gpu_full_speed_c: float = Field(default=80.0, ge=0.0, le=120.0)
-    gpu_critical_c: float = Field(default=82.0, ge=0.0, le=120.0)
+    exhaust_ramp_start_c: float = Field(default=30.0, ge=-20.0, le=120.0)
+    exhaust_full_speed_c: float = Field(default=45.0, ge=-20.0, le=120.0)
+    exhaust_critical_c: float = Field(default=50.0, ge=-20.0, le=120.0)
+    delta_ramp_start_c: float = Field(default=7.0, ge=0.0, le=120.0)
+    delta_full_speed_c: float = Field(default=18.0, ge=0.0, le=120.0)
+    delta_critical_c: float = Field(default=22.0, ge=0.0, le=120.0)
+    gpu_ramp_start_c: float = Field(default=75.0, ge=0.0, le=120.0)
+    gpu_full_speed_c: float = Field(default=85.0, ge=0.0, le=120.0)
+    gpu_critical_c: float = Field(default=88.0, ge=0.0, le=120.0)
+    gpu_curve_max_percent: int = Field(default=40, ge=1, le=100)
     ai_load_assist: bool = True
     ai_load_boost_percent: int = Field(default=10, ge=0, le=50)
     fail_safe_percent: int = Field(default=100, ge=1, le=100)
@@ -39,7 +43,7 @@ class FanConfig(BaseModel):
 
     @model_validator(mode="after")
     def validate_thermal_curves(self) -> "FanConfig":
-        for source in ("intake", "exhaust", "gpu"):
+        for source in ("intake", "exhaust", "delta", "gpu"):
             start = getattr(self, f"{source}_ramp_start_c")
             full = getattr(self, f"{source}_full_speed_c")
             critical = getattr(self, f"{source}_critical_c")
@@ -49,6 +53,8 @@ class FanConfig(BaseModel):
                 )
         if self.min_percent > self.max_percent:
             raise ValueError("min_percent must not exceed max_percent")
+        if not self.min_percent <= self.gpu_curve_max_percent <= self.max_percent:
+            raise ValueError("gpu_curve_max_percent must be inside the active fan range")
         return self
 
 

@@ -241,19 +241,22 @@ If `enabled` is true and any check fails for `unhealthy_failures_before_reset` c
 
 ## Fan Control
 
-Auto mode calculates independent demand from intake, exhaust and the hottest NVIDIA GPU, then
-uses the highest demand. Production uses these linear curves:
+Auto mode calculates independent demand from intake, exhaust, their positive temperature delta
+and the hottest NVIDIA GPU, then uses the highest demand. Production uses these curves:
 
-| Signal | Quiet minimum | Full speed | Immediate critical |
+| Signal | Quiet minimum | Curve maximum | Immediate critical |
 | --- | ---: | ---: | ---: |
-| Intake | <=30C | 40C | 45C |
-| Exhaust | <=32C | 50C | 55C |
-| Hottest GPU | <=45C | 80C | 82C |
+| Intake | <=30C at 10% | 40C at 100% | 45C |
+| Exhaust | <=30C at 10% | 45C at 100% | 50C |
+| Exhaust - intake | <=7C at 10% | 18C at 100% | 22C |
+| Hottest GPU | <=75C at 10% | 85C at 40% | 88C |
 
-Between the quiet and full-speed points, demand is interpolated from `min_percent` to
-`max_percent`. Normal increases are limited by `max_step_percent` per poll; decreases use the
-slower `max_down_step_percent`. Changes within `target_deadband_percent` are ignored. Crossing any
-critical threshold immediately selects `max_percent` without slew limiting.
+Between each pair of points, demand is interpolated linearly. Intake, exhaust and delta can request
+the full configured range. GPU temperature is intentionally only a capped assistance signal up to
+`gpu_curve_max_percent`: GPUs have their own cooling, and historical 68-70C workloads did not heat
+the measured exhaust above 26C. Normal increases are limited by `max_step_percent` per poll;
+decreases use the slower `max_down_step_percent`. Changes within `target_deadband_percent` are
+ignored. Crossing any critical threshold immediately selects `max_percent` without slew limiting.
 
 Intake prefers BME280 No. 0 and exhaust prefers BME280 No. 1 or `Temperature No. 1`, with sane
 fallbacks. Temperatures below `-20C` or above `120C` are ignored. If the controller cannot be read
@@ -262,7 +265,7 @@ makes that transition immediate. GPU telemetry failure does not force full speed
 intake/exhaust sensors remain available.
 
 The API exposes the complete decision as `fan_control`. Prometheus exports pre-slew demands as
-`octofan_fan_control_target_percent{source="intake|exhaust|gpu|combined"}`, shown in the Cooling
+`octofan_fan_control_target_percent{source="intake|exhaust|delta|gpu|combined"}`, shown in the Cooling
 dashboard's `Automatic Policy Demand` panel.
 
 To let the chassis fans settle at the lowest active speed while GPUs are idle, enable the GPU idle policy and set `min_percent` to the measured hardware floor:

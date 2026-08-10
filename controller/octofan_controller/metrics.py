@@ -13,6 +13,10 @@ controller_up = Gauge("octofan_controller_up", "Controller read success")
 temperature = Gauge("octofan_temperature_celsius", "Temperature readings", ["source", "id"])
 intake_temperature = Gauge("octofan_intake_temperature_celsius", "Selected sane intake temperature")
 exhaust_temperature = Gauge("octofan_exhaust_temperature_celsius", "Selected sane exhaust temperature")
+temperature_delta = Gauge(
+    "octofan_temperature_delta_celsius",
+    "Positive difference between selected exhaust and intake temperatures",
+)
 bme_humidity = Gauge("octofan_bme_humidity_percent", "BME280 humidity", ["id"])
 bme_pressure = Gauge("octofan_bme_pressure_hpa", "BME280 pressure", ["id"])
 controller_voltage = Gauge("octofan_voltage_volts", "Controller voltage readings", ["id"])
@@ -51,10 +55,16 @@ def update_metrics(
     if current_target_fan is not None:
         target_fan.set(current_target_fan)
     if fan_control is not None:
+        temperature_delta.set(
+            fan_control.temperature_delta_c
+            if fan_control.temperature_delta_c is not None
+            else float("nan")
+        )
         fan_control_target.labels("combined").set(fan_control.raw_target_percent)
         for source, value in (
             ("intake", fan_control.intake_target_percent),
             ("exhaust", fan_control.exhaust_target_percent),
+            ("delta", fan_control.delta_target_percent),
             ("gpu", fan_control.gpu_target_percent),
         ):
             fan_control_target.labels(source).set(value if value is not None else float("nan"))

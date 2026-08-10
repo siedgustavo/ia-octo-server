@@ -170,8 +170,10 @@ def test_metrics_exports_llamacpp_server_status():
         target_percent=18,
         raw_target_percent=64,
         reason="gpu",
+        temperature_delta_c=5,
         intake_target_percent=10,
         exhaust_target_percent=30,
+        delta_target_percent=20,
         gpu_target_percent=64,
     )
     update_metrics(ControllerStatus(), llamacpp, 18, fan_control=fan_control)
@@ -182,3 +184,4 @@ def test_metrics_exports_llamacpp_server_status():
     assert 'octofan_llamacpp_up{gpu="0",model="qwen3coder:30b",name="qwen3coder:30b"}' in metrics
     assert 'octofan_fan_control_target_percent{source="gpu"} 64.0' in metrics
     assert 'octofan_fan_control_target_percent{source="combined"} 64.0' in metrics
+    assert "octofan_temperature_delta_celsius 5.0" in metrics
