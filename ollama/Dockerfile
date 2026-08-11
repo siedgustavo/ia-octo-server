@@ -1,6 +1,6 @@
 FROM golang:1.26-bookworm AS build
 
-ARG OLLAMA_VERSION=v0.32.5
+ARG OLLAMA_VERSION=v0.32.9
 WORKDIR /src
 
 RUN apt-get update \
@@ -14,6 +14,26 @@ RUN CGO_ENABLED=1 go build -trimpath -buildmode=pie \
     -ldflags="-w -s -X github.com/ollama/ollama/version.Version=${OLLAMA_VERSION#v}" \
     -o /out/ollama .
 
-FROM ollama/ollama:0.32.5
+FROM ubuntu:24.04
+
+ARG OLLAMA_VERSION=v0.32.9
+ARG OLLAMA_LINUX_AMD64_SHA256=5d747a43369f61e38f20b5a39fcc5c90647e562cdc61e2e56034f1c5b113d540
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates curl libopenblas0 libvulkan1 zstd \
+    && curl -fsSL \
+        "https://github.com/ollama/ollama/releases/download/${OLLAMA_VERSION}/ollama-linux-amd64.tar.zst" \
+        -o /tmp/ollama-linux-amd64.tar.zst \
+    && echo "${OLLAMA_LINUX_AMD64_SHA256}  /tmp/ollama-linux-amd64.tar.zst" | sha256sum -c - \
+    && tar --zstd -xf /tmp/ollama-linux-amd64.tar.zst -C /usr \
+    && rm -f /tmp/ollama-linux-amd64.tar.zst \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /out/ollama /usr/bin/ollama
+
+ENV LD_LIBRARY_PATH=/usr/local/nvidia/lib:/usr/local/nvidia/lib64
+ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
+ENV NVIDIA_VISIBLE_DEVICES=all
+ENV OLLAMA_HOST=0.0.0.0:11434
+EXPOSE 11434
+ENTRYPOINT ["/usr/bin/ollama"]
+CMD ["serve"]

@@ -74,7 +74,7 @@ def test_ollama_uses_gpu_scheduler_and_unloads_models_after_three_idle_hours():
     ollama = load_compose()["services"]["ollama"]
 
     assert ollama["build"]["context"] == "./ollama"
-    assert ollama["image"] == "${OLLAMA_IMAGE:-octofan/ollama:0.32.5-vram}"
+    assert ollama["image"] == "${OLLAMA_IMAGE:-octofan/ollama:0.32.9-vram}"
     assert "gpus" not in ollama
     assert ollama["deploy"]["resources"]["reservations"]["devices"][0]["device_ids"] == [
         "${OLLAMA_GPU_0:-0}",
