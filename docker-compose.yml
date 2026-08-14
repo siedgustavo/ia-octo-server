@@ -78,7 +78,7 @@ services:
   ollama:
     build:
       context: ./ollama
-    image: ${OLLAMA_IMAGE:-octofan/ollama:0.32.9-vram}
+    image: ${OLLAMA_IMAGE:-octofan/ollama:0.32.13-vram}
     container_name: octofan-ollama
     restart: unless-stopped
     environment:

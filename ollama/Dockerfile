@@ -1,6 +1,6 @@
 FROM golang:1.26-bookworm AS build
 
-ARG OLLAMA_VERSION=v0.32.9
+ARG OLLAMA_VERSION=v0.32.13
 WORKDIR /src
 
 RUN apt-get update \
@@ -16,8 +16,8 @@ RUN CGO_ENABLED=1 go build -trimpath -buildmode=pie \
 
 FROM ubuntu:24.04
 
-ARG OLLAMA_VERSION=v0.32.9
-ARG OLLAMA_LINUX_AMD64_SHA256=5d747a43369f61e38f20b5a39fcc5c90647e562cdc61e2e56034f1c5b113d540
+ARG OLLAMA_VERSION=v0.32.13
+ARG OLLAMA_LINUX_AMD64_SHA256=0fd1dece38a1c6242e8013ce20b597345c5de072ae6b320160edb0e729ef1de1
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl libopenblas0 libvulkan1 zstd \
     && curl -fsSL \

@@ -76,7 +76,7 @@ splits it across both GPUs when necessary. The 4-bit KV cache quarters KV-cache 
 to `f16`, while `OLLAMA_KEEP_ALIVE=3h` unloads models after three idle hours. Context is pinned in each
 model manifest to that model's native maximum; there is deliberately no container-wide context
 override. Operational context must never be lower than 128k even when the larger context reduces
-throughput. The local Ollama image is built from 0.32.9 with a
+throughput. The local Ollama image is built from 0.32.13 with a
 scheduler patch that removes its conservative 20% VRAM reserve both when admitting a model and
 when selecting a single GPU. Its placement estimate also honors the configured quantized KV
 cache and recurrent layers instead of assuming an `f16` cache for every layer. The official CUDA
