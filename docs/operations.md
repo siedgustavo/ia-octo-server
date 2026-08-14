@@ -128,6 +128,7 @@ Production model tags follow `name:parameter-count`:
 qwen36-fable:27b
 mistral-medium-3.5:128b
 qwen3-coder-next:80b
+qwen3.8:27b-q8_0
 qwen3coder:30b
 qwen3.6:35b
 ```
@@ -153,6 +154,10 @@ docker compose exec ollama ollama create qwen3-coder-next:configured \
   -f /model-definitions/qwen3-coder-next-80b.Modelfile
 docker compose exec ollama ollama cp qwen3-coder-next:configured qwen3-coder-next:80b
 docker compose exec ollama ollama rm qwen3-coder-next:configured
+docker compose exec ollama ollama create qwen3.8:configured \
+  -f /model-definitions/qwen38-27b-q8_0.Modelfile
+docker compose exec ollama ollama cp qwen3.8:configured qwen3.8:27b-q8_0
+docker compose exec ollama ollama rm qwen3.8:configured
 ```
 
 ## ComfyUI Image Generation

@@ -145,10 +145,15 @@ def test_downloaded_models_pin_their_workload_context():
     coder_next = (ROOT / "ollama" / "qwen3-coder-next-80b.Modelfile").read_text(
         encoding="utf-8"
     )
+    qwen38 = (ROOT / "ollama" / "qwen38-27b-q8_0.Modelfile").read_text(
+        encoding="utf-8"
+    )
 
     assert "Mistral-Medium-3.5-128B-i1-GGUF:IQ2_S" in mistral
     assert "PARAMETER num_ctx 32768" in mistral
     assert "PARAMETER num_ctx 262144" in coder_next
+    assert "FROM qwen3.8:27b-q8_0" in qwen38
+    assert "PARAMETER num_ctx 262144" in qwen38
 
 
 def test_downloaded_model_tags_use_name_and_parameter_count():
@@ -158,6 +163,7 @@ def test_downloaded_model_tags_use_name_and_parameter_count():
             "FROM hf.co/mradermacher/Mistral-Medium-3.5-128B-i1-GGUF:IQ2_S"
         ),
         "qwen3-coder-next-80b.Modelfile": "FROM qwen3-coder-next:80b",
+        "qwen38-27b-q8_0.Modelfile": "FROM qwen3.8:27b-q8_0",
     }
 
     for filename, source in expected_sources.items():
