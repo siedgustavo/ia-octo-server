@@ -10,8 +10,7 @@ Octofan AI Server is a small container stack around the original Octominer USB c
 - `prometheus`: scrapes `octofan-controller:8000/metrics`.
 - `node-exporter`: exposes host CPU, memory, disk, filesystem and network metrics. It runs with `network_mode: host` so network counters come from the host namespace instead of the exporter container.
 - `grafana`: loads the Prometheus datasource and the Octofan dashboard set.
-- `ollama`: on-demand model server with both NVIDIA GPUs visible and persistent model storage under `/opt/ollama`.
-- `comfyui`: FLUX.1-dev FP8 image generation on GPU 3. It is exposed for direct UI/API use and is not currently polled by the controller.
+- `ollama`: on-demand model server with every host NVIDIA GPU visible and persistent model storage under `/opt/ollama`.
 
 ## Data Flow
 
@@ -45,4 +44,4 @@ Supported controller surfaces include:
 
 ## Network Model
 
-The compose stack uses the Docker network `octofan-ai` by default. Ollama is reachable within the network at `http://ollama:11434` and ComfyUI at `http://comfyui:8188`; the controller does not depend on either service.
+The compose stack uses the Docker network `octofan-ai` by default. Ollama is reachable within the network at `http://ollama:11434`; the controller does not depend on the inference service for hardware watchdog health.

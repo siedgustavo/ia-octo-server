@@ -62,7 +62,7 @@ sg docker -c 'docker compose ps'
 
 ## Ollama On-Demand Models
 
-Ollama sees both NVIDIA GPUs through `gpus: all`. The service defaults to:
+Ollama sees every NVIDIA GPU through `gpus: all`. The service defaults to:
 
 ```env
 OLLAMA_KEEP_ALIVE=3h
@@ -72,7 +72,7 @@ OLLAMA_SCHED_SPREAD=false
 ```
 
 This packs a model into one GPU whenever its weights, context and compute buffers fit, and only
-splits it across both GPUs when necessary. The 4-bit KV cache quarters KV-cache memory relative
+splits it across multiple GPUs when necessary. The 4-bit KV cache quarters KV-cache memory relative
 to `f16`, while `OLLAMA_KEEP_ALIVE=3h` unloads models after three idle hours. Context is pinned in each
 model manifest to that model's native maximum; there is deliberately no container-wide context
 override. Operational context must never be lower than 128k even when the larger context reduces
@@ -120,7 +120,7 @@ docker compose exec ollama ollama list
 docker compose exec ollama ollama ps
 ```
 
-Add experimental models with `docker compose exec ollama ollama pull <model>`. Ollama can use both RTX 3090 cards and unload idle models when another request needs their VRAM.
+Add experimental models with `docker compose exec ollama ollama pull <model>`. Ollama can use every host GPU and unload idle models when another request needs their VRAM.
 
 Production model tags follow `name:parameter-count`:
 
@@ -133,7 +133,7 @@ qwen3coder:30b
 qwen3.6:35b
 ```
 
-This 51 GB quantization requires partial CPU offload on two RTX 3090 cards. Check
+This 51 GB quantization may require multi-GPU placement or partial CPU offload. Check
 `ollama ps`, `nvidia-smi` and `free -h` during the first benchmark before exposing it through
 the router.
 
@@ -160,40 +160,6 @@ docker compose exec ollama ollama cp qwen3.8:configured qwen3.8:27b-q8_0
 docker compose exec ollama ollama rm qwen3.8:configured
 ```
 
-## ComfyUI Image Generation
-
-The `comfyui` service replaces the permission classifier on GPU 3 and is exposed on port `8188`.
-Its active models remain on the NVMe; the SATA is archive-only:
-
-```bash
-scripts/download-flux1-dev.sh
-docker compose up -d comfyui
-curl -fsS http://localhost:8188/system_stats
-```
-
-Runtime data is kept outside the repo:
-
-```env
-COMFYUI_MODELS_DIR=/opt/imagegen/comfyui/models
-COMFYUI_OUTPUT_DIR=/opt/imagegen/comfyui/output
-COMFYUI_CUSTOM_NODES_DIR=/opt/imagegen/comfyui/custom_nodes
-```
-
-The downloader installs the 17.2 GB single-file checkpoint at:
-
-```text
-/opt/imagegen/comfyui/models/checkpoints/flux1-dev-fp8.safetensors
-```
-
-Exercise the native API with:
-
-```bash
-scripts/comfyui-flux-api.py "an octopus operating an AI server" -o /tmp/octopus.png
-```
-
-ComfyUI is not part of the controller's AI health model yet. FLUX.1-dev weights have a
-non-commercial license; review it before providing third-party or production access.
-
 ## Front LEDs
 
 The controller can drive the Octofan front LEDs through `fan_controller_cli -l`.
@@ -201,7 +167,7 @@ The controller can drive the Octofan front LEDs through `fan_controller_cli -l`.
 Default mapping:
 
 - LED `0`: orange warning/error.
-- LED `1`: blue llama.cpp online.
+- LED `1`: blue controller/optional AI health online.
 - LED `2`: white GPU activity.
 
 Enable LED control with:
@@ -214,7 +180,7 @@ leds:
   gpu_activity_power_watts: 40.0
 ```
 
-The white activity LED uses NVIDIA utilization or power as an external signal. The controller does not intercept llama.cpp requests.
+The white activity LED uses NVIDIA utilization or power as an external signal. The controller does not intercept Ollama requests.
 
 ## Watchdog
 
@@ -320,7 +286,7 @@ The container must be able to access USB. The compose file uses:
 - `privileged: true`
 - `/dev/bus/usb:/dev/bus/usb`
 
-The controller requests `gpus: all` so the NVIDIA runtime can expose `nvidia-smi`. Each llama.cpp service reserves a specific GPU with Compose `device_ids`.
+The controller and Ollama request `gpus: all`: the controller uses it for `nvidia-smi`, while Ollama can schedule models across every installed GPU without a maintained index list.
 
 `node-exporter` runs in the host network namespace. Without this, Linux network metrics would show the exporter container interface instead of the host NIC.
 

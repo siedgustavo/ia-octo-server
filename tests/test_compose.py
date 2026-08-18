@@ -10,6 +10,10 @@ def load_compose() -> dict:
     return yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
 
 
+def load_controller_config() -> dict:
+    return yaml.safe_load((ROOT / "config/octofan.yaml").read_text(encoding="utf-8"))
+
+
 def test_services_have_no_hard_memory_limits():
     services = load_compose()["services"]
     for service in services.values():
@@ -17,56 +21,24 @@ def test_services_have_no_hard_memory_limits():
         assert "memswap_limit" not in service
 
 
-def test_llama_and_comfyui_run_on_their_dedicated_gpus():
+def test_retired_inference_services_are_not_in_compose():
     services = load_compose()["services"]
-    llama31 = services["llamacpp-llama31-pro"]
-    comfyui = services["comfyui"]
-
-    assert llama31["container_name"] == "octofan-llamacpp-llama31-pro"
-    assert comfyui["container_name"] == "octofan-comfyui"
-    assert llama31["ports"] == ["${LLAMA31_PRO_PORT:-8082}:8080"]
-    assert comfyui["ports"] == ["${COMFYUI_PORT:-8188}:8188"]
-    assert llama31["deploy"]["resources"]["reservations"]["devices"][0]["device_ids"] == ["${LLAMA31_PRO_GPU:-2}"]
-    assert comfyui["deploy"]["resources"]["reservations"]["devices"][0]["device_ids"] == ["${COMFYUI_GPU:-3}"]
-    assert llama31["command"][llama31["command"].index("--ctx-size") + 1] == "${LLAMA31_PRO_CTX_SIZE:-131072}"
-    assert llama31["command"][llama31["command"].index("--cache-type-k") + 1] == "${LLAMA31_PRO_CACHE_TYPE:-q4_0}"
-    assert llama31["command"][llama31["command"].index("--cache-type-v") + 1] == "${LLAMA31_PRO_CACHE_TYPE:-q4_0}"
-    assert "profiles" not in comfyui
-    assert "--lowvram" in comfyui["environment"]["CLI_ARGS"]
-    assert "${COMFYUI_MODELS_DIR:-/opt/imagegen/comfyui/models}:/root/ComfyUI/models" in comfyui["volumes"]
+    assert "comfyui" not in services
+    assert not any(name.startswith("llamacpp-") for name in services)
 
 
-def test_only_migrated_llamacpp_services_are_in_compose():
-    services = load_compose()["services"]
-    assert {name for name in services if name.startswith("llamacpp-")} == {
-        "llamacpp-deepseek-v4-flash",
-        "llamacpp-llama31-pro",
-    }
-    assert "llamacpp-permission-classifier" not in services
+def test_retired_llamacpp_health_check_is_disabled_but_host_watchdog_stays_enabled():
+    config = load_controller_config()
 
-
-def test_deepseek_v4_uses_native_context_and_two_rtx_3090_gpus():
-    service = load_compose()["services"]["llamacpp-deepseek-v4-flash"]
-    command = service["command"]
-
-    assert service["profiles"] == ["deepseek-v4"]
-    assert service["ports"] == ["${DEEPSEEK_V4_PORT:-8084}:8080"]
-    assert command[command.index("--ctx-size") + 1] == "${DEEPSEEK_V4_CTX_SIZE:-1048576}"
-    assert command[command.index("--fit-ctx") + 1] == "${DEEPSEEK_V4_CTX_SIZE:-1048576}"
-    assert command[command.index("--flash-attn") + 1] == "off"
-    assert command[command.index("--cache-type-k") + 1] == "${DEEPSEEK_V4_CACHE_TYPE_K:-f16}"
-    assert command[command.index("--cache-type-v") + 1] == "${DEEPSEEK_V4_CACHE_TYPE_V:-f16}"
-    assert "--tensor-split" not in command
-    assert "--cpu-moe" in command
-    assert command[command.index("--threads") + 1] == "${DEEPSEEK_V4_THREADS:-28}"
-    assert command[command.index("--threads-batch") + 1] == "${DEEPSEEK_V4_THREADS_BATCH:-28}"
-    assert command[command.index("--batch-size") + 1] == "${DEEPSEEK_V4_BATCH_SIZE:-512}"
-    assert command[command.index("--ubatch-size") + 1] == "${DEEPSEEK_V4_UBATCH_SIZE:-128}"
-    assert "--no-repack" in command
-    assert "--no-mmap" in command
-    assert service["deploy"]["resources"]["reservations"]["devices"][0]["device_ids"] == [
-        "${DEEPSEEK_V4_GPU_0:-0}",
-        "${DEEPSEEK_V4_GPU_1:-1}",
+    assert config["llamacpp"]["enabled"] is False
+    assert config["llamacpp"]["servers"] == []
+    assert config["watchdog"]["enabled"] is True
+    assert config["watchdog"]["checks"] == [
+        {
+            "type": "tcp",
+            "target": "host.docker.internal:22",
+            "timeout_seconds": 1.0,
+        }
     ]
 
 
@@ -75,11 +47,8 @@ def test_ollama_uses_gpu_scheduler_and_unloads_models_after_three_idle_hours():
 
     assert ollama["build"]["context"] == "./ollama"
     assert ollama["image"] == "${OLLAMA_IMAGE:-octofan/ollama:0.32.13-vram}"
-    assert "gpus" not in ollama
-    assert ollama["deploy"]["resources"]["reservations"]["devices"][0]["device_ids"] == [
-        "${OLLAMA_GPU_0:-0}",
-        "${OLLAMA_GPU_1:-1}",
-    ]
+    assert ollama["gpus"] == "all"
+    assert "deploy" not in ollama
     assert ollama["environment"]["OLLAMA_KEEP_ALIVE"] == "${OLLAMA_KEEP_ALIVE:-3h}"
     assert "OLLAMA_CONTEXT_LENGTH" not in ollama["environment"]
     assert ollama["environment"]["OLLAMA_KV_CACHE_TYPE"] == "${OLLAMA_KV_CACHE_TYPE:-q4_0}"

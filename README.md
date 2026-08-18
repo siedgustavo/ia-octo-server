@@ -17,7 +17,7 @@ The original HiveOS package files are preserved only as reference material under
 - Updates the controller OLED with host, thermal, power and AI status.
 - Drives the front-panel LEDs from controller health and GPU activity.
 - Feeds the hardware watchdog only when configured host checks pass.
-- Runs Ollama with both NVIDIA GPUs visible and on-demand model scheduling.
+- Runs Ollama with every NVIDIA GPU visible and on-demand model scheduling.
 
 ## Services
 
@@ -25,8 +25,7 @@ The original HiveOS package files are preserved only as reference material under
 - `prometheus`: metrics storage.
 - `node-exporter`: host system and network metrics, running in the host network namespace.
 - `grafana`: dashboard at `http://localhost:3000` (`admin` / `octofan`).
-- `ollama`: on-demand Ollama API at `http://localhost:11434`, with both GPUs visible.
-- `comfyui`: ComfyUI with FLUX.1-dev FP8 on GPU 3, exposed at `http://localhost:8188` for UI/API use.
+- `ollama`: on-demand Ollama API at `http://localhost:11434`, with every host GPU visible.
 
 ## Repository Layout
 
@@ -93,7 +92,7 @@ Important sections:
 - `watchdog`: hardware watchdog timeouts and HTTP/TCP health checks.
 - `display`: OLED profile and refresh interval.
 - `leds`: front-panel LED policy. By default LED `0` is orange warning, LED `1` is blue online and LED `2` is white activity.
-- `llamacpp`: health and activity polling for the dedicated llama.cpp service.
+- `llamacpp`: optional legacy health polling; disabled when Ollama is the only inference service.
 
 Automatic fan control combines BME280 intake, exhaust, exhaust-minus-intake delta and a capped
 hottest-GPU assistance curve, then applies the highest demand. Chassis temperatures govern normal
@@ -117,11 +116,12 @@ override normal slew limits. The API, Prometheus and Cooling dashboard expose ea
 
 ## Ollama
 
-The stack includes one Ollama instance with the two RTX 3090 GPUs (`0/1`) visible. It processes one request
+The stack includes one Ollama instance with every NVIDIA GPU on the host visible. It processes one request
 per model in parallel, packs a model into one GPU whenever it fits, uses a 4-bit KV cache to
 reduce context memory, and uses `OLLAMA_KEEP_ALIVE=3h` so models unload after three hours without
 requests. Request-level `keep_alive` can override this default. Models that do not fit in one card are still
-split across both GPUs automatically.
+split across the available GPUs automatically. Compose uses `gpus: all`, so adding or removing a card does
+not require maintaining a list of GPU indices.
 
 Ollama stores its active model inventory under `${OLLAMA_DATA_DIR:-/opt/ollama}`. Cold GGUF files live under `${MODELS_ARCHIVE_DIR:-/opt/models-archive}`, mounted read-only at `/models-archive`, and can be registered without downloading them again:
 
@@ -132,7 +132,7 @@ docker compose exec ollama ollama create qwen3.6:35b -f /model-definitions/qwen3
 docker compose exec ollama ollama list
 ```
 
-Each installed model pins its context in its own manifest; there is no container-wide context override. Interactive models use their native maximum and are never configured below 128k. The dedicated `mistral-medium-3.5:128b` writing model is the exception: sied-poster caps scraped input at 8,000 characters and requests at most 4,096 output tokens, so its IQ2_S manifest uses 32k to keep more layers on the two RTX 3090 cards. The imported Qwen models also use `num_batch=128` and `repeat_penalty=1.0` to avoid the large sampler overhead measured with their 248k-token vocabularies. The local Ollama 0.32.13 image removes the scheduler's conservative 20% VRAM reserve for model admission and single-GPU placement, and makes that estimate honor the configured quantized KV cache and recurrent layers. A model therefore stays on one card whenever its complete predicted allocation fits. Other models can be added with `ollama pull`, and Ollama loads them only when requested:
+Each installed model pins its context in its own manifest; there is no container-wide context override. Interactive models use their native maximum and are never configured below 128k. The dedicated `mistral-medium-3.5:128b` writing model is the exception: sied-poster caps scraped input at 8,000 characters and requests at most 4,096 output tokens, so its IQ2_S manifest uses 32k to keep more layers on the GPUs. The imported Qwen models also use `num_batch=128` and `repeat_penalty=1.0` to avoid the large sampler overhead measured with their 248k-token vocabularies. The local Ollama 0.32.13 image removes the scheduler's conservative 20% VRAM reserve for model admission and single-GPU placement, and makes that estimate honor the configured quantized KV cache and recurrent layers. A model therefore stays on one card whenever its complete predicted allocation fits. Other models can be added with `ollama pull`, and Ollama loads them only when requested:
 
 ```bash
 docker compose exec ollama ollama pull gemma3
@@ -144,45 +144,7 @@ curl http://localhost:11434/api/chat -d '{
 docker compose exec ollama ollama ps
 ```
 
-The scheduler can distribute a model across both GPUs and unload idle models when another request needs their VRAM.
-
-The `llama3.1:8b` llama.cpp service remains assigned to RTX 3060 GPU `2` and listens on port
-`8082`. Its GGUF file lives under `${MODELS_DIR:-/opt/llamacpp/models}`. Start or validate it with:
-
-```bash
-docker compose up -d llamacpp-llama31-pro
-curl -fsS http://localhost:8082/v1/models
-```
-
-The service uses its model's native 128k context and a quantized `q4_0` KV cache
-so the full context fits on its 12 GiB GPU. The controller reports its health in the
-API, Prometheus metrics, front-panel LEDs and OLED; the display intentionally shows operational
-health instead of model counts or token throughput.
-
-### DeepSeek V4 Flash 0731
-
-The optional `deepseek-v4` profile serves the official DeepSeek V4 Flash 0731 release on the two
-RTX 3090 cards at `http://localhost:8084`. It uses Unsloth's `UD-IQ2_M` GGUF, keeps the model's
-native 1,048,576-token context and automatically offloads weights to host RAM. Flash Attention is
-disabled because current CUDA builds can corrupt multi-forward prompts for this architecture. Both
-caches remain `f16`, as the model requires matching K/V types and quantized V requires Flash
-Attention. GPU weight distribution is left to llama.cpp's memory fitter.
-The routed MoE experts remain in host RAM so the compressed-attention and shared layer operations
-stay together on CUDA.
-
-Download the three model shards, make sure `ollama ps` is empty, then start the service:
-
-```bash
-scripts/download-deepseek-v4-flash.sh
-docker compose --profile deepseek-v4 up -d llamacpp-deepseek-v4-flash
-curl -fsS http://localhost:8084/v1/models
-```
-
-Ollama and DeepSeek share GPUs `0/1`; do not load an Ollama model while the DeepSeek service is
-running. The 512-token batch and 128-token micro-batch are intentional: larger defaults make the
-DeepSeek V4 compute buffer exceed the 24 GiB available on one RTX 3090. Stop DeepSeek with
-`docker compose --profile deepseek-v4 stop llamacpp-deepseek-v4-flash` before returning those GPUs
-to Ollama.
+The scheduler can distribute a model across all visible GPUs and unload idle models when another request needs their VRAM.
 
 The installed inventory uses only `name:parameter-count` tags:
 
@@ -203,33 +165,9 @@ docker compose exec ollama ollama cp qwen3-coder-next:configured qwen3-coder-nex
 docker compose exec ollama ollama rm qwen3-coder-next:configured
 ```
 
-The weights plus the 256k KV cache do not fit entirely in the two 24 GiB GPUs. Ollama spreads
-the GPU-resident portion across both cards and offloads the remainder to host RAM. Loading this
+When weights plus KV cache do not fit on one GPU, Ollama spreads the GPU-resident portion across
+the visible cards and offloads the remainder to host RAM. Loading this
 model can evict the smaller resident models; benchmark it before routing production traffic.
-
-## Image Generation
-
-ComfyUI replaces the permission classifier on RTX 3060 GPU `3` and is exposed at
-`http://localhost:8188`. It runs with `--lowvram` and the single-file FLUX.1-dev FP8 checkpoint,
-which is suitable for the card's 12 GiB VRAM. Install the checkpoint on the NVMe and start it with:
-
-```bash
-scripts/download-flux1-dev.sh
-docker compose up -d comfyui
-curl -fsS http://localhost:8188/system_stats
-```
-
-Persistent models live on the NVMe under `${COMFYUI_MODELS_DIR:-/opt/imagegen/comfyui/models}`;
-cache, input, output, user data and custom nodes use sibling directories. Generate through the
-native ComfyUI API and download the result with the included client:
-
-```bash
-scripts/comfyui-flux-api.py "a cinematic photograph of Patagonia at sunrise" -o patagonia.png
-```
-
-The script submits a standard workflow to `POST /prompt`, waits on `/history/{prompt_id}` and
-downloads the image through `/view`. FLUX.1-dev model weights are licensed for non-commercial use;
-review the Black Forest Labs license before exposing this API to clients.
 
 ## Validation
 

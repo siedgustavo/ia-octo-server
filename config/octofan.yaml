@@ -62,10 +62,6 @@ leds:
   gpu_activity_utilization_percent: 15.0
   gpu_activity_power_watts: 40.0
 llamacpp:
-  enabled: true
+  enabled: false
   timeout_seconds: 2.0
-  servers:
-  - name: llama3.1:8b
-    gpu: '2'
-    base_url: http://llamacpp-llama31-pro:8080
-    expected_model: llama3.1:8b
+  servers: []
