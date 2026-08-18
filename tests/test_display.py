@@ -33,6 +33,17 @@ def test_display_uses_big_title_area():
     assert lines[6].strip().startswith("Power ")
 
 
+def test_display_does_not_report_degraded_ai_when_legacy_monitor_is_disabled():
+    lines = render_display(
+        parse_controller_output(MOCK_OUTPUT),
+        DisplayConfig(profile="ai"),
+        10,
+        LlamaCppStatus(),
+    )
+
+    assert lines[3].strip() == "AI monitor off"
+
+
 def test_display_title_uses_main_hostname_uppercase(monkeypatch):
     monkeypatch.setenv("OCTOFAN_DISPLAY_HOSTNAME", "aiworker.core.sied.ar")
     assert resolve_display_title(DisplayConfig(title=None)) == "AIWORKER"

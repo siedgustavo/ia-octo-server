@@ -145,6 +145,23 @@ def test_led_modes_warn_when_llamacpp_is_down():
     assert modes[cfg.leds.activity_led_id] == cfg.leds.off_mode
 
 
+def test_led_modes_show_controller_online_when_llamacpp_is_disabled():
+    cfg = AppConfig()
+    cfg.leds.enabled = True
+    cfg.llamacpp.enabled = False
+
+    modes = _desired_led_modes(
+        cfg,
+        ControllerStatus(ok=True),
+        LlamaCppStatus(ok=False),
+        NvidiaStatus(ok=True, gpus=[]),
+    )
+
+    assert modes[cfg.leds.warning_led_id] == cfg.leds.off_mode
+    assert modes[cfg.leds.online_led_id] == cfg.leds.on_mode
+    assert modes[cfg.leds.activity_led_id] == cfg.leds.off_mode
+
+
 def test_watchdog_tolerates_transient_unhealthy_checks():
     assert _watchdog_in_grace_period(unhealthy_failures=1, threshold=3)
     assert _watchdog_in_grace_period(unhealthy_failures=2, threshold=3)

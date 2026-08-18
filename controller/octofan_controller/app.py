@@ -360,11 +360,12 @@ def _desired_led_modes(
     leds = cfg.leds
     controlled_ids = {leds.warning_led_id, leds.online_led_id, leds.activity_led_id}
     desired = {led_id: leds.off_mode for led_id in controlled_ids}
-    if llamacpp.ok:
+    ai_health_ok = not cfg.llamacpp.enabled or llamacpp.ok
+    if status.ok and ai_health_ok:
         desired[leds.online_led_id] = leds.on_mode
     if _led_activity_active(cfg, nvidia):
         desired[leds.activity_led_id] = leds.fast_blink_mode
-    if not status.ok or (cfg.llamacpp.enabled and not llamacpp.ok):
+    if not status.ok or not ai_health_ok:
         desired[leds.warning_led_id] = leds.slow_blink_mode
     return desired
 

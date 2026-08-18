@@ -38,7 +38,12 @@ def render_display(
     elif cfg.profile == "power":
         lines += [fit(f"Power {power}"), fit(f"PSUs {len(status.psus)}"), fit(f"FW {status.version_fw or '-'} HW {status.version_hw or '-'}")]
     elif cfg.profile == "ai":
-        ai_health = "AI services OK" if llamacpp.ok else "AI degraded"
+        if llamacpp.ok:
+            ai_health = "AI services OK"
+        elif not llamacpp.servers and llamacpp.error is None:
+            ai_health = "AI monitor off"
+        else:
+            ai_health = "AI degraded"
         lines += [
             fit(f"IP {resolve_host_ip()}"),
             fit(ai_health),
