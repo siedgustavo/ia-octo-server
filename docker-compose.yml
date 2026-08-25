@@ -104,6 +104,35 @@ services:
       retries: 12
       start_period: 10s
 
+  deepseek-v4-ktransformers:
+    image: ${KTRANSFORMERS_IMAGE:-approachingai/ktransformers:DSV4-specific}
+    container_name: octofan-deepseek-v4-ktransformers
+    profiles: ["ktransformers"]
+    gpus: all
+    ipc: host
+    cap_add:
+      - SYS_NICE
+    restart: unless-stopped
+    environment:
+      CUDA_VISIBLE_DEVICES: "${KTRANSFORMERS_CUDA_VISIBLE_DEVICES:-0,1,2,3}"
+      TP: "${KTRANSFORMERS_TP:-4}"
+      MEM_FRACTION: "${KTRANSFORMERS_MEM_FRACTION:-0.90}"
+      CHUNKED_PREFILL_SIZE: "${KTRANSFORMERS_CHUNKED_PREFILL_SIZE:-4096}"
+      CONTEXT_LENGTH: "${KTRANSFORMERS_CONTEXT_LENGTH:-1048576}"
+      MAX_RUNNING_REQUESTS: "${KTRANSFORMERS_MAX_RUNNING_REQUESTS:-1}"
+      KT_GPU_PREFILL_TOKEN_THRESHOLD: "${KTRANSFORMERS_GPU_PREFILL_TOKEN_THRESHOLD:-2048}"
+      SWA_FULL_TOKENS_RATIO: "${KTRANSFORMERS_SWA_FULL_TOKENS_RATIO:-0.4}"
+    volumes:
+      - ${KTRANSFORMERS_MODEL_DIR:-/opt/models-archive/DeepSeek-V4-Flash-0731}:/model:ro
+    ports:
+      - "${KTRANSFORMERS_PORT:-30000}:30000"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:30000/v1/models"]
+      interval: 30s
+      timeout: 10s
+      retries: 20
+      start_period: 10m
+
 volumes:
   prometheus-data:
   grafana-data:

@@ -73,6 +73,20 @@ def test_ollama_scheduler_patch_uses_all_available_vram_for_single_gpu_placement
     assert "return weights + kvCache + compute + placementReserve" in patch
 
 
+def test_deepseek_v4_ktransformers_is_an_opt_in_dedicated_service():
+    service = load_compose()["services"]["deepseek-v4-ktransformers"]
+
+    assert service["image"] == "${KTRANSFORMERS_IMAGE:-approachingai/ktransformers:DSV4-specific}"
+    assert service["profiles"] == ["ktransformers"]
+    assert service["gpus"] == "all"
+    assert service["ipc"] == "host"
+    assert service["cap_add"] == ["SYS_NICE"]
+    assert service["environment"]["TP"] == "${KTRANSFORMERS_TP:-4}"
+    assert service["environment"]["CONTEXT_LENGTH"] == "${KTRANSFORMERS_CONTEXT_LENGTH:-1048576}"
+    assert service["environment"]["MAX_RUNNING_REQUESTS"] == "${KTRANSFORMERS_MAX_RUNNING_REQUESTS:-1}"
+    assert "${KTRANSFORMERS_MODEL_DIR:-/opt/models-archive/DeepSeek-V4-Flash-0731}:/model:ro" in service["volumes"]
+
+
 def test_ollama_local_models_use_tuned_inference_parameters():
     for filename in (
         "qwen3coder.Modelfile",

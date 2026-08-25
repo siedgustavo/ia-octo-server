@@ -176,6 +176,30 @@ When weights plus KV cache do not fit on one GPU, Ollama spreads the GPU-residen
 the visible cards and offloads the remainder to host RAM. Loading this
 model can evict the smaller resident models; benchmark it before routing production traffic.
 
+### DeepSeek V4 Flash with KTransformers
+
+DeepSeek V4 Flash also has an opt-in, dedicated KTransformers/SGLang service. It uses the
+official MXFP4 checkpoint rather than the GGUF imported into Ollama, keeps routed experts in
+host RAM, and exposes an OpenAI-compatible API on port `30000`. The existing Ollama model and
+its archived GGUF shards are independent and remain available.
+
+Download the native weights to the archive and start only this profile:
+
+```bash
+huggingface-cli download deepseek-ai/DeepSeek-V4-Flash-0731 \
+  --local-dir /opt/models-archive/DeepSeek-V4-Flash-0731
+docker compose --profile ktransformers up -d deepseek-v4-ktransformers
+curl http://localhost:30000/v1/models
+```
+
+The service uses all four GPUs with tensor parallelism, accepts the model's native 1,048,576
+token context, and limits execution to one request at a time. Stop Ollama's loaded DeepSeek
+runner before starting it so both engines do not reserve the same VRAM:
+
+```bash
+docker compose exec ollama ollama stop deepseek-v4-flash:284b
+```
+
 ## Validation
 
 Run tests locally:
