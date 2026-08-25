@@ -150,11 +150,16 @@ The installed inventory uses only `name:parameter-count` tags:
 
 ```bash
 qwen36-fable:27b
+deepseek-v4-flash:284b
 mistral-medium-3.5:128b
 qwen3-coder-next:80b
 qwen3coder:30b
 qwen3.6:35b
 ```
+
+`deepseek-v4-flash:284b` uses Unsloth's `UD-Q8_K_XL` quantization of the 0731
+checkpoint and pins its native 1,048,576-token context. Its roughly 162 GB of
+weights require all four GPUs plus host RAM, so expect partial CPU offload.
 
 Reapply a model's configured context through a temporary manifest without changing its stable tag:
 

@@ -126,12 +126,17 @@ Production model tags follow `name:parameter-count`:
 
 ```bash
 qwen36-fable:27b
+deepseek-v4-flash:284b
 mistral-medium-3.5:128b
 qwen3-coder-next:80b
 qwen3.8:27b-q8_0
 qwen3coder:30b
 qwen3.6:35b
 ```
+
+DeepSeek V4 Flash uses the Unsloth 0731 `UD-Q8_K_XL` GGUF and its native
+1,048,576-token context. The approximately 162 GB model cannot fit entirely in
+the four RTX 3090 GPUs and therefore uses host RAM for partial CPU offload.
 
 This 51 GB quantization may require multi-GPU placement or partial CPU offload. Check
 `ollama ps`, `nvidia-smi` and `free -h` during the first benchmark before exposing it through
@@ -158,6 +163,10 @@ docker compose exec ollama ollama create qwen3.8:configured \
   -f /model-definitions/qwen38-27b-q8_0.Modelfile
 docker compose exec ollama ollama cp qwen3.8:configured qwen3.8:27b-q8_0
 docker compose exec ollama ollama rm qwen3.8:configured
+docker compose exec ollama ollama create deepseek-v4-flash:configured \
+  -f /model-definitions/deepseek-v4-flash-284b.Modelfile
+docker compose exec ollama ollama cp deepseek-v4-flash:configured deepseek-v4-flash:284b
+docker compose exec ollama ollama rm deepseek-v4-flash:configured
 ```
 
 ## Front LEDs

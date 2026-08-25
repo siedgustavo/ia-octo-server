@@ -117,16 +117,26 @@ def test_downloaded_models_pin_their_workload_context():
     qwen38 = (ROOT / "ollama" / "qwen38-27b-q8_0.Modelfile").read_text(
         encoding="utf-8"
     )
+    deepseek = (ROOT / "ollama" / "deepseek-v4-flash-284b.Modelfile").read_text(
+        encoding="utf-8"
+    )
 
     assert "Mistral-Medium-3.5-128B-i1-GGUF:IQ2_S" in mistral
     assert "PARAMETER num_ctx 32768" in mistral
     assert "PARAMETER num_ctx 262144" in coder_next
     assert "FROM qwen3.8:27b-q8_0" in qwen38
     assert "PARAMETER num_ctx 262144" in qwen38
+    assert "DeepSeek-V4-Flash-0731-GGUF:UD-Q8_K_XL" in deepseek
+    assert "PARAMETER num_ctx 1048576" in deepseek
+    assert "PARAMETER num_batch 128" in deepseek
+    assert "PARAMETER repeat_penalty 1.0" in deepseek
 
 
 def test_downloaded_model_tags_use_name_and_parameter_count():
     expected_sources = {
+        "deepseek-v4-flash-284b.Modelfile": (
+            "FROM hf.co/unsloth/DeepSeek-V4-Flash-0731-GGUF:UD-Q8_K_XL"
+        ),
         "qwen36-fable-27b.Modelfile": "FROM qwen36-fable:27b",
         "mistral-medium-3.5-128b.Modelfile": (
             "FROM hf.co/mradermacher/Mistral-Medium-3.5-128B-i1-GGUF:IQ2_S"
