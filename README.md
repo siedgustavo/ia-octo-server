@@ -180,8 +180,9 @@ model can evict the smaller resident models; benchmark it before routing product
 
 DeepSeek V4 Flash also has an opt-in, dedicated KTransformers/SGLang service. It uses the
 official MXFP4 checkpoint rather than the GGUF imported into Ollama, keeps routed experts in
-host RAM, and exposes an OpenAI-compatible API on port `30000`. The existing Ollama model and
-its archived GGUF shards are independent and remain available.
+host RAM, and exposes `deepseek-v4-flash:284b-ktransformers` through an OpenAI-compatible API
+on port `30000`. The existing Ollama model and its archived GGUF shards are independent and
+remain available.
 
 Download the native weights to the archive and start only this profile:
 

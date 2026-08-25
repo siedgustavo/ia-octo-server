@@ -81,6 +81,15 @@ def test_deepseek_v4_ktransformers_is_an_opt_in_dedicated_service():
     assert service["gpus"] == "all"
     assert service["ipc"] == "host"
     assert service["cap_add"] == ["SYS_NICE"]
+    assert service["command"] == [
+        "--served-model-name",
+        "deepseek-v4-flash:284b-ktransformers",
+        "--reasoning-parser",
+        "deepseek-v4",
+        "--tool-call-parser",
+        "deepseekv4",
+        "--enable-metrics",
+    ]
     assert service["environment"]["TP"] == "${KTRANSFORMERS_TP:-4}"
     assert service["environment"]["KT_GPU_EXPERTS"] == "${KTRANSFORMERS_GPU_EXPERTS:-96}"
     assert service["environment"]["KT_CPUINFER_THREADS"] == "${KTRANSFORMERS_CPUINFER_THREADS:-28}"

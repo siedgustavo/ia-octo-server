@@ -113,6 +113,14 @@ services:
     cap_add:
       - SYS_NICE
     restart: unless-stopped
+    command:
+      - --served-model-name
+      - deepseek-v4-flash:284b-ktransformers
+      - --reasoning-parser
+      - deepseek-v4
+      - --tool-call-parser
+      - deepseekv4
+      - --enable-metrics
     environment:
       CUDA_VISIBLE_DEVICES: "${KTRANSFORMERS_CUDA_VISIBLE_DEVICES:-0,1,2,3}"
       TP: "${KTRANSFORMERS_TP:-4}"
