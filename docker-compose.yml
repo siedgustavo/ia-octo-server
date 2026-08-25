@@ -121,6 +121,7 @@ services:
       - --tool-call-parser
       - deepseekv4
       - --enable-metrics
+      - --disable-cuda-graph
     environment:
       CUDA_VISIBLE_DEVICES: "${KTRANSFORMERS_CUDA_VISIBLE_DEVICES:-0,1,2,3}"
       TP: "${KTRANSFORMERS_TP:-4}"

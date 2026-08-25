@@ -89,6 +89,7 @@ def test_deepseek_v4_ktransformers_is_an_opt_in_dedicated_service():
         "--tool-call-parser",
         "deepseekv4",
         "--enable-metrics",
+        "--disable-cuda-graph",
     ]
     assert service["environment"]["TP"] == "${KTRANSFORMERS_TP:-4}"
     assert service["environment"]["MEM_FRACTION"] == "${KTRANSFORMERS_MEM_FRACTION:-0.98}"

@@ -169,7 +169,9 @@ the two NUMA nodes, one concurrent request, and the native 1M context. Override 
 `KTRANSFORMERS_*` Compose variables only for measured tuning. This host has AVX2 and FMA but
 not AVX-512/AMX. The 98% static GPU budget is required because the configured GPU experts use
 about 21.3 GiB per RTX 3090 before allocating KV cache. Benchmark prompt processing and
-decoding before moving clients.
+decoding before moving clients. CUDA Graph capture is disabled because compiling four Ampere
+ranks consumes the remaining RAM for several minutes; the MXFP4, Marlin and compressed
+attention kernels still run in eager mode.
 
 This 51 GB quantization may require multi-GPU placement or partial CPU offload. Check
 `ollama ps`, `nvidia-smi` and `free -h` during the first benchmark before exposing it through
