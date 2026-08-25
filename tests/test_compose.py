@@ -82,6 +82,9 @@ def test_deepseek_v4_ktransformers_is_an_opt_in_dedicated_service():
     assert service["ipc"] == "host"
     assert service["cap_add"] == ["SYS_NICE"]
     assert service["environment"]["TP"] == "${KTRANSFORMERS_TP:-4}"
+    assert service["environment"]["KT_GPU_EXPERTS"] == "${KTRANSFORMERS_GPU_EXPERTS:-96}"
+    assert service["environment"]["KT_CPUINFER_THREADS"] == "${KTRANSFORMERS_CPUINFER_THREADS:-28}"
+    assert service["environment"]["KT_THREADPOOL_COUNT"] == "${KTRANSFORMERS_THREADPOOL_COUNT:-2}"
     assert service["environment"]["CONTEXT_LENGTH"] == "${KTRANSFORMERS_CONTEXT_LENGTH:-1048576}"
     assert service["environment"]["MAX_RUNNING_REQUESTS"] == "${KTRANSFORMERS_MAX_RUNNING_REQUESTS:-1}"
     assert "${KTRANSFORMERS_MODEL_DIR:-/opt/models-archive/DeepSeek-V4-Flash-0731}:/model:ro" in service["volumes"]

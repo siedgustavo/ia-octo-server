@@ -192,9 +192,10 @@ docker compose --profile ktransformers up -d deepseek-v4-ktransformers
 curl http://localhost:30000/v1/models
 ```
 
-The service uses all four GPUs with tensor parallelism, accepts the model's native 1,048,576
-token context, and limits execution to one request at a time. Stop Ollama's loaded DeepSeek
-runner before starting it so both engines do not reserve the same VRAM:
+The service uses all four GPUs with tensor parallelism, keeps 96 routed experts per layer on
+GPU, accepts the model's native 1,048,576-token context, and limits execution to one request at
+a time. Stop Ollama's loaded DeepSeek runner before starting it so both engines do not reserve
+the same VRAM:
 
 ```bash
 docker compose exec ollama ollama stop deepseek-v4-flash:284b
