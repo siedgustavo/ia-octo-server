@@ -99,6 +99,9 @@ def test_deepseek_v4_ktransformers_is_an_opt_in_dedicated_service():
     assert service["environment"]["KT_THREADPOOL_COUNT"] == "${KTRANSFORMERS_THREADPOOL_COUNT:-2}"
     assert service["environment"]["CONTEXT_LENGTH"] == "${KTRANSFORMERS_CONTEXT_LENGTH:-1048576}"
     assert service["environment"]["MAX_RUNNING_REQUESTS"] == "${KTRANSFORMERS_MAX_RUNNING_REQUESTS:-1}"
+    assert service["environment"]["KT_GPU_PREFILL_TOKEN_THRESHOLD"] == (
+        "${KTRANSFORMERS_GPU_PREFILL_TOKEN_THRESHOLD:-0}"
+    )
     assert service["environment"]["TORCHINDUCTOR_COMPILE_THREADS"] == "${KTRANSFORMERS_COMPILE_THREADS:-4}"
     assert service["environment"]["MAX_JOBS"] == "${KTRANSFORMERS_MAX_JOBS:-4}"
     assert service["environment"]["TORCHINDUCTOR_CACHE_DIR"] == "/var/cache/ktransformers/torchinductor"
