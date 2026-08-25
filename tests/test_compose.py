@@ -48,6 +48,7 @@ def test_ollama_uses_gpu_scheduler_and_unloads_models_after_three_idle_hours():
     assert ollama["build"]["context"] == "./ollama"
     assert ollama["image"] == "${OLLAMA_IMAGE:-octofan/ollama:0.32.13-vram}"
     assert ollama["gpus"] == "all"
+    assert ollama["dns"] == ["${OLLAMA_DNS:-172.16.1.1}"]
     assert "deploy" not in ollama
     assert ollama["environment"]["OLLAMA_KEEP_ALIVE"] == "${OLLAMA_KEEP_ALIVE:-3h}"
     assert "OLLAMA_CONTEXT_LENGTH" not in ollama["environment"]

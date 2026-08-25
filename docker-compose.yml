@@ -80,6 +80,8 @@ services:
       context: ./ollama
     image: ${OLLAMA_IMAGE:-octofan/ollama:0.32.13-vram}
     container_name: octofan-ollama
+    dns:
+      - ${OLLAMA_DNS:-172.16.1.1}
     gpus: all
     restart: unless-stopped
     environment:
