@@ -8,13 +8,14 @@ services:
     environment:
       OCTOFAN_CONFIG: /config/octofan.yaml
       OCTOFAN_BIN: /opt/octofan/fan_controller_cli
-      OCTOFAN_DISPLAY_IP: "${OCTOFAN_DISPLAY_IP:-}"
+      OCTOFAN_DISPLAY_IP: "${OCTOFAN_DISPLAY_IP:-172.16.1.6}"
       # Set to "1" to try the stack without Octofan USB hardware.
       OCTOFAN_MOCK: "${OCTOFAN_MOCK:-0}"
     volumes:
       - ./config:/config
       - /dev/bus/usb:/dev/bus/usb
       - /etc/hostname:/host/etc/hostname:ro
+      - /etc/hosts:/host/etc/hosts:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:

@@ -65,3 +65,7 @@ llamacpp:
   enabled: false
   timeout_seconds: 2.0
   servers: []
+ollama:
+  enabled: true
+  base_url: http://ollama:11434
+  timeout_seconds: 8.0

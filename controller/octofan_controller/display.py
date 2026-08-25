@@ -7,6 +7,7 @@ import socket
 from .config import DisplayConfig
 from .llamacpp import LlamaCppStatus
 from .nvidia import NvidiaStatus
+from .ollama import OllamaStatus
 from .parser import ControllerStatus
 
 
@@ -14,6 +15,7 @@ WIDTH = 20
 BIG_WIDTH = 10
 HEIGHT = 8
 HOST_HOSTNAME_PATH = Path("/host/etc/hostname")
+HOST_HOSTS_PATH = Path("/host/etc/hosts")
 
 
 def fit(text: str, width: int = WIDTH) -> str:
@@ -26,6 +28,7 @@ def render_display(
     fan_percent: int | None,
     llamacpp: LlamaCppStatus,
     nvidia: NvidiaStatus | None = None,
+    ollama: OllamaStatus | None = None,
 ) -> list[str]:
     lines = [fit(resolve_display_title(cfg), BIG_WIDTH), fit("")]
     host = socket.gethostname()
@@ -38,12 +41,10 @@ def render_display(
     elif cfg.profile == "power":
         lines += [fit(f"Power {power}"), fit(f"PSUs {len(status.psus)}"), fit(f"FW {status.version_fw or '-'} HW {status.version_hw or '-'}")]
     elif cfg.profile == "ai":
-        if llamacpp.ok:
-            ai_health = "AI services OK"
-        elif not llamacpp.servers and llamacpp.error is None:
+        if _ollama_ai_health(ollama, llamacpp) is None:
             ai_health = "AI monitor off"
         else:
-            ai_health = "AI degraded"
+            ai_health = _ollama_ai_health(ollama, llamacpp)
         lines += [
             fit(f"IP {resolve_host_ip()}"),
             fit(ai_health),
@@ -57,6 +58,18 @@ def render_display(
     while len(lines) < HEIGHT:
         lines.append(fit(""))
     return lines[:HEIGHT]
+
+
+def _ollama_ai_health(ollama: OllamaStatus | None, llamacpp: LlamaCppStatus) -> str | None:
+    if ollama is not None and ollama.enabled:
+        if not ollama.up:
+            return "Ollama DOWN"
+        return f"Ollama {ollama.running_models} model{'' if ollama.running_models == 1 else 's'} loaded"
+    if llamacpp.ok:
+        return "AI services OK"
+    if not llamacpp.servers and llamacpp.error is None:
+        return None
+    return "AI degraded"
 
 
 def _fmt_temp(value: float | None) -> str:
@@ -79,17 +92,45 @@ def resolve_host_ip() -> str:
     if override:
         return override
 
-    hostname = _read_host_hostname()
-    if hostname:
-        try:
-            addresses = socket.getaddrinfo(hostname, None, family=socket.AF_INET)
-            for address in addresses:
-                ip = address[4][0]
-                if not ip.startswith("127."):
-                    return ip
-        except OSError:
-            pass
+    hostname = _read_host_hostname() or socket.gethostname()
+    candidates = {hostname, hostname.split(".", 1)[0]}
+
+    for hosts_path in (HOST_HOSTS_PATH, Path("/etc/hosts")):
+        for ip, aliases in _hosts_entries(hosts_path):
+            if any(alias in candidates for alias in aliases):
+                return ip
+
+    try:
+        addresses = socket.getaddrinfo(hostname, None, family=socket.AF_INET)
+        for address in addresses:
+            ip = address[4][0]
+            if not ip.startswith("127."):
+                return ip
+    except OSError:
+        pass
     return "unavailable"
+
+
+def _hosts_entries(path: Path) -> list[tuple[str, frozenset[str]]]:
+    entries: list[tuple[str, frozenset[str]]] = []
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return entries
+    for line in text.splitlines():
+        line = line.split("#", 1)[0].strip()
+        if not line:
+            continue
+        parts = line.split()
+        if len(parts) < 2:
+            continue
+        ip = parts[0]
+        if ":" in ip:
+            continue
+        if ip.startswith("127."):
+            continue
+        entries.append((ip, frozenset(parts[1:])))
+    return entries
 
 
 def _fmt_gpu(nvidia: NvidiaStatus | None) -> str:
