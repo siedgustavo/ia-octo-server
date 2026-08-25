@@ -140,6 +140,17 @@ the four RTX 3090 GPUs and therefore uses host RAM for partial CPU offload. Its
 five GGUF shards are staged in `/opt/models-archive/deepseek-v4-flash-0731`
 and imported by Ollama through the archive's read-only container mount.
 
+Because Ollama's registry pull does not support sharded GGUF repositories, import
+the directory first, then apply the configured manifest. Keep the imported tag
+and archive shards so the model remains reproducible without another download:
+
+```bash
+docker compose exec --workdir /models-archive/deepseek-v4-flash-0731/UD-Q8_K_XL \
+  ollama ollama create deepseek-v4-flash:imported
+docker compose exec ollama ollama create deepseek-v4-flash:284b \
+  -f /model-definitions/deepseek-v4-flash-284b.Modelfile
+```
+
 This 51 GB quantization may require multi-GPU placement or partial CPU offload. Check
 `ollama ps`, `nvidia-smi` and `free -h` during the first benchmark before exposing it through
 the router.
