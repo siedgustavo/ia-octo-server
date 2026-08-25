@@ -167,7 +167,9 @@ curl -fsS http://localhost:30000/v1/models
 The defaults use GPUs `0,1,2,3`, `TP=4`, 96 GPU experts, 28 physical CPU cores split across
 the two NUMA nodes, one concurrent request, and the native 1M context. Override the
 `KTRANSFORMERS_*` Compose variables only for measured tuning. This host has AVX2 and FMA but
-not AVX-512/AMX, so benchmark prompt processing and decoding before moving clients.
+not AVX-512/AMX. The 98% static GPU budget is required because the configured GPU experts use
+about 21.3 GiB per RTX 3090 before allocating KV cache. Benchmark prompt processing and
+decoding before moving clients.
 
 This 51 GB quantization may require multi-GPU placement or partial CPU offload. Check
 `ollama ps`, `nvidia-smi` and `free -h` during the first benchmark before exposing it through
