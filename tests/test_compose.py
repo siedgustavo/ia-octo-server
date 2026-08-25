@@ -89,7 +89,6 @@ def test_deepseek_v4_ktransformers_is_an_opt_in_dedicated_service():
         "--tool-call-parser",
         "deepseekv4",
         "--enable-metrics",
-        "--disable-cuda-graph",
     ]
     assert service["environment"]["TP"] == "${KTRANSFORMERS_TP:-4}"
     assert service["environment"]["MEM_FRACTION"] == "${KTRANSFORMERS_MEM_FRACTION:-0.98}"
@@ -98,7 +97,14 @@ def test_deepseek_v4_ktransformers_is_an_opt_in_dedicated_service():
     assert service["environment"]["KT_THREADPOOL_COUNT"] == "${KTRANSFORMERS_THREADPOOL_COUNT:-2}"
     assert service["environment"]["CONTEXT_LENGTH"] == "${KTRANSFORMERS_CONTEXT_LENGTH:-1048576}"
     assert service["environment"]["MAX_RUNNING_REQUESTS"] == "${KTRANSFORMERS_MAX_RUNNING_REQUESTS:-1}"
+    assert service["environment"]["TORCHINDUCTOR_COMPILE_THREADS"] == "${KTRANSFORMERS_COMPILE_THREADS:-4}"
+    assert service["environment"]["MAX_JOBS"] == "${KTRANSFORMERS_MAX_JOBS:-4}"
+    assert service["environment"]["TORCHINDUCTOR_CACHE_DIR"] == "/var/cache/ktransformers/torchinductor"
+    assert service["environment"]["TRITON_CACHE_DIR"] == "/var/cache/ktransformers/triton"
+    assert service["environment"]["TILELANG_CACHE_DIR"] == "/var/cache/ktransformers/tilelang"
+    assert service["environment"]["TVM_FFI_CACHE_DIR"] == "/var/cache/ktransformers/tvm-ffi"
     assert "${KTRANSFORMERS_MODEL_DIR:-/opt/models-archive/DeepSeek-V4-Flash-0731}:/model:ro" in service["volumes"]
+    assert "${KTRANSFORMERS_CACHE_DIR:-/opt/ktransformers-cache}:/var/cache/ktransformers" in service["volumes"]
 
 
 def test_ollama_local_models_use_tuned_inference_parameters():

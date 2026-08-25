@@ -121,7 +121,6 @@ services:
       - --tool-call-parser
       - deepseekv4
       - --enable-metrics
-      - --disable-cuda-graph
     environment:
       CUDA_VISIBLE_DEVICES: "${KTRANSFORMERS_CUDA_VISIBLE_DEVICES:-0,1,2,3}"
       TP: "${KTRANSFORMERS_TP:-4}"
@@ -134,8 +133,17 @@ services:
       MAX_RUNNING_REQUESTS: "${KTRANSFORMERS_MAX_RUNNING_REQUESTS:-1}"
       KT_GPU_PREFILL_TOKEN_THRESHOLD: "${KTRANSFORMERS_GPU_PREFILL_TOKEN_THRESHOLD:-2048}"
       SWA_FULL_TOKENS_RATIO: "${KTRANSFORMERS_SWA_FULL_TOKENS_RATIO:-0.4}"
+      TORCHINDUCTOR_COMPILE_THREADS: "${KTRANSFORMERS_COMPILE_THREADS:-4}"
+      MAX_JOBS: "${KTRANSFORMERS_MAX_JOBS:-4}"
+      TORCHINDUCTOR_CACHE_DIR: /var/cache/ktransformers/torchinductor
+      TRITON_CACHE_DIR: /var/cache/ktransformers/triton
+      TILELANG_CACHE_DIR: /var/cache/ktransformers/tilelang
+      TVM_FFI_CACHE_DIR: /var/cache/ktransformers/tvm-ffi
+      TORCH_EXTENSIONS_DIR: /var/cache/ktransformers/torch-extensions
+      FLASHINFER_WORKSPACE_BASE: /var/cache/ktransformers/flashinfer
     volumes:
       - ${KTRANSFORMERS_MODEL_DIR:-/opt/models-archive/DeepSeek-V4-Flash-0731}:/model:ro
+      - ${KTRANSFORMERS_CACHE_DIR:-/opt/ktransformers-cache}:/var/cache/ktransformers
     ports:
       - "${KTRANSFORMERS_PORT:-30000}:30000"
     healthcheck:
