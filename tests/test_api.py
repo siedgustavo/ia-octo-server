@@ -16,6 +16,7 @@ from octofan_controller.app import (
 from octofan_controller.config import AppConfig, load_config
 from octofan_controller.control import FanControlDecision
 from octofan_controller.llamacpp import LlamaCppServerStatus, LlamaCppStatus
+from octofan_controller.ollama import OllamaStatus
 from octofan_controller.metrics import metrics_payload, update_metrics
 from octofan_controller.nvidia import GpuStatus, NvidiaStatus
 from octofan_controller.parser import BmeStatus, ControllerStatus
@@ -77,7 +78,7 @@ def test_gpu_idle_stop_candidate_requires_cool_idle_gpus():
         ],
     )
 
-    assert _gpu_idle_stop_candidate(cfg, status, nvidia, LlamaCppStatus(generating=False))
+    assert _gpu_idle_stop_candidate(cfg, status, nvidia, False)
 
 
 def test_gpu_idle_stop_candidate_rejects_gpu_load():
@@ -101,7 +102,7 @@ def test_gpu_idle_stop_candidate_rejects_gpu_load():
         ],
     )
 
-    assert not _gpu_idle_stop_candidate(cfg, status, nvidia, LlamaCppStatus(generating=False))
+    assert not _gpu_idle_stop_candidate(cfg, status, nvidia, False)
 
 
 def test_led_modes_show_online_and_gpu_activity():
@@ -122,7 +123,7 @@ def test_led_modes_show_online_and_gpu_activity():
         ],
     )
 
-    modes = _desired_led_modes(cfg, status, LlamaCppStatus(ok=True), nvidia)
+    modes = _desired_led_modes(cfg, status, LlamaCppStatus(ok=True), OllamaStatus(), nvidia)
 
     assert modes == {
         cfg.leds.warning_led_id: cfg.leds.off_mode,
@@ -138,7 +139,7 @@ def test_led_modes_warn_when_llamacpp_is_down():
     status = ControllerStatus()
     nvidia = NvidiaStatus(ok=True, gpus=[])
 
-    modes = _desired_led_modes(cfg, status, LlamaCppStatus(ok=False), nvidia)
+    modes = _desired_led_modes(cfg, status, LlamaCppStatus(ok=False), OllamaStatus(), nvidia)
 
     assert modes[cfg.leds.warning_led_id] == cfg.leds.slow_blink_mode
     assert modes[cfg.leds.online_led_id] == cfg.leds.off_mode
@@ -154,6 +155,7 @@ def test_led_modes_show_controller_online_when_llamacpp_is_disabled():
         cfg,
         ControllerStatus(ok=True),
         LlamaCppStatus(ok=False),
+        OllamaStatus(),
         NvidiaStatus(ok=True, gpus=[]),
     )
 

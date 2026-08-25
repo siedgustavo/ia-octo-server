@@ -119,12 +119,19 @@ class LlamaCppConfig(BaseModel):
     )
 
 
+class OllamaConfig(BaseModel):
+    enabled: bool = False
+    base_url: str = "http://ollama:11434"
+    timeout_seconds: float = Field(default=8.0, ge=0.2, le=60.0)
+
+
 class AppConfig(BaseModel):
     fans: FanConfig = Field(default_factory=FanConfig)
     watchdog: WatchdogConfig = Field(default_factory=WatchdogConfig)
     display: DisplayConfig = Field(default_factory=DisplayConfig)
     leds: LedConfig = Field(default_factory=LedConfig)
     llamacpp: LlamaCppConfig = Field(default_factory=LlamaCppConfig)
+    ollama: OllamaConfig = Field(default_factory=OllamaConfig)
 
 
 def load_config(path: Path) -> AppConfig:
