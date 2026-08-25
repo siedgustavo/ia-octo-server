@@ -92,7 +92,7 @@ def test_deepseek_v4_ktransformers_is_an_opt_in_dedicated_service():
     ]
     assert service["environment"]["TP"] == "${KTRANSFORMERS_TP:-4}"
     assert service["environment"]["MEM_FRACTION"] == "${KTRANSFORMERS_MEM_FRACTION:-0.98}"
-    assert service["environment"]["KT_GPU_EXPERTS"] == "${KTRANSFORMERS_GPU_EXPERTS:-96}"
+    assert service["environment"]["KT_GPU_EXPERTS"] == "${KTRANSFORMERS_GPU_EXPERTS:-48}"
     assert service["environment"]["KT_CPUINFER_THREADS"] == "${KTRANSFORMERS_CPUINFER_THREADS:-28}"
     assert service["environment"]["KT_THREADPOOL_COUNT"] == "${KTRANSFORMERS_THREADPOOL_COUNT:-2}"
     assert service["environment"]["CONTEXT_LENGTH"] == "${KTRANSFORMERS_CONTEXT_LENGTH:-1048576}"
