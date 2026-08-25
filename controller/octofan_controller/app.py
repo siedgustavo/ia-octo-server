@@ -22,6 +22,7 @@ from .display import render_display, resolve_display_title
 from .llamacpp import LlamaCppClient, LlamaCppStatus
 from .metrics import metrics_payload, update_metrics
 from .nvidia import NvidiaSmi, NvidiaStatus
+from .ollama import OllamaClient, OllamaStatus
 from .parser import ControllerStatus
 from .watchdog import run_watchdog_checks
 
@@ -49,12 +50,14 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(title="Octofan AI Controller", version="0.1.0", lifespan=lifespan)
 cli = OctofanCli(BIN_PATH)
 llamacpp_client = LlamaCppClient()
+ollama_client = OllamaClient()
 nvidia_smi = NvidiaSmi()
 critical_temperature_guard = CriticalTemperatureGuard()
 state: dict[str, Any] = {
     "config": load_config(CONFIG_PATH),
     "status": ControllerStatus(ok=False, error="not polled yet"),
     "llamacpp": LlamaCppStatus(),
+    "ollama": OllamaStatus(),
     "nvidia": NvidiaStatus(ok=False, gpus=[], error="not polled yet"),
     "target_fan": None,
     "fan_control": None,
@@ -82,14 +85,16 @@ async def poll_loop() -> None:
         cfg: AppConfig = state["config"]
         status = cli.status()
         llamacpp = await llamacpp_client.status(cfg.llamacpp)
+        ollama = await ollama_client.status(cfg.ollama.base_url, cfg.ollama.enabled, cfg.ollama.timeout_seconds)
         nvidia = nvidia_smi.status()
-        gpu_idle_stop_active = _gpu_idle_stop_active(cfg, status, nvidia, llamacpp)
+        ai_generating = llamacpp.generating or (ollama.enabled and ollama.generating)
+        gpu_idle_stop_active = _gpu_idle_stop_active(cfg, status, nvidia, ai_generating)
         critical_confirmed = critical_temperature_guard.observe(status, cfg.fans, nvidia)
         fan_control = calculate_fan_control_decision(
             status,
             cfg.fans,
             state["target_fan"],
-            llamacpp.generating,
+            ai_generating,
             gpu_idle_stop_active,
             nvidia,
             critical_confirmed,
@@ -107,10 +112,11 @@ async def poll_loop() -> None:
                 state["applied_fan_target"] = target
                 state["applied_fan_ids"] = fan_ids
             except Exception as exc:
-                _event(f"failed to set fans: {exc}")
+                _event(f"failed to set fan target: {exc}")
         state.update(
             status=status,
             llamacpp=llamacpp,
+            ollama=ollama,
             nvidia=nvidia,
             target_fan=target,
             fan_control=fan_control,
@@ -183,7 +189,7 @@ async def led_loop() -> None:
         cfg: AppConfig = state["config"]
         try:
             if cfg.leds.enabled:
-                desired = _desired_led_modes(cfg, state["status"], state["llamacpp"], state["nvidia"])
+                desired = _desired_led_modes(cfg, state["status"], state["llamacpp"], state["ollama"], state["nvidia"])
                 _apply_led_modes(desired)
         except Exception as exc:
             _event(f"failed to update leds: {exc}")
@@ -284,6 +290,7 @@ async def _write_display(profile: str | None, force_eeprom: bool = False) -> lis
         state["target_fan"],
         state["llamacpp"],
         state["nvidia"],
+        state["ollama"],
     )
     try:
         signature = (resolve_display_title(display_cfg), display_cfg.profile)
@@ -333,6 +340,7 @@ def serialize_status() -> dict[str, Any]:
         "bme280": {k: vars(v) for k, v in status.bme280.items()},
         "watchdog": None if watchdog is None else vars(watchdog),
         "llamacpp": state["llamacpp"].to_dict(),
+        "ollama": state["ollama"].to_dict(),
         "nvidia": state["nvidia"].to_dict(),
         "leds": {
             "enabled": state["config"].leds.enabled,
@@ -355,12 +363,16 @@ def _desired_led_modes(
     cfg: AppConfig,
     status: ControllerStatus,
     llamacpp: LlamaCppStatus,
+    ollama: OllamaStatus,
     nvidia: NvidiaStatus,
 ) -> dict[int, int]:
     leds = cfg.leds
     controlled_ids = {leds.warning_led_id, leds.online_led_id, leds.activity_led_id}
     desired = {led_id: leds.off_mode for led_id in controlled_ids}
-    ai_health_ok = not cfg.llamacpp.enabled or llamacpp.ok
+    ai_health_ok = (
+        (not cfg.llamacpp.enabled or llamacpp.ok)
+        and (not cfg.ollama.enabled or ollama.up)
+    )
     if status.ok and ai_health_ok:
         desired[leds.online_led_id] = leds.on_mode
     if _led_activity_active(cfg, nvidia):
@@ -400,11 +412,11 @@ def _gpu_idle_stop_active(
     cfg: AppConfig,
     status: ControllerStatus,
     nvidia: NvidiaStatus,
-    llamacpp: LlamaCppStatus,
+    ai_generating: bool,
 ) -> bool:
     fans = cfg.fans
     now = time.monotonic()
-    if not _gpu_idle_stop_candidate(cfg, status, nvidia, llamacpp):
+    if not _gpu_idle_stop_candidate(cfg, status, nvidia, ai_generating):
         state["gpu_idle_since"] = None
         return False
 
@@ -417,7 +429,7 @@ def _gpu_idle_stop_candidate(
     cfg: AppConfig,
     status: ControllerStatus,
     nvidia: NvidiaStatus,
-    llamacpp: LlamaCppStatus,
+    ai_generating: bool,
 ) -> bool:
     fans = cfg.fans
     intake_temp = status.intake_temp_c
@@ -427,7 +439,7 @@ def _gpu_idle_stop_candidate(
         or not status.ok
         or intake_temp is None
         or intake_temp > fans.gpu_idle_max_intake_temp_c
-        or llamacpp.generating
+        or ai_generating
         or not nvidia.ok
         or not nvidia.gpus
     ):
