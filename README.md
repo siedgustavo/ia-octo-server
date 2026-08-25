@@ -93,6 +93,7 @@ Important sections:
 - `display`: OLED profile and refresh interval.
 - `leds`: front-panel LED policy. By default LED `0` is orange warning, LED `1` is blue online and LED `2` is white activity.
 - `llamacpp`: optional legacy health polling; disabled when Ollama is the only inference service.
+- `ollama`: on-demand inference health polling (`enabled`, `base_url`, `timeout_seconds`). When enabled, the controller polls Ollama and reflects it in `/api/status`, the OLED `ai` profile and the online/warning LEDs.
 
 Automatic fan control combines BME280 intake, exhaust, exhaust-minus-intake delta and a capped
 hottest-GPU assistance curve, then applies the highest demand. Chassis temperatures govern normal
@@ -101,6 +102,8 @@ airflow; GPU temperature only contributes above 75C and cannot request more than
 override normal slew limits. The API, Prometheus and Cooling dashboard expose each signal's demand.
 
 `fans.gpu_idle_stop_enabled` can hold the chassis fans at the lowest active configured speed while NVIDIA GPUs are idle and cool. Manual and automatic targets are clamped to `fans.min_percent..fans.max_percent`, and the idle policy falls back to the normal auto curve when GPU load, GPU temperature, intake temperature or telemetry health no longer matches the configured idle thresholds.
+
+The OLED `ai` profile shows the host IP, AI health (`Ollama N models loaded`, `Ollama DOWN`, `AI services OK` or `AI monitor off`), hottest-GPU temperature and load, intake temperature with the current fan percent, and total power. The host IP is auto-detected from the host hostname and `/etc/hosts` (both mounted read-only into the controller); set `OCTOFAN_DISPLAY_IP` in `.env` to pin a specific address.
 
 ## API
 

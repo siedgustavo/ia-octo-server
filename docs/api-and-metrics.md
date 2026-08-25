@@ -5,12 +5,17 @@
 ### `GET /api/status`
 
 Returns current controller status, fan data, PSU data, BME280 readings, watchdog result, llama.cpp
-status, recent events and `fan_control`, including applied/raw targets, the controlling reason and
-the intake, exhaust and GPU demands.
+status, Ollama status, recent events and `fan_control`, including applied/raw targets, the
+controlling reason and the intake, exhaust and GPU demands.
 
 When GPU idle stop is enabled, the response also includes `gpu_idle_seconds` and `gpu_idle_stop_active`.
 
 The response also includes current LED control state under `leds`.
+
+The `ollama` object reports `enabled`, `up`, `running_models`, `available_models`, `vram_total_mib`,
+`vram_used_mib`, the `loaded` and `models` inventories and any polling `error`. When Ollama is
+enabled and generating, its activity also feeds the fan `ai_load_assist` boost and the GPU idle-stop
+guard.
 
 ### `GET /api/config`
 

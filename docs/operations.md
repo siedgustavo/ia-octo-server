@@ -290,6 +290,10 @@ display:
 
 When `persist_to_eeprom` is true, the controller writes the static OLED layout to EEPROM once per process start/profile change, and whenever `POST /api/display/render` is called. Runtime values continue to refresh at the normal interval without rewriting EEPROM every cycle.
 
+The `ai` profile prints the host IP on its first line. The controller resolves it from the host
+hostname and `/etc/hosts` (both mounted read-only from the host); set `OCTOFAN_DISPLAY_IP` in `.env`
+to override the detected address.
+
 ## Useful Checks
 
 ```bash
