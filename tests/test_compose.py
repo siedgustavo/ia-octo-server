@@ -83,7 +83,7 @@ def test_deepseek_v4_ktransformers_is_an_opt_in_dedicated_service():
     assert service["cap_add"] == ["SYS_NICE"]
     assert service["command"] == [
         "--served-model-name",
-        "deepseek-v4-flash:284b-ktransformers",
+        "deepseek-v4-flash-284b-ktransformers",
         "--reasoning-parser",
         "deepseek-v4",
         "--tool-call-parser",

@@ -115,7 +115,7 @@ services:
     restart: unless-stopped
     command:
       - --served-model-name
-      - deepseek-v4-flash:284b-ktransformers
+      - deepseek-v4-flash-284b-ktransformers
       - --reasoning-parser
       - deepseek-v4
       - --tool-call-parser
