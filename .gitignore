@@ -6,3 +6,4 @@ __pycache__/
 prometheus-data/
 grafana-data/
 AGENTS.md
+backups/
