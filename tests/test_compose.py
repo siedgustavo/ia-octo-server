@@ -73,45 +73,6 @@ def test_ollama_scheduler_patch_uses_all_available_vram_for_single_gpu_placement
     assert "return weights + kvCache + compute + placementReserve" in patch
 
 
-def test_deepseek_v4_ktransformers_is_an_opt_in_dedicated_service():
-    service = load_compose()["services"]["deepseek-v4-ktransformers"]
-
-    assert service["image"] == "${KTRANSFORMERS_IMAGE:-approachingai/ktransformers:DSV4-specific}"
-    assert service["profiles"] == ["ktransformers"]
-    assert service["gpus"] == "all"
-    assert service["ipc"] == "host"
-    assert service["cap_add"] == ["SYS_NICE"]
-    assert service["command"] == [
-        "--served-model-name",
-        "deepseek-v4-flash-284b-ktransformers",
-        "--reasoning-parser",
-        "deepseek-v4",
-        "--tool-call-parser",
-        "deepseekv4",
-        "--max-total-tokens",
-        "135168",
-        "--enable-metrics",
-    ]
-    assert service["environment"]["TP"] == "${KTRANSFORMERS_TP:-4}"
-    assert service["environment"]["MEM_FRACTION"] == "${KTRANSFORMERS_MEM_FRACTION:-0.98}"
-    assert service["environment"]["KT_GPU_EXPERTS"] == "${KTRANSFORMERS_GPU_EXPERTS:-40}"
-    assert service["environment"]["KT_CPUINFER_THREADS"] == "${KTRANSFORMERS_CPUINFER_THREADS:-28}"
-    assert service["environment"]["KT_THREADPOOL_COUNT"] == "${KTRANSFORMERS_THREADPOOL_COUNT:-2}"
-    assert service["environment"]["CONTEXT_LENGTH"] == "${KTRANSFORMERS_CONTEXT_LENGTH:-1048576}"
-    assert service["environment"]["MAX_RUNNING_REQUESTS"] == "${KTRANSFORMERS_MAX_RUNNING_REQUESTS:-1}"
-    assert service["environment"]["KT_GPU_PREFILL_TOKEN_THRESHOLD"] == (
-        "${KTRANSFORMERS_GPU_PREFILL_TOKEN_THRESHOLD:-0}"
-    )
-    assert service["environment"]["TORCHINDUCTOR_COMPILE_THREADS"] == "${KTRANSFORMERS_COMPILE_THREADS:-4}"
-    assert service["environment"]["MAX_JOBS"] == "${KTRANSFORMERS_MAX_JOBS:-4}"
-    assert service["environment"]["TORCHINDUCTOR_CACHE_DIR"] == "/var/cache/ktransformers/torchinductor"
-    assert service["environment"]["TRITON_CACHE_DIR"] == "/var/cache/ktransformers/triton"
-    assert service["environment"]["TILELANG_CACHE_DIR"] == "/var/cache/ktransformers/tilelang"
-    assert service["environment"]["TVM_FFI_CACHE_DIR"] == "/var/cache/ktransformers/tvm-ffi"
-    assert "${KTRANSFORMERS_MODEL_DIR:-/opt/models-archive/DeepSeek-V4-Flash-0731}:/model:ro" in service["volumes"]
-    assert "${KTRANSFORMERS_CACHE_DIR:-/opt/ktransformers-cache}:/var/cache/ktransformers" in service["volumes"]
-
-
 def test_ollama_local_models_use_tuned_inference_parameters():
     for filename in (
         "qwen3coder.Modelfile",

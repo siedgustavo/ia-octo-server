@@ -104,63 +104,6 @@ services:
       retries: 12
       start_period: 10s
 
-  deepseek-v4-ktransformers:
-    image: ${KTRANSFORMERS_IMAGE:-approachingai/ktransformers:DSV4-specific}
-    container_name: octofan-deepseek-v4-ktransformers
-    profiles: ["ktransformers"]
-    gpus: all
-    ipc: host
-    cap_add:
-      - SYS_NICE
-    restart: unless-stopped
-    command:
-      - --served-model-name
-      - deepseek-v4-flash-284b-ktransformers
-      - --reasoning-parser
-      - deepseek-v4
-      - --tool-call-parser
-      - deepseekv4
-      # 128k usable prompt plus one 4k generation chunk, while retaining
-      # enough VRAM for prefill workspaces and temporary tensors.
-      - --max-total-tokens
-      - "135168"
-      - --enable-metrics
-    environment:
-      CUDA_VISIBLE_DEVICES: "${KTRANSFORMERS_CUDA_VISIBLE_DEVICES:-0,1,2,3}"
-      TP: "${KTRANSFORMERS_TP:-4}"
-      MEM_FRACTION: "${KTRANSFORMERS_MEM_FRACTION:-0.98}"
-      # Leave enough VRAM for at least a 128k KV cache; the remaining experts
-      # stay in RAM and are evaluated by KTransformers on the CPU.
-      KT_GPU_EXPERTS: "${KTRANSFORMERS_GPU_EXPERTS:-40}"
-      KT_CPUINFER_THREADS: "${KTRANSFORMERS_CPUINFER_THREADS:-28}"
-      KT_THREADPOOL_COUNT: "${KTRANSFORMERS_THREADPOOL_COUNT:-2}"
-      CHUNKED_PREFILL_SIZE: "${KTRANSFORMERS_CHUNKED_PREFILL_SIZE:-4096}"
-      CONTEXT_LENGTH: "${KTRANSFORMERS_CONTEXT_LENGTH:-1048576}"
-      MAX_RUNNING_REQUESTS: "${KTRANSFORMERS_MAX_RUNNING_REQUESTS:-1}"
-      # SM 8.6 cannot reserve the full-layer MXFP4 prefill slots; keep long
-      # prefills on the hybrid CPU/GPU path to avoid a first-request OOM.
-      KT_GPU_PREFILL_TOKEN_THRESHOLD: "${KTRANSFORMERS_GPU_PREFILL_TOKEN_THRESHOLD:-0}"
-      SWA_FULL_TOKENS_RATIO: "${KTRANSFORMERS_SWA_FULL_TOKENS_RATIO:-0.4}"
-      TORCHINDUCTOR_COMPILE_THREADS: "${KTRANSFORMERS_COMPILE_THREADS:-4}"
-      MAX_JOBS: "${KTRANSFORMERS_MAX_JOBS:-4}"
-      TORCHINDUCTOR_CACHE_DIR: /var/cache/ktransformers/torchinductor
-      TRITON_CACHE_DIR: /var/cache/ktransformers/triton
-      TILELANG_CACHE_DIR: /var/cache/ktransformers/tilelang
-      TVM_FFI_CACHE_DIR: /var/cache/ktransformers/tvm-ffi
-      TORCH_EXTENSIONS_DIR: /var/cache/ktransformers/torch-extensions
-      FLASHINFER_WORKSPACE_BASE: /var/cache/ktransformers/flashinfer
-    volumes:
-      - ${KTRANSFORMERS_MODEL_DIR:-/opt/models-archive/DeepSeek-V4-Flash-0731}:/model:ro
-      - ${KTRANSFORMERS_CACHE_DIR:-/opt/ktransformers-cache}:/var/cache/ktransformers
-    ports:
-      - "${KTRANSFORMERS_PORT:-30000}:30000"
-    healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:30000/v1/models"]
-      interval: 30s
-      timeout: 10s
-      retries: 20
-      start_period: 10m
-
 volumes:
   prometheus-data:
   grafana-data:

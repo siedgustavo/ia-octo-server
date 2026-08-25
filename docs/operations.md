@@ -151,28 +151,6 @@ docker compose exec ollama ollama create deepseek-v4-flash:284b \
   -f /model-definitions/deepseek-v4-flash-284b.Modelfile
 ```
 
-For hybrid CPU/GPU inference, the optional `deepseek-v4-ktransformers` service uses the
-official KTransformers V4 image and the native MXFP4 checkpoint. The GGUF cannot be reused by
-this backend and must not be removed when staging the native weights:
-
-```bash
-mkdir -p /opt/models-archive/DeepSeek-V4-Flash-0731
-huggingface-cli download deepseek-ai/DeepSeek-V4-Flash-0731 \
-  --local-dir /opt/models-archive/DeepSeek-V4-Flash-0731
-docker compose exec ollama ollama stop deepseek-v4-flash:284b
-docker compose --profile ktransformers up -d deepseek-v4-ktransformers
-curl -fsS http://localhost:30000/v1/models
-```
-
-The defaults use GPUs `0,1,2,3`, `TP=4`, 96 GPU experts, 28 physical CPU cores split across
-the two NUMA nodes, one concurrent request, and the native 1M context. Override the
-`KTRANSFORMERS_*` Compose variables only for measured tuning. This host has AVX2 and FMA but
-not AVX-512/AMX. The 98% static GPU budget is required because the configured GPU experts use
-about 21.3 GiB per RTX 3090 before allocating KV cache. The first startup captures CUDA Graph
-and compiles the Ampere-specific kernels with four compiler workers per TP rank. JIT artifacts
-are persisted below `/opt/ktransformers-cache`, so container recreation does not repeat that
-work. Benchmark prompt processing and decoding before moving clients.
-
 This 51 GB quantization may require multi-GPU placement or partial CPU offload. Check
 `ollama ps`, `nvidia-smi` and `free -h` during the first benchmark before exposing it through
 the router.
