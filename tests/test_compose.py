@@ -127,7 +127,8 @@ def test_downloaded_models_pin_their_workload_context():
     assert "PARAMETER num_ctx 262144" in coder_next
     assert "FROM qwen3.8:27b-q8_0" in qwen38
     assert "PARAMETER num_ctx 262144" in qwen38
-    assert "DeepSeek-V4-Flash-0731-GGUF:UD-Q8_K_XL" in deepseek
+    assert "FROM /models-archive/deepseek-v4-flash-0731/UD-Q8_K_XL/" in deepseek
+    assert "DeepSeek-V4-Flash-0731-UD-Q8_K_XL-00001-of-00005.gguf" in deepseek
     assert "PARAMETER num_ctx 1048576" in deepseek
     assert "PARAMETER num_batch 128" in deepseek
     assert "PARAMETER repeat_penalty 1.0" in deepseek
@@ -136,7 +137,8 @@ def test_downloaded_models_pin_their_workload_context():
 def test_downloaded_model_tags_use_name_and_parameter_count():
     expected_sources = {
         "deepseek-v4-flash-284b.Modelfile": (
-            "FROM hf.co/unsloth/DeepSeek-V4-Flash-0731-GGUF:UD-Q8_K_XL"
+            "FROM /models-archive/deepseek-v4-flash-0731/UD-Q8_K_XL/"
+            "DeepSeek-V4-Flash-0731-UD-Q8_K_XL-00001-of-00005.gguf"
         ),
         "qwen36-fable-27b.Modelfile": "FROM qwen36-fable:27b",
         "mistral-medium-3.5-128b.Modelfile": (

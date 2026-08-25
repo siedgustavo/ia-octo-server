@@ -136,7 +136,9 @@ qwen3.6:35b
 
 DeepSeek V4 Flash uses the Unsloth 0731 `UD-Q8_K_XL` GGUF and its native
 1,048,576-token context. The approximately 162 GB model cannot fit entirely in
-the four RTX 3090 GPUs and therefore uses host RAM for partial CPU offload.
+the four RTX 3090 GPUs and therefore uses host RAM for partial CPU offload. Its
+five GGUF shards are staged in `/opt/models-archive/deepseek-v4-flash-0731`
+and imported by Ollama through the archive's read-only container mount.
 
 This 51 GB quantization may require multi-GPU placement or partial CPU offload. Check
 `ollama ps`, `nvidia-smi` and `free -h` during the first benchmark before exposing it through
