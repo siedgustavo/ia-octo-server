@@ -88,6 +88,8 @@ def test_deepseek_v4_ktransformers_is_an_opt_in_dedicated_service():
         "deepseek-v4",
         "--tool-call-parser",
         "deepseekv4",
+        "--max-total-tokens",
+        "135168",
         "--enable-metrics",
     ]
     assert service["environment"]["TP"] == "${KTRANSFORMERS_TP:-4}"

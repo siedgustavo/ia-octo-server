@@ -120,6 +120,10 @@ services:
       - deepseek-v4
       - --tool-call-parser
       - deepseekv4
+      # 128k usable prompt plus one 4k generation chunk, while retaining
+      # enough VRAM for prefill workspaces and temporary tensors.
+      - --max-total-tokens
+      - "135168"
       - --enable-metrics
     environment:
       CUDA_VISIBLE_DEVICES: "${KTRANSFORMERS_CUDA_VISIBLE_DEVICES:-0,1,2,3}"
