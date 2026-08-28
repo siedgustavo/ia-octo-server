@@ -111,6 +111,18 @@ servicio original en modo tensor para cerrar la prueba de forma segura. Luego de
 revisar los resultados se eligio dejar `layer` como configuracion permanente
 hasta reemplazar los risers PCIe.
 
+## Ajuste para contexto largo
+
+Con cuatro slots automaticos, una sesion de OpenCode completo una solicitud con
+68519 tokens, pero la solicitud siguiente provoco un OOM CUDA en GPU 0 al
+reservar un buffer temporal de `top_k/argsort`. La GPU 0 tenia solo 190 MiB
+libres, mientras las otras conservaban entre 2.2 y 2.9 GiB.
+
+Se fijo `--parallel 1` para conservar el contexto nativo de 262144 tokens en la
+unica sesion usada por OpenCode y evitar reservar recursos para tres sesiones
+concurrentes sin uso. Este ajuste no cambia split, batch, ubatch, cache KV ni
+cuantizacion; su costo esperado es solamente perder concurrencia entre clientes.
+
 ## Criterio de comparacion
 
 Se compararan por separado los promedios de prompt processing y generacion. La

@@ -37,6 +37,10 @@ services:
       # Contexto nativo declarado por Qwen/Unsloth; no reducir por default.
       - --ctx-size
       - "262144"
+      # OpenCode usa una sesion secuencial. Un unico slot conserva el contexto
+      # nativo y evita reservar KV para tres sesiones concurrentes sin uso.
+      - --parallel
+      - "1"
       - --batch-size
       - "512"
       - --ubatch-size
