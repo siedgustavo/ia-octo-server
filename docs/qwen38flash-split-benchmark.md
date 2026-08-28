@@ -120,8 +120,14 @@ libres, mientras las otras conservaban entre 2.2 y 2.9 GiB.
 
 Se fijo `--parallel 1` para conservar el contexto nativo de 262144 tokens en la
 unica sesion usada por OpenCode y evitar reservar recursos para tres sesiones
-concurrentes sin uso. Este ajuste no cambia split, batch, ubatch, cache KV ni
-cuantizacion; su costo esperado es solamente perder concurrencia entre clientes.
+concurrentes sin uso. En esta arquitectura solo libero unos 96 MiB adicionales
+en GPU 0, por lo que no fue suficiente por si solo.
+
+Tambien se ajusto el reparto layer a `--tensor-split 0.9,1,1,1`. GPU 0 recibe
+una fraccion menor de pesos para dejar margen a los buffers temporales, sin
+cambiar contexto, batch, ubatch, cache KV, cuantizacion ni cantidad de capas en
+GPU. El impacto esperado sobre el TPS de una sesion es minimo porque solo cambia
+la ubicacion de las capas.
 
 ## Criterio de comparacion
 
