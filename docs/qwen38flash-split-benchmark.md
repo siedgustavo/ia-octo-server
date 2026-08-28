@@ -130,6 +130,20 @@ GPU. La fraccion adicional de GPU 3 dirige hacia ella la capa desplazada, porque
 es la placa con mayor margen disponible. El impacto esperado sobre el TPS de una
 sesion es minimo porque solo cambia la ubicacion de las capas.
 
+Estado de VRAM en reposo despues del ajuste:
+
+| GPU | VRAM usada | VRAM libre |
+|---:|---:|---:|
+| 0 | 22256 MiB | 1872 MiB |
+| 1 | 21556 MiB | 2571 MiB |
+| 2 | 21806 MiB | 2321 MiB |
+| 3 | 22706 MiB | 1421 MiB |
+
+Una repeticion de control con la misma carga de 4177 tokens de prompt y 256 de
+salida obtuvo 533.311 tok/s de prompt, 43.512 tok/s de generacion y 13.711 s de
+tiempo cliente. Frente al promedio layer original, la generacion se mantuvo
+equivalente (43.444 tok/s antes) y el prompt bajo aproximadamente 4.6%.
+
 ## Criterio de comparacion
 
 Se compararan por separado los promedios de prompt processing y generacion. La
