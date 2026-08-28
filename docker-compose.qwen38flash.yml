@@ -33,7 +33,7 @@ services:
       - --tensor-split
       # GPU 0 tambien aloja buffers temporales y tensores especiales. Se le
       # asigna una fraccion menor para conservar margen durante prompts largos.
-      - "0.9,1,1,1"
+      - "0.9,1,1,1.1"
       - --n-gpu-layers
       - "999"
       # Contexto nativo declarado por Qwen/Unsloth; no reducir por default.

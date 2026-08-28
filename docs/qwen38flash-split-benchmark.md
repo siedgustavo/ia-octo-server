@@ -123,11 +123,12 @@ unica sesion usada por OpenCode y evitar reservar recursos para tres sesiones
 concurrentes sin uso. En esta arquitectura solo libero unos 96 MiB adicionales
 en GPU 0, por lo que no fue suficiente por si solo.
 
-Tambien se ajusto el reparto layer a `--tensor-split 0.9,1,1,1`. GPU 0 recibe
+Tambien se ajusto el reparto layer a `--tensor-split 0.9,1,1,1.1`. GPU 0 recibe
 una fraccion menor de pesos para dejar margen a los buffers temporales, sin
 cambiar contexto, batch, ubatch, cache KV, cuantizacion ni cantidad de capas en
-GPU. El impacto esperado sobre el TPS de una sesion es minimo porque solo cambia
-la ubicacion de las capas.
+GPU. La fraccion adicional de GPU 3 dirige hacia ella la capa desplazada, porque
+es la placa con mayor margen disponible. El impacto esperado sobre el TPS de una
+sesion es minimo porque solo cambia la ubicacion de las capas.
 
 ## Criterio de comparacion
 
