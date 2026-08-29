@@ -40,17 +40,21 @@ services:
       # El modo tensor es experimental y este PR no soporta split buffers.
       - --split-mode
       - layer
-      # tensor-split son proporciones de capas, no tensor parallel. GPU3
-      # necesita menos capas porque aloja el compute buffer grande.
+      # tensor-split son proporciones de capas, no tensor parallel. El PR
+      # concentra un compute buffer grande en GPU2; GPU0/1 tienen enlaces x16
+      # y reciben mas capas para dejar margen en las GPU con riser x1.
       - --n-gpu-layers
       - "999"
       - --tensor-split
-      - "1.2,1.2,1.2,0.4"
+      - "1.6,1.6,0.4,0.4"
       # Q2_K_XL pesa ~109 GB y necesita offload parcial en 4x 24 GB. Se empieza
       # con los expertos MoE de 38 capas en RAM para garantizar una carga
       # estable; luego se ajusta con mediciones reales de VRAM y rendimiento.
       - --n-cpu-moe
       - "38"
+      # El runtime recomienda no usar mmap cuando hay tensores forzados a CPU.
+      - --load-mode
+      - none
       # El modelo declara 1M nativo, pero para esta instancia dedicada el
       # usuario eligio explicitamente el mismo contexto operativo que Qwen.
       - --ctx-size
