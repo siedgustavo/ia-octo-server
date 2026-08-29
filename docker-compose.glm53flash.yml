@@ -1,0 +1,91 @@
+# Compose dedicado para GLM-5.3-Flash (GLM-5-Next) sobre llama.cpp del PR 27754.
+# Corre aparte del stack principal (docker-compose.yml).
+#
+# Uso en octoserver:
+#   docker compose -f docker-compose.glm53flash.yml up --build -d
+#
+# El modelo (GGUF UD-Q2_K_XL de Unsloth, 4 shards) esta en:
+#   /opt/models-archive/GLM-5.3-Flash-UD-Q2_K_XL/
+#
+# Notas de correccion (obligatorias segun el PR):
+#  - NVIDIA_TF32_OVERRIDE=0 ya viene en la imagen.
+#  - --flash-attn off: MLA no puede castear el latente F32 a F16.
+
+services:
+  glm53flash:
+    build:
+      context: ./llamacpp
+    image: ${LLAMACPP_IMAGE:-octofan/llamacpp:glm5next-pr27754}
+    container_name: glm53flash
+    gpus: all
+    restart: unless-stopped
+    environment:
+      NVIDIA_TF32_OVERRIDE: "0"
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+    volumes:
+      - ${GLM_MODELS_DIR:-/opt/models-archive}:/models:ro
+    ports:
+      - "${GLM_PORT:-8090}:8080"
+    command:
+      - --model
+      - /models/GLM-5.3-Flash-UD-Q2_K_XL/GLM-5.3-Flash-UD-Q2_K_XL-00001-of-00004.gguf
+      - --alias
+      - glm-5.3-flash
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"
+      # Layer split: es el modo compatible con la atencion hibrida de GLM-5.
+      # El modo tensor es experimental y este PR no soporta split buffers.
+      - --split-mode
+      - layer
+      # tensor-split son proporciones de capas, no tensor parallel. GPU3
+      # necesita menos capas porque aloja el compute buffer grande.
+      - --n-gpu-layers
+      - "999"
+      - --tensor-split
+      - "1.2,1.2,1.2,0.4"
+      # Q2_K_XL pesa ~109 GB y necesita offload parcial en 4x 24 GB. Se empieza
+      # con los expertos MoE de 38 capas en RAM para garantizar una carga
+      # estable; luego se ajusta con mediciones reales de VRAM y rendimiento.
+      - --n-cpu-moe
+      - "38"
+      # Contexto nativo maximo declarado por Z.ai/Unsloth.
+      - --ctx-size
+      - "1048576"
+      # Una unica sesion dedicada evita reservar contexto para slots sin uso.
+      - --parallel
+      - "1"
+      # El compute buffer del grafo escala con ubatch; a 128k con ubatch por
+      # defecto pide ~17 GB en una sola GPU y da OOM. Con ubatch 128 baja a ~4 GB.
+      - --batch-size
+      - "512"
+      - --ubatch-size
+      - "128"
+      # KV cache en f16 (default). El PR desaconseja cuantizarlo: q8_0 en K
+      # cuantiza los gates del indexer que alimentan un softmax.
+      # Correccion GLM-5-Next: flash-attn OFF (castea el latente MLA F32 a F16).
+      - --flash-attn
+      - "off"
+      # Sampling recomendado por Unsloth para la mayoria de las tareas.
+      - --temp
+      - "1.0"
+      - --top-p
+      - "0.95"
+      # Unsloth recomienda max por defecto; OpenCode puede sobrescribirlo por
+      # request con reasoning_effort=low|high|max.
+      - --chat-template-kwargs
+      - '{"reasoning_effort":"max"}'
+      - --jinja
+      - --metrics
+    healthcheck:
+      test: ["CMD", "sh", "-c", "curl -fsS http://localhost:8080/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 40
+      start_period: 600s
+
+networks:
+  default:
+    name: ${GLM_DOCKER_NETWORK:-glm53flash}
