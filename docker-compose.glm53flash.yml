@@ -29,9 +29,9 @@ services:
       - "${GLM_PORT:-8090}:8080"
     command:
       - --model
-      - /models/GLM-5.3-Flash-UD-Q2_K_XL/GLM-5.3-Flash-UD-Q2_K_XL-00001-of-00004.gguf
+      - ${GLM_MODEL_PATH:-/models/GLM-5.3-Flash-UD-Q2_K_XL/GLM-5.3-Flash-UD-Q2_K_XL-00001-of-00004.gguf}
       - --alias
-      - glm-5.3-flash
+      - ${GLM_MODEL_ALIAS:-glm-5.3-flash}
       - --host
       - 0.0.0.0
       - --port
@@ -51,7 +51,7 @@ services:
       # de carga dejaron margen suficiente para mantener 34 capas MoE en RAM y
       # mover cuatro capas adicionales a GPU.
       - --n-cpu-moe
-      - "34"
+      - ${GLM_N_CPU_MOE:-34}
       # El runtime recomienda no usar mmap cuando hay tensores forzados a CPU.
       - --load-mode
       - none
