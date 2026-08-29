@@ -51,9 +51,10 @@ services:
       # estable; luego se ajusta con mediciones reales de VRAM y rendimiento.
       - --n-cpu-moe
       - "38"
-      # Contexto nativo maximo declarado por Z.ai/Unsloth.
+      # El modelo declara 1M nativo, pero para esta instancia dedicada el
+      # usuario eligio explicitamente el mismo contexto operativo que Qwen.
       - --ctx-size
-      - "1048576"
+      - "262144"
       # Una unica sesion dedicada evita reservar contexto para slots sin uso.
       - --parallel
       - "1"
