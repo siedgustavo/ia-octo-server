@@ -206,3 +206,5 @@ OCTOFAN_MOCK=1 docker compose up --build
 - [Architecture](docs/architecture.md)
 - [Operations](docs/operations.md)
 - [API and metrics](docs/api-and-metrics.md)
+- [GLM-5.3-Flash tuning and lessons](docs/glm53flash-benchmark.md)
+- [Qwen3.8-Flash-Next split benchmark](docs/qwen38flash-split-benchmark.md)
