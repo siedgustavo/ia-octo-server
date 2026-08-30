@@ -1,21 +1,29 @@
-# Compose dedicado para GLM-5.3-Flash (GLM-5-Next) sobre llama.cpp del PR 27754.
+# Compose dedicado para GLM-5.3-Flash (GLM-5-Next) sobre llama.cpp.
 # Corre aparte del stack principal (docker-compose.yml).
 #
 # Uso en octoserver:
 #   docker compose -f docker-compose.glm53flash.yml up --build -d
 #
-# El modelo (GGUF UD-Q2_K_XL de Unsloth, 4 shards) esta en:
-#   /opt/models-archive/GLM-5.3-Flash-UD-Q2_K_XL/
+# El modelo (GGUF UD-IQ1_S de Unsloth, 3 shards) esta en:
+#   /opt/models-archive/GLM-5.3-Flash-UD-IQ1_S/
 #
-# Notas de correccion (obligatorias segun el PR):
-#  - NVIDIA_TF32_OVERRIDE=0 ya viene en la imagen.
-#  - --flash-attn off: MLA no puede castear el latente F32 a F16.
+# Config ganadora tras benchmark (2026-08-29): la mejor GENERACION (~15 tok/s).
+# Detalle y comparativa en docs/glm53flash-tuning.md.
+#  - Imagen glm5next-mtp-27752: build con soporte GLM5Next + kernels DeltaNet/DSA.
+#  - Cuantizacion IQ1_S (~93 GB): mas liviana que Q2_K_XL, ~14% mas rapida.
+#  - --fit on (auto-fit): reparte capas/expertos por VRAM real y BALANCEA mejor
+#    la generacion que un tensor-split manual. Mover mas expertos a GPU acelera
+#    el prompt pero FRENA la generacion por el trafico via risers x1 en GPU2/3.
+#  - --flash-attn on: en este build libera ~8-9 GiB/GPU y no rompe MLA.
+#  - ctx 131072 (128k): el usuario lo fijo; libera KV vs 262k y mejora gen.
+#  - MTP (--spec-type draft-mtp) descartado: acepta 96,9% draft pero baja la gen
+#    a 9 tok/s porque el cuello es el MoE en CPU/RAM, no la GPU.
 
 services:
   glm53flash:
     build:
       context: ./llamacpp
-    image: ${LLAMACPP_IMAGE:-octofan/llamacpp:glm5next-pr27754}
+    image: ${LLAMACPP_IMAGE:-octofan/llamacpp:glm5next-mtp-27752-test}
     container_name: glm53flash
     gpus: all
     restart: unless-stopped
@@ -29,9 +37,9 @@ services:
       - "${GLM_PORT:-8090}:8080"
     command:
       - --model
-      - ${GLM_MODEL_PATH:-/models/GLM-5.3-Flash-UD-Q2_K_XL/GLM-5.3-Flash-UD-Q2_K_XL-00001-of-00004.gguf}
+      - ${GLM_MODEL_PATH:-/models/GLM-5.3-Flash-UD-IQ1_S/GLM-5.3-Flash-UD-IQ1_S-00001-of-00003.gguf}
       - --alias
-      - ${GLM_MODEL_ALIAS:-glm-5.3-flash}
+      - ${GLM_MODEL_ALIAS:-glm-5.3-flash-iq1-s}
       - --host
       - 0.0.0.0
       - --port
@@ -40,39 +48,31 @@ services:
       # El modo tensor es experimental y este PR no soporta split buffers.
       - --split-mode
       - layer
-      # tensor-split son proporciones de capas, no tensor parallel. El PR
-      # concentra un compute buffer grande en GPU2; GPU0/1 tienen enlaces x16
-      # y reciben mas capas para dejar margen en las GPU con riser x1.
-      - --n-gpu-layers
-      - "999"
-      - --tensor-split
-      - "1.6,1.6,0.4,0.4"
-      # Q2_K_XL pesa ~109 GB y necesita offload parcial en 4x 24 GB. Las pruebas
-      # de carga dejaron margen suficiente para mantener 34 capas MoE en RAM y
-      # mover cuatro capas adicionales a GPU.
-      - --n-cpu-moe
-      - ${GLM_N_CPU_MOE:-34}
-      # El runtime recomienda no usar mmap cuando hay tensores forzados a CPU.
-      - --load-mode
-      - none
+      # Auto-fit: el runtime calcula placement de capas y expertos MoE segun la
+      # VRAM real de cada GPU, dejando el margen indicado por --fit-target.
+      # Reemplaza al tensor-split/n-cpu-moe manuales y balancea mejor la gen.
+      - --fit
+      - "on"
+      - --fit-target
+      - ${GLM_FIT_TARGET:-1024,1024,1024,1024}
       # El modelo declara 1M nativo, pero para esta instancia dedicada el
       # usuario eligio explicitamente el mismo contexto operativo que Qwen.
+      # 128k libera KV cache vs 262k y sube la generacion (~13 -> ~15 tok/s).
       - --ctx-size
-      - "262144"
+      - "131072"
       # Una unica sesion dedicada evita reservar contexto para slots sin uso.
       - --parallel
       - "1"
-      # El compute buffer del grafo escala con ubatch; a 128k con ubatch por
-      # defecto pide ~17 GB en una sola GPU y da OOM. Con ubatch 128 baja a ~4 GB.
+      # El compute buffer del grafo escala con ubatch; con ubatch 128 se mantiene
+      # acotado y el auto-fit puede reservarlo sin OOM.
       - --batch-size
       - "512"
       - --ubatch-size
       - "128"
-      # KV cache en f16 (default). El PR desaconseja cuantizarlo: q8_0 en K
-      # cuantiza los gates del indexer que alimentan un softmax.
-      # Correccion GLM-5-Next: flash-attn OFF (castea el latente MLA F32 a F16).
+      # Flash Attention ON: en este build no rompe MLA y libera ~8-9 GiB/GPU,
+      # margen que el auto-fit usa para colocar mas expertos en GPU.
       - --flash-attn
-      - "off"
+      - "on"
       # Sampling recomendado por Unsloth para la mayoria de las tareas.
       - --temp
       - "1.0"
