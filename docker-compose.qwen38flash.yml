@@ -10,11 +10,20 @@ services:
     container_name: qwen38flash
     gpus: all
     restart: unless-stopped
+    # Le da tiempo al entrypoint de guardar el KV cache (hasta 262144 tokens
+    # en Q8_0) a disco antes de que compose mande SIGKILL.
+    stop_grace_period: 120s
     environment:
       NVIDIA_VISIBLE_DEVICES: all
       NVIDIA_DRIVER_CAPABILITIES: compute,utility
+      # Leidas por entrypoint-qwen38flash.sh para el save/restore del slot 0.
+      SLOT_SAVE_PATH: /kv-cache
+      KV_CACHE_FILE: opencode.bin
     volumes:
       - ${QWEN_MODELS_DIR:-/opt/models-archive}:/models:ro
+      # Persiste el KV cache del slot 0 entre reinicios del contenedor para
+      # no re-prefillear el contexto largo de la sesion de opencode.
+      - ${QWEN_KV_CACHE_DIR:-./kv-cache}:/kv-cache
     ports:
       - "${QWEN_PORT:-8091}:8080"
     command:
@@ -53,6 +62,10 @@ services:
       - q8_0
       - --flash-attn
       - on
+      # Habilita POST /slots/0?action=save|restore para persistir el KV
+      # cache a disco. Debe coincidir con SLOT_SAVE_PATH (ver entrypoint).
+      - --slot-save-path
+      - /kv-cache
       - --chat-template-kwargs
       - '{"reasoning_effort":"medium"}'
       - --jinja
