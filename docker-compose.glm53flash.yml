@@ -36,7 +36,7 @@ services:
       NVIDIA_DRIVER_CAPABILITIES: compute,utility
       # Leidas por entrypoint-kv-cache.sh para el save/restore del slot 0.
       SLOT_SAVE_PATH: /kv-cache
-      KV_CACHE_FILE: opencode.bin
+      KV_CACHE_FILE: glm-5.3-flash-iq1-s
     volumes:
       - ${GLM_MODELS_DIR:-/opt/models-archive}:/models:ro
       # Persiste el KV cache del slot 0 entre reinicios del contenedor para
@@ -93,7 +93,7 @@ services:
       - '{"reasoning_effort":"max"}'
       - --jinja
       - --metrics
-      # Habilita POST /slots/0?action=save|restore para persistir el KV
+      # Habilita POST /slots/{id}?action=save|restore para persistir el KV
       # cache a disco. Debe coincidir con SLOT_SAVE_PATH (ver entrypoint).
       - --slot-save-path
       - /kv-cache

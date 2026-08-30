@@ -16,9 +16,11 @@ services:
     environment:
       NVIDIA_VISIBLE_DEVICES: all
       NVIDIA_DRIVER_CAPABILITIES: compute,utility
-      # Leidas por entrypoint-qwen38flash.sh para el save/restore del slot 0.
+      # Leidas por entrypoint-kv-cache.sh para el save/restore de cada slot.
       SLOT_SAVE_PATH: /kv-cache
-      KV_CACHE_FILE: opencode.bin
+      KV_CACHE_FILE: qwen3.8-flash-next
+      # Debe coincidir con --parallel de mas abajo.
+      SLOT_COUNT: "1"
     volumes:
       - ${QWEN_MODELS_DIR:-/opt/models-archive}:/models:ro
       # Persiste el KV cache del slot 0 entre reinicios del contenedor para
@@ -48,8 +50,17 @@ services:
       # Contexto nativo declarado por Qwen/Unsloth; no reducir por default.
       - --ctx-size
       - "262144"
-      # OpenCode usa una sesion secuencial. Un unico slot conserva el contexto
-      # nativo y evita reservar KV para tres sesiones concurrentes sin uso.
+      # Se probo --parallel 2 para tener 2 conversaciones de OpenCode
+      # residentes a la vez, pero el ruteo automatico de llama.cpp elige el
+      # slot de MEJOR similitud de prefijo, no "el slot libre para una
+      # conversacion nueva": como el system prompt de OpenCode domina el
+      # conteo de tokens, dos proyectos distintos siguen cayendo en el mismo
+      # slot (uno pisa al otro) igual que con 1 solo slot, y el slot extra
+      # termino absorbido por las llamadas internas del sub-agente "title" de
+      # OpenCode. No resuelve nada y cuesta la mitad del contexto nativo
+      # (131072 en vez de 262144) mas VRAM/buffers duplicados (ya hubo un OOM
+      # en GPU0 con mas slots, ver docs/qwen38flash-split-benchmark.md). Un
+      # unico slot conserva el contexto nativo completo.
       - --parallel
       - "1"
       - --batch-size
@@ -62,10 +73,33 @@ services:
       - q8_0
       - --flash-attn
       - on
-      # Habilita POST /slots/0?action=save|restore para persistir el KV
+      # Habilita POST /slots/{id}?action=save|restore para persistir el KV
       # cache a disco. Debe coincidir con SLOT_SAVE_PATH (ver entrypoint).
       - --slot-save-path
       - /kv-cache
+      # Cache de prompts en RAM del host (octoserver tiene 125GiB, este
+      # servicio no ofloadea nada a CPU asi que hay margen de sobra). OJO:
+      # con --parallel 1 esto NO sirve para "flapear" entre conversaciones
+      # distintas de OpenCode (probado, ver docs/kv-cache-persistence.md):
+      # el guardado a RAM (server-context.cpp de llama.cpp, get_available_slot)
+      # solo se dispara si el cambio de conversacion haria perder mas de la
+      # mitad del contenido actual del slot (f_keep < 0.5), y el system
+      # prompt de OpenCode es tan grande que casi nunca se cruza ese umbral.
+      # Se deja puesto igual porque no genero costo/problema medible y cubre
+      # ese caso puntual (saltar a una conversacion MUY distinta).
+      # 65536 MiB = 64GiB, deja ~60GiB libres para OS/page-cache/otros.
+      - --cache-ram
+      - "65536"
+      # Espaciado entre checkpoints de contexto: el default (8192) es
+      # grueso para diffs chicos tipicos de un flujo agentico (un tool
+      # call, un archivo leido). 1024 da mas puntos de recuperacion a
+      # cambio de algo de VRAM/RAM extra. --ctx-checkpoints se deja en su
+      # default (32): vive en VRAM y esta pensado para sliding-window
+      # attention, no para sostener conversaciones distintas (eso lo hace
+      # --cache-ram); no tocarlo mientras el margen de VRAM siga tan
+      # ajustado (ver docs/qwen38flash-split-benchmark.md).
+      - --checkpoint-min-step
+      - "1024"
       - --chat-template-kwargs
       - '{"reasoning_effort":"medium"}'
       - --jinja
