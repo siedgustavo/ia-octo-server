@@ -2,6 +2,7 @@
 # Envuelve llama-server para persistir el KV cache del slot 0 a disco entre
 # reinicios del contenedor. No hace nada por sesion de opencode: solo evita
 # volver a prefillear el contexto largo cuando el contenedor se reinicia.
+# Generico: lo usan tanto Dockerfile (GLM-5.3-Flash) como Dockerfile.qwen38flash.
 #
 # Requiere que --slot-save-path este entre los args pasados a este script y
 # que coincida con SLOT_SAVE_PATH. El cache queda atado a la build de

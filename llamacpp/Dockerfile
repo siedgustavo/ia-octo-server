@@ -60,6 +60,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /opt/llama.cpp /opt/llama.cpp
+COPY entrypoint-kv-cache.sh /opt/llama.cpp/entrypoint.sh
+RUN chmod +x /opt/llama.cpp/entrypoint.sh
 ENV PATH=/opt/llama.cpp/bin:${PATH}
 ENV LD_LIBRARY_PATH=/opt/llama.cpp/lib:${LD_LIBRARY_PATH}
 
@@ -71,4 +73,4 @@ ENV NVIDIA_VISIBLE_DEVICES=all
 ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
 
 EXPOSE 8080
-ENTRYPOINT ["llama-server"]
+ENTRYPOINT ["/opt/llama.cpp/entrypoint.sh"]
