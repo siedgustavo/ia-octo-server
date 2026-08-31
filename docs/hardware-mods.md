@@ -7,9 +7,12 @@ Estado fisico actual del gabinete Octominer/Octofan tras la conversion a servido
 - Placa original del Octominer: **retirada**. Ya no existe dentro del gabinete.
 - Placa instalada: **ZX-DU99D4 V1.41** (dual socket LGA2011-3, chipset X99, doble Intel
   Xeon E5 v3/v4, 8x DDR4 ECC, BIOS AMI).
-- Alimentacion de la placa nueva: **fuente Pico ATX de 120 W**, alimentada desde el rail
-  de 12 V del backplane de la fuente original del Octominer (la que antes alimentaba la
-  placa madre del minero).
+- Alimentacion de la placa nueva (distribucion):
+  - **Pico ATX de 120 W**: se alimenta desde el rail de 12 V del backplane de la fuente
+    del Octominer y entrega al conector ATX principal de la placa solo logica, RAM, NVMe,
+    USB y chipset. No alimenta los CPU.
+  - **EPS 8 pines directo desde la fuente del Octominer**: alimenta los VRM de los dos
+    Xeon. Los procesadores no pasan por la pico ATX.
 
 ## Fuente del Octominer (always-on)
 
@@ -17,7 +20,8 @@ Estado fisico actual del gabinete Octominer/Octofan tras la conversion a servido
   Octominer. Al no existir esa placa, se hizo un **puente fisico `PS_ON`-`GND`** en el
   lado del conector.
 - Consecuencia: la fuente del Octominer queda **siempre encendida**. Sus rails (12 V hacia
-  la pico ATX, 12 V hacia los fans/LED del gabinete) estan activos permanentemente.
+  la pico ATX, **EPS 8 pines hacia los CPU**, 12 V hacia los fans/LED del gabinete) estan
+  activos permanentemente.
 
 ## Impacto en el control por firmware
 
@@ -33,10 +37,12 @@ Estado fisico actual del gabinete Octominer/Octofan tras la conversion a servido
 
 ## Presupuesto de energia
 
-- Pico ATX: 120 W maximos en 12 V. Es el limite duro para CPU(s) + RAM + NVMe + USB del
-  lado de la placa Xeon. Las GPUs van por energia aparte.
-- Considerar TDP de los dos Xeon mas picos de turbo al elegir CPUs; con dos E5-2680 v4
-  (120 W TDP c/u) la pico ATX no alcanza en carga plena.
+- Pico ATX: 120 W maximos en 12 V, pero solo para logica + RAM + NVMe + USB (sin CPU).
+- Los dos Xeon van por **EPS 8 pines directo a la fuente del Octominer**, asi que el TDP
+  de los CPU no consume la pico ATX; el limite real es el rail de 12 V de la fuente
+  original compartido con GPUs, fans y la propia pico.
+- El EPS sale de la misma fuente cuyo `PS_ON` esta puenteado: un eventual control de
+  `PS_ON` por watchdog cortaria **tambien** los CPU (power cycle completo de la placa).
 
 ## Verificacion rapida
 
