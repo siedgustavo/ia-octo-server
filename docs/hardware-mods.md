@@ -79,6 +79,25 @@ Estado fisico actual del gabinete Octominer/Octofan tras la conversion a servido
 - Plan B (power): el header **PWR SW** es la senal que maneja el relay del plan
   (`docs/watchdog-power-cycle.md`).
 
+## Enlace I2C controller <-> backplane de la fuente
+
+Hay un cuarto vinculo fisico ademas de USB, JATX y PWR/RST SW. Del lado del backplane de
+la fuente esta rotulado:
+
+```text
+SGND  3.3V  SCL  SDA
+```
+
+- Es el bus por donde el controller **lee las fuentes** (el handler I2C/SMBus bit-bang que
+  aparece en el firmware en `0x794a+`): voltajes, corrientes, temperaturas y energia que
+  despues el CLI muestra como `OCTO-2000W PSU ... Vac/Iac/Pac/Vdc/Idc/T1/T2/T3` y
+  `PSMI(DPS1200-compat.)` (metricas PSMI/PMBUS compatibles).
+- Logica a **3.3 V** con `SGND` (signal ground, separado del GND de potencia).
+- Implicacion practica: las metricas de PSU de Prometheus/Grafana dependen de este bus y de
+  las fuentes originales del Octominer. Si algin dia se cambian por ATX comunes, se pierde
+  telemetria de fuente (el controller seguira reportando fans/temp/OLED normal).
+- No interviene en el Plan B: es solo telemetria, no control de power.
+
 ## Referencias del controller Octofan (investigacion 2026-08-30)
 
 No existe pinout publicado del arnes RESET/POWER del controller en ningun sitio (HiveOS KB,
@@ -145,5 +164,6 @@ o se arma con el contacto seco. Ver `docs/watchdog-power-cycle.md`.
   via reset), detach/attach USB forzodo manipulando DDRD.1/PORTD.1 antes de saltar a 0.
 - El init imprime "INIT OLED!" y versiones de Hardware/Firmware/Bootloader; el modo `-t`
   corre tests de fans/temp/PSU con strings "TEST PASS/FAIL".
-- Los sensores/PSU se leen por un periférico I2C/SMBus bit-bang (handler en `0x794a+`).
+- Los sensores/PSU se leen por un periférico I2C/SMBus bit-bang (handler en `0x794a+`): es
+  el enlace I2C `SGND/3.3V/SCL/SDA` del backplane de la fuente (ver seccion arriba).
 
