@@ -16,8 +16,16 @@ Estado fisico actual del gabinete Octominer/Octofan tras la conversion a servido
 
 ## Fuente del Octominer (always-on)
 
-- El conector JATX del backplane de la fuente original llevaba `PS_ON` hacia la placa del
-  Octominer. Al no existir esa placa, se hizo un **puente fisico `PS_ON`-`GND`** en el
+- El conector **JATX** del backplane de la fuente original es de 6 hilos:
+
+  ```text
+  5VSB - SVSB - PSON - PSON - GND - GND
+  ```
+
+  (`SVSB` = sense de 5VSB; el `PSON` viene duplicado.)
+- Ese cable llevaba `PS_ON` hacia la placa del Octominer, entrando al mismo header donde
+  lo hacia el arnes del controller (por eso el boton del controller encendia el rig).
+- Al no existir esa placa, se hizo un **puente fisico de UNO de los `PSON` a `GND`** en el
   lado del conector.
 - Consecuencia: la fuente del Octominer queda **siempre encendida**. Sus rails (12 V hacia
   la pico ATX, **EPS 8 pines hacia los CPU**, 12 V hacia los fans/LED del gabinete) estan
@@ -50,6 +58,26 @@ Estado fisico actual del gabinete Octominer/Octofan tras la conversion a servido
   siempre; eso no cambio.
 - La fuente original entrega 12 V permanente: comprobar con multimetro en el JATX si se
   interviene el puente.
+
+## Conector del controller (silkscreen impreso en la placa)
+
+```text
+┌────────────────────────────────────────────────────────────┐
+│ 5V  USB+ USB- GND NC │ 5V  USB+ USB- GND PWR SW │
+│ 5V  USB+ USB- GND NC │ 5V  USB+ USB- GND RST SW │
+└────────────────────────────────────────────────────────────┘
+```
+
+- Cada fila es un puerto USB-A completo (`5V USB+ USB- GND`) + un pin `NC` + un header de
+  2 pines de boton: **PWR SW** (fila superior) y **RST SW** (fila inferior).
+- Coincide exacto con la ingenieria inversa del firmware: `PC3` = pulso ~0.3 s = **RST SW**;
+  `PC4` = latch power-down = **PWR SW**.
+- Los pares USB de este conector son como el controller se alimentaba/comunicaba con la
+  mother del minero (por eso JATX y arnes entraban "al mismo lugar").
+- Plan A (reset): el header **RST SW** va al `RESET_SW` del F_PANEL de la ZX-DU99D4 (por
+  transistor o R serie si el pin resulta push-pull 5 V; directo si es contacto seco).
+- Plan B (power): el header **PWR SW** es la senal que maneja el relay del plan
+  (`docs/watchdog-power-cycle.md`).
 
 ## Referencias del controller Octofan (investigacion 2026-08-30)
 
@@ -93,20 +121,23 @@ El dispatch de comandos USB esta en flash `0x224a`:
 ### La pregunta del power cycle: ":lo vuelve a encender?"
 
 Segun el codigo, **no existe en el firmware un pulso de PC4 "off y luego on"**: `-p` latchea
-PC4 alto y ahi queda hasta que el controller se reinicia. La semantica encaja con dos
-cableados posibles del arnes original, que hay que distinguir con multimetro en el board:
+PC4 alto y ahi queda hasta que el controller se reinicia. El silkscreen del header lo llama
+**PWR SW** (emulacion de boton), pero el latch permanente indica que en la mother del minero
+esa linea no iba a un power-button logico sino al **net de PS_ON** (cerrar = ON / abrir =
+OFF, como en las placas mineras sin boton). Tambien encaja con que el rig encendiera con el
+boton del controller.
 
-1. **PC4 en paralelo al PWR_SW de la placa**: mantenido alto = boton presionado (apagado
-   forzodo a los ~4 s). Al no soltarse jamas, la placa no vuelve sola; el encendido original
-   del minero dependeria de que el AVR se resetee (libera PC4) + comportamiento de la placa.
-2. **PC4 como colector abierto sobre PS_ON de la fuente** (Latch estilo minero): PC4 alto =
-   mantiene PS_ON bajo = rig apagado; PC4 liberado (o al arrancar el AVR) = la fuente entrega
-   y la placa del minero arranca sola porque no tiene boton. Esto explicaria el diseno.
+Medicion definidora ahora directo en el header rotulado del controller (controller
+alimentado desde una fuente USB independiente, rig desconectado):
 
-Prueba definitoria en el gabinete (con el puente PS_ON del JATX todavia puesto, la placa
-Xeon no se ve afectada): medir continuidad entre la linea PC4 del arnes y el pin verde
-(PS_ON) del conector ATX vs. el header PWR_SW. Si va a PS_ON, al sacar USB del controller
-la fuente deberia encender: ahi el watchdog revive con power cycle real sin tocar nada mas.
+| Prueba | PWR SW contacto seco | PWR SW push-pull | PWR SW sink activo-bajo |
+| --- | --- | --- | --- |
+| idle (sin `-p`) | alta impedancia | 0 V | 5 V con pull-up externo |
+| con `-p` | cerrado a GND | 5 V persistentes | 0 V (a GND) persistentes |
+| sin USB controller | abierto | flotante | flotante |
+
+Segun el resultado, el trigger del relay del Plan B se toma directo del pin PWR SW (push-pull)
+o se arma con el contacto seco. Ver `docs/watchdog-power-cycle.md`.
 
 ### Otros hallazgos
 
