@@ -156,10 +156,15 @@ A. Resultado: `f_sim_best=0.854`, tuvo que reprocesar **2030 de 13272
 tokens** — no hubo restore desde RAM. Comparando 0.854 con la proporcion del
 system prompt compartido entre A y B (~11184/13130 ≈ 0.852), quedo claro que
 el match fue contra el estado de B que seguia activo en VRAM (reuso normal
-de prefijo), no contra una entrada de A rescatada de `--cache-ram`.
+de prefijo), no contra una entrada de A rescatada de `--cache-ram`. Esto se
+explica porque `f_keep` (ver mas abajo) no llego a cruzar el umbral de 0.5:
+con sesiones cortas, el system prompt+tools de OpenCode domina el conteo de
+tokens y casi nunca se pierde mas de la mitad del contexto al cambiar de
+tema.
 
-**Causa exacta (leida en el codigo fuente real de la build, commit
-`6c84c7d5d8` de `ggml-org/llama.cpp`, `tools/server/server-context.cpp`):**
+**Causa exacta del path de guardado (leida en el codigo fuente real de la
+build, commit `6c84c7d5d8` de `ggml-org/llama.cpp`,
+`tools/server/server-context.cpp`):**
 
 - `cache_idle_slots` (linea ~2388) guarda a RAM los slots que **no** estan
   manejando la tarea nueva, iterando `for slot : slots if !is_processing()`.
@@ -170,11 +175,46 @@ de prefijo), no contra una entrada de A rescatada de `--cache-ram`.
 - El unico camino que si puede disparar un guardado a RAM con un solo slot
   esta en `get_available_slot` (linea ~1573): antes de reusar el slot unico
   para una request distinta, calcula `f_keep` (fraccion del contenido actual
-  que se conserva) y **solo cachea a RAM si `f_keep < 0.5`** — o sea, solo si
-  el cambio de conversacion haria perder mas de la mitad del contexto
-  actual. Con el system prompt+tools de OpenCode dominando el conteo de
-  tokens de cualquier sesion corta, `f_keep` casi nunca baja de 0.5, asi que
-  esta ruta casi no se activa en el uso real.
+  que se conserva) y **solo cachea a RAM si `f_keep < 0.5`**.
+
+**Prueba 1b (correccion de la 1, con contenido mas grande y divergente):**
+se repitio el flujo A/B/A pero con sesiones de ~20-26k tokens cada una (A:
+`app.py`+`control.py`+`nvidia.py` del controller, B: 3 docs distintos), para
+que perder el contexto de A al entrar B superara el 50%. Resultado: `f_keep`
+bajo a 0.490-0.493 (cruzo el umbral) pero el retorno a A igual reproceso
+**15007 tokens completos** — sin beneficio aparente, pese a cumplirse la
+condicion documentada. Para descartar que el request en si variara entre
+llamadas (ej. algun campo dinamico tipo timestamp/git status inyectado por
+OpenCode rompiendo el prefijo comun), se instrumento con un proxy HTTP local
+que loguea el JSON crudo antes de reenviarlo a `llama-server`, y se repitio
+el mismo flujo A/B/A a traves de el. El diff byte a byte de los mensajes
+`system`/`user`/`tool` entre la creacion de A y el retorno a A dio
+**identico** (confirmado con Python, no por inspeccion visual) — el request
+es perfectamente determinista, no era la causa.
+
+Con el proxy en el medio, el mismo escenario **si funciono esta vez**:
+`f_keep=0.493` (cruzo el umbral) y el retorno a A solo reproceso **32
+tokens** en vez de 15007 — un hit real del cache en RAM, al mismo nivel de
+eficiencia que el restore a disco. Leyendo `server_prompt_cache::alloc()` y
+`::load()` (`tools/server/server-task.cpp`, lineas 1691-1888) se confirmo
+que el mecanismo esta bien implementado: `alloc()` guarda el prompt saliente
+como una entrada nueva en una lista (`std::list<server_prompt_cache_state>
+states`), respetando limites de tamano/tokens con desalojo FIFO
+(`states.pop_front()`, saca la entrada **mas vieja**); `load()` busca en esa
+lista la entrada con mejor `f_keep`/`f_sim` que supere el 25% de retencion y
+bata al estado actual del slot.
+
+La explicacion mas probable de por que la Prueba 1b (sin proxy) fallo y la
+misma prueba con proxy funciono: para el momento de la Prueba 1b ya se habia
+corrido un numero grande de tests sobre el mismo proceso vivo (los tests de
+GLM, el experimento de `--parallel 2`, varias sesiones de fox-sentence,
+etc.), acumulando entradas en el pool de RAM; con desalojo FIFO por
+tamano/tokens, es probable que la entrada de A haya sido desalojada antes de
+poder reusarla. La prueba con proxy corrio con menos historial acumulado en
+el mismo arranque del contenedor. **No se confirmo esto con certeza absoluta**
+(requeriria logs `TRACE`, que esta build no expone por consola), pero es
+consistente con el codigo leido y con que el request en si es identico entre
+ambos intentos.
 
 **Prueba 2: `--parallel 2`** (para tener 2 slots reales, cada uno con
 131072 tokens de contexto en vez de 262144). Arranco sano, sin OOM
@@ -192,19 +232,29 @@ el mismo flujo A/B/A. Resultado real observado en los logs:
   y lo piso igual que con un solo slot (`f_keep=0.864`, descarto ~1675
   tokens de A).
 
-**Conclusion:** ni `--cache-ram` ni sumar slots con `--parallel` resuelven
-"tener N conversaciones de OpenCode residentes, cada una en lo suyo" sin
-forzar `id_slot` explicitamente por proyecto (algo que OpenCode no expone
-hoy via su cliente OpenAI-compatible) — el ruteo automatico de llama.cpp fue
-disenado para *multi-tenancy generico* (elegir el slot mas parecido a la
-request entrante), no para aislar proyectos por identidad. Se revirtio
-`--parallel` a `1` (para no perder la mitad del contexto nativo sin
-beneficio real) y se dejo `--cache-ram 65536`/`--checkpoint-min-step 1024`
-puestos igual: no demostraron beneficio en el caso de uso real de OpenCode,
-pero tampoco costo medible, y cubren el caso puntual de saltar a una
-conversacion lo bastante distinta como para cruzar el umbral `f_keep < 0.5`.
+**Conclusion final (corregida):**
 
-Para lograr el aislamiento real por proyecto haria falta un proxy delante de
-llama.cpp que asigne `id_slot` de forma deterministica segun el proyecto
-(ej. hash del `cwd`/session id de OpenCode) — no investigado en profundidad,
-queda pendiente si se vuelve a necesitar.
+- **`--cache-ram` si resuelve "volver a una conversacion despues de haber
+  trabajado en otra" cuando el cambio de tema pierde mas de la mitad del
+  contexto del slot (`f_keep < 0.5`)** — confirmado con una reduccion de
+  15007 a 32 tokens reprocesados en el retorno. Con sesiones cortas donde el
+  system prompt domina el conteo de tokens, ese umbral casi no se cruza y el
+  mecanismo no interviene (tampoco hace falta: el reuso de prefijo comun ya
+  cubre la mayor parte del costo en ese caso). El pool tiene desalojo FIFO
+  por tamano/tokens: con mucho historial de sesiones distintas acumulado en
+  el mismo proceso, una entrada vieja puede desalojarse antes de reusarse —
+  no es un limite critico para el uso normal (un desarrollador con unos
+  pocos proyectos activos), pero conviene saberlo.
+- Sumar slots con `--parallel` **no** resuelve "tener N conversaciones de
+  OpenCode residentes, cada una en lo suyo": el ruteo automatico de
+  `get_available_slot` elige el slot de **mejor similitud de prefijo**, no
+  "un slot libre para una conversacion nueva" — dos proyectos que comparten
+  el mismo system prompt de OpenCode siguen cayendo en el mismo slot y se
+  pisan entre si, sin importar cuantos slots haya. Se revirtio `--parallel`
+  a `1` (sin beneficio real, y perdia la mitad del contexto nativo).
+
+Para aislamiento real por proyecto (mantener N conversaciones simultaneas
+sin ningun riesgo de desalojo) haria falta forzar `id_slot` explicitamente
+via un proxy delante de llama.cpp — no investigado en profundidad, no hace
+falta para el caso de uso real de "volver a un proyecto mas tarde" que si
+esta cubierto por `--cache-ram`.
