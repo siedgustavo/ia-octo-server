@@ -211,10 +211,12 @@ GLM, el experimento de `--parallel 2`, varias sesiones de fox-sentence,
 etc.), acumulando entradas en el pool de RAM; con desalojo FIFO por
 tamano/tokens, es probable que la entrada de A haya sido desalojada antes de
 poder reusarla. La prueba con proxy corrio con menos historial acumulado en
-el mismo arranque del contenedor. **No se confirmo esto con certeza absoluta**
-(requeriria logs `TRACE`, que esta build no expone por consola), pero es
-consistente con el codigo leido y con que el request en si es identico entre
-ambos intentos.
+el mismo arranque del contenedor. **Confirmado despues** con `--verbosity 4`
+(ver seccion de observabilidad mas abajo): el pool nunca se acerco al limite
+de 64GiB en el uso real (unos pocos MiB por sesion corta de OpenCode), asi
+que la explicacion mas probable no es "se lleno", sino que la entrada
+especifica buscada ya no calzaba lo suficientemente bien contra las que
+quedaban vivas en el pool al momento del intento.
 
 **Prueba 2: `--parallel 2`** (para tener 2 slots reales, cada uno con
 131072 tokens de contexto en vez de 262144). Arranco sano, sin OOM
@@ -258,3 +260,63 @@ sin ningun riesgo de desalojo) haria falta forzar `id_slot` explicitamente
 via un proxy delante de llama.cpp — no investigado en profundidad, no hace
 falta para el caso de uso real de "volver a un proyecto mas tarde" que si
 esta cubierto por `--cache-ram`.
+
+## Observabilidad: ver el prompt cache en vivo
+
+Sin nada mas, `--cache-ram` es una caja negra: no hay forma de saber si el
+pool creyo, si desalojo algo, o si un intento de reuso encontro una entrada
+mejor — solo se infiere indirectamente de los tiempos de prefill (como en
+la investigacion de arriba). El propio codigo (`server_prompt_cache::alloc`,
+`::load`, `::update` en `tools/server/server-task.cpp`) ya loguea todo esto,
+pero a nivel **TRACE** (verbosity 4), y el default del server es 3 (info) —
+por eso no se veia nada.
+
+Se agrego `--verbosity 4` a `qwen38flash` (`-lv, --verbosity,
+--log-verbosity N`, valores 0-5, 4=trace, default 3). Con eso, cada
+save/load/update del pool aparece en `docker logs`:
+
+```
+prompt_save:  - saving prompt with length 765, total state size = 125.704 MiB
+load:         - looking for better prompt, base f_keep = 0.004, f_sim = 0.000
+load:           - prompt with length   34290, lcp =    2375, f_keep = 0.069, f_sim = 0.211
+load:           - prompt with length   11324, lcp =   11232, f_keep = 0.992, f_sim = 0.996
+load:         - found better prompt with f_keep = 0.992, f_sim = 0.996   <- hit
+update:       - cache state: 2 prompts, 1164.616 MiB (limits: 65536.000 MiB, 262144 tokens, 1972637 est)
+```
+
+Para consultarlo:
+
+```bash
+docker logs qwen38flash --tail 500 | grep -iE "cache state|prompt_save|found better|looking for better"
+```
+
+- `prompt_save`: se guarda una entrada nueva al pool (tamano en MiB).
+- `load`: lista **todas** las entradas guardadas con su `lcp`/`f_keep`/`f_sim`
+  contra el request entrante, y si alguna le gano al estado actual del slot
+  (`found better prompt...` = hit; sin esa linea = miss).
+- `update`: estado consolidado del pool (cuantas entradas, cuantos MiB,
+  contra el limite configurado).
+
+Con esto se confirmo en un dia entero de pruebas que el pool nunca se
+acerco al limite de 64GiB (crecio de a cientos de MiB, 2-3 entradas
+simultaneas tipico) — el desalojo FIFO no es un problema practico con el
+patron de uso de un desarrollador.
+
+**Costo, tambien no documentado, que aparecio de yapa con `--verbosity 4`:**
+`--ctx-checkpoints` (default 32, mecanismo separado de `--cache-ram`, vive
+en **VRAM** no en RAM) logea cada checkpoint creado:
+
+```
+create_check: created context checkpoint 2 of 32 (pos_min = 11227, pos_max = 11227, n_tokens = 11228, size = 112.571 MiB)
+```
+
+Cada checkpoint cuesta **112.571 MiB de VRAM**. En el peor caso teorico (32
+llenos) son **~3.6GiB** — mucho, con un margen libre real de 1.3-2.5GB por
+GPU en este hardware. En la practica, contando todos los `create_check` de
+un dia entero de pruebas (cambios de conversacion frecuentes), el maximo
+vivo observado fue **4 de 32**: la propia logica interna invalida
+checkpoints viejos al cambiar de tema (`erasing context checkpoint too
+close to an earlier one`). Aun asi, para eliminar el riesgo teorico de una
+sesion muy larga sin cambios de tema, se bajo `--ctx-checkpoints` a `8`
+(techo ~900MiB) en ambos servicios — no cuesta nada en el uso real medido,
+y acota el peor caso.

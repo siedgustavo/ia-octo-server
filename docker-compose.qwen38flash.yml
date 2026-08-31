@@ -78,31 +78,43 @@ services:
       - --slot-save-path
       - /kv-cache
       # Cache de prompts en RAM del host (octoserver tiene 125GiB, este
-      # servicio no ofloadea nada a CPU asi que hay margen de sobra). OJO:
-      # con --parallel 1 esto NO sirve para "flapear" entre conversaciones
-      # distintas de OpenCode (probado, ver docs/kv-cache-persistence.md):
-      # el guardado a RAM (server-context.cpp de llama.cpp, get_available_slot)
-      # solo se dispara si el cambio de conversacion haria perder mas de la
-      # mitad del contenido actual del slot (f_keep < 0.5), y el system
-      # prompt de OpenCode es tan grande que casi nunca se cruza ese umbral.
-      # Se deja puesto igual porque no genero costo/problema medible y cubre
-      # ese caso puntual (saltar a una conversacion MUY distinta).
+      # servicio no ofloadea nada a CPU asi que hay margen de sobra). Deja
+      # que OpenCode vuelva a una conversacion anterior sin reprocesarla de
+      # cero cuando el cambio de tema perdio mas de la mitad del contenido
+      # del slot (f_keep < 0.5): confirmado con instrumentacion de trafico
+      # real (ver docs/kv-cache-persistence.md), no es teorico. El pool
+      # desaloja por FIFO al llegar al limite; con sesiones cortas de
+      # OpenCode (~11k tokens de system prompt+tools) rara vez pasa de
+      # unos pocos MiB por entrada, muy lejos del limite de 64GiB.
       # 65536 MiB = 64GiB, deja ~60GiB libres para OS/page-cache/otros.
       - --cache-ram
       - "65536"
       # Espaciado entre checkpoints de contexto: el default (8192) es
       # grueso para diffs chicos tipicos de un flujo agentico (un tool
       # call, un archivo leido). 1024 da mas puntos de recuperacion a
-      # cambio de algo de VRAM/RAM extra. --ctx-checkpoints se deja en su
-      # default (32): vive en VRAM y esta pensado para sliding-window
-      # attention, no para sostener conversaciones distintas (eso lo hace
-      # --cache-ram); no tocarlo mientras el margen de VRAM siga tan
-      # ajustado (ver docs/qwen38flash-split-benchmark.md).
+      # cambio de algo de VRAM/RAM extra.
       - --checkpoint-min-step
       - "1024"
+      # Techo de checkpoints por slot (viven en VRAM, ~112.5 MiB cada uno,
+      # confirmado con --verbosity 4). El default (32) en el peor caso
+      # teorico costaria ~3.6GiB, mucho para un margen libre de 1.3-2.5GB
+      # por GPU. En un dia entero de pruebas reales (cambios de conversacion
+      # frecuentes) nunca se vieron mas de 4 checkpoints vivos a la vez -- la
+      # logica interna los invalida solos al cambiar de tema -- pero 8 acota
+      # el peor caso teorico (~900MiB) sin costar nada en el uso real.
+      - --ctx-checkpoints
+      - "8"
       - --chat-template-kwargs
       - '{"reasoning_effort":"medium"}'
       - --jinja
+      # Verbosity 4 (trace) para ver el estado real del prompt cache en RAM
+      # (cuantas entradas, cuantos MiB) en cada save/load, y si un intento de
+      # reuso encontro o no una entrada mejor. Sin esto, --cache-ram es una
+      # caja negra: no hay forma de saber si crecio, si desalojo algo o si
+      # encontro un match, solo se infiere indirectamente de los tiempos de
+      # prefill. Aumenta el volumen de logs; si molesta, bajar a 3 (default).
+      - --verbosity
+      - "4"
     healthcheck:
       test: ["CMD", "sh", "-c", "curl -fsS http://localhost:8080/health || exit 1"]
       interval: 30s

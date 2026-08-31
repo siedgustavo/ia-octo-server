@@ -109,12 +109,18 @@ services:
       - --cache-ram
       - "32768"
       # Igual que en qwen38flash: espaciado mas fino que el default (8192)
-      # para diffs chicos de un flujo agentico. --ctx-checkpoints se deja
-      # en su default (32, vive en VRAM) por el mismo motivo que en
-      # qwen38flash: no arriesgar VRAM en un hardware ya ajustado por el
-      # auto-fit.
+      # para diffs chicos de un flujo agentico.
       - --checkpoint-min-step
       - "1024"
+      # Techo de checkpoints por slot (viven en VRAM, ~112.5 MiB cada uno en
+      # qwen38flash con --verbosity 4; se asume similar acá). El default
+      # (32) en el peor caso teorico costaria varios GiB, demasiado con el
+      # margen de VRAM ya ajustado por el auto-fit. En un dia de pruebas con
+      # qwen38flash nunca se vieron mas de 4 checkpoints vivos a la vez (la
+      # logica interna los invalida solos al cambiar de conversacion), pero
+      # 8 acota el peor caso teorico sin costar nada en el uso real.
+      - --ctx-checkpoints
+      - "8"
     healthcheck:
       test: ["CMD", "sh", "-c", "curl -fsS http://localhost:8080/health || exit 1"]
       interval: 30s
