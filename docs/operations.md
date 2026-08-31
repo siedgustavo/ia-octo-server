@@ -232,6 +232,42 @@ watchdog:
 
 If `enabled` is true and any check fails for `unhealthy_failures_before_reset` consecutive watchdog cycles, the daemon does not feed the hardware watchdog. Short transient check failures are tolerated so the USB controller is not reset by one missed TCP or HTTP probe. If `enabled` is false and `keepalive_when_disabled` is true, the daemon feeds the hardware watchdog without using it as a reset policy.
 
+### Hardware escalation (firmware-level)
+
+The escalation below runs entirely in the Octofan board firmware over its connection to the
+motherboard front-panel headers. It works even if the OS is hung, sshd is dead, or the machine
+has kernel-panicked: no software on the host participates once the watchdog is armed.
+
+| Timeout | Config key | Board action |
+| --- | --- | --- |
+| Short | `short_timeout_seconds` | Pulse the motherboard **RESET** header (hardware reset, independent of the OS). |
+| Long | `long_timeout_seconds` | Press the **POWER SW** header: a held press forces a hard power-off, then the board powers the machine back on. Use this as the escape hatch when the reset does not recover the host. |
+
+Current production values: short `120s`, long `1500s`. With `feed_interval_seconds: 30` and
+`unhealthy_failures_before_reset: 3`, a hung host (SSH check failing) stops being fed after
+~90-120s, gets a hardware reset, and gets a power-cycle if it has not come back by the long
+timeout.
+
+Limits:
+
+- The board controls the power button signal, not the AC line. It cannot cut mains power; for
+  true per-outlet power control use the APC UPS switchable outlets or an IP PDU.
+- The watchdog state lives in the board. If the controller container dies while the watchdog is
+  armed, the board escalates on its own. Use `keepalive_when_disabled: true` when intentionally
+  disabling the reset policy so a stopped/unhealthy controller does not trip the board.
+- The `octofan-poc-safety.service` systemd unit (legacy llama.cpp RPC POC loop) is disabled and
+  must stay disabled: two feeders on the same USB device race and mask real watchdog events.
+
+Inspect the live board state (armed mode and cumulative reset counter) with:
+
+```bash
+docker exec octofan-controller /opt/octofan/fan_controller_cli -h | grep -i watch
+# Watch-Dog Mode: 2    Reset Counter = 19
+```
+
+`Watch-Dog Mode` is `0` when disarmed and non-zero when armed. `Reset Counter` is cumulative in
+firmware and includes resets from the HiveOS era of this board.
+
 ## Fan Control
 
 Auto mode calculates independent demand from intake, exhaust, their positive temperature delta
