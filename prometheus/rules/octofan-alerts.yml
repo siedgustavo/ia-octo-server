@@ -1,0 +1,56 @@
+groups:
+  - name: octofan-gpus
+    rules:
+      - alert: OctofanGpuCountMismatch
+        expr: count(octofan_nvidia_gpu_info) != 4
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "GPU count is not 4"
+          description: "nvidia-smi reports {{ $value }} GPU entries. A 5th entry with an empty UUID means a GPU entered driver error state and is falling off the bus (2026-09-02 incident, GPU-8d791881 on 0000:02:00.0)."
+
+      - alert: OctofanNvidiaSmiDown
+        expr: octofan_nvidia_smi_up == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "nvidia-smi collector failing"
+          description: "The controller cannot read nvidia-smi for more than 2 minutes."
+
+      - alert: OctofanGpuReadingsFrozen
+        expr: >-
+          (
+            min_over_time(octofan_nvidia_gpu_metric{metric="temperature_gpu_c"}[5m])
+            ==
+            max_over_time(octofan_nvidia_gpu_metric{metric="temperature_gpu_c"}[5m])
+          )
+          and on(uuid)
+          (octofan_nvidia_gpu_metric{metric="utilization_gpu_percent"} > 30)
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "GPU {{ $labels.uuid }} readings frozen under load"
+          description: "Temperature stayed bit-identical for 5 minutes while utilization is above 30%. Typical of a hung GPU returning stale nvidia-smi values."
+
+      - alert: OctofanGpuTooHot
+        expr: octofan_nvidia_gpu_metric{metric="temperature_gpu_c"} > 85
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "GPU {{ $labels.uuid }} above 85C"
+          description: "GPU at {{ $value }}C for 2 minutes."
+
+  - name: octofan-watchdog
+    rules:
+      - alert: OctofanWatchdogUnhealthy
+        expr: up{job="octofan-controller"} == 0
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: "octofan-controller unreachable"
+          description: "The controller daemon stopped reporting. If the host hangs with it, the firmware watchdog is the only thing left."
