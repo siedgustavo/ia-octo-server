@@ -9,6 +9,7 @@ from octofan_controller.app import (
     _desired_led_modes,
     _gpu_idle_stop_candidate,
     _watchdog_in_grace_period,
+    _watchdog_needs_rearm,
     api_fans_manual,
     serialize_status,
     state,
@@ -168,6 +169,18 @@ def test_watchdog_tolerates_transient_unhealthy_checks():
     assert _watchdog_in_grace_period(unhealthy_failures=1, threshold=3)
     assert _watchdog_in_grace_period(unhealthy_failures=2, threshold=3)
     assert not _watchdog_in_grace_period(unhealthy_failures=3, threshold=3)
+
+
+def test_watchdog_rearms_when_firmware_reports_disarmed():
+    armed = ControllerStatus(ok=True, watchdog_mode=2)
+    disarmed = ControllerStatus(ok=True, watchdog_mode=0)
+    unknown = ControllerStatus(ok=True)
+    offline = ControllerStatus(ok=False, error="usb gone")
+    assert _watchdog_needs_rearm(configured=True, status=disarmed)
+    assert _watchdog_needs_rearm(configured=True, status=unknown)
+    assert not _watchdog_needs_rearm(configured=True, status=armed)
+    assert not _watchdog_needs_rearm(configured=False, status=disarmed)
+    assert not _watchdog_needs_rearm(configured=True, status=offline)
 
 
 def test_metrics_exports_llamacpp_server_status():

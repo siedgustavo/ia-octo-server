@@ -35,3 +35,16 @@ BME280 No. 0 Temp: 188.83
     status = parse_controller_output(raw)
     assert status.intake_temp_c == 22
     assert status.exhaust_temp_c == 22
+
+
+def test_parse_real_firmware_watchdog_lines():
+    raw = """Watchdog Mode: 2
+Watchdog short timout: 120
+Watchdog long timeout: 732
+Watchdog Resets: 19
+"""
+    status = parse_controller_output(raw)
+    assert status.watchdog_mode == 2
+    assert status.watchdog_short_timeout == 120
+    assert status.watchdog_long_timeout == 732
+    assert status.watchdog_resets == 19

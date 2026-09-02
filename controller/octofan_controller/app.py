@@ -132,6 +132,9 @@ async def watchdog_loop() -> None:
     while True:
         cfg: AppConfig = state["config"]
         if cfg.watchdog.enabled:
+            if _watchdog_needs_rearm(configured, state["status"]):
+                configured = False
+                _event("watchdog disarmed in firmware, re-arming")
             if not configured:
                 try:
                     cli.configure_watchdog(cfg.watchdog.short_timeout_seconds, cfg.watchdog.long_timeout_seconds)
@@ -174,6 +177,12 @@ async def watchdog_loop() -> None:
 
 def _watchdog_in_grace_period(unhealthy_failures: int, threshold: int) -> bool:
     return unhealthy_failures < threshold
+
+
+def _watchdog_needs_rearm(configured: bool, status: ControllerStatus) -> bool:
+    if not configured or not status.ok:
+        return False
+    return status.watchdog_mode in (None, 0)
 
 
 async def display_loop() -> None:
