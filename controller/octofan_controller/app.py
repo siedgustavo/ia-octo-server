@@ -135,6 +135,7 @@ async def watchdog_loop() -> None:
     configured = False
     unhealthy_failures = 0
     gpu_recovery_deadline: float | None = None
+    loop_started = time.monotonic()
     while True:
         cfg: AppConfig = state["config"]
         if cfg.watchdog.enabled:
@@ -179,10 +180,12 @@ async def watchdog_loop() -> None:
             else:
                 unhealthy_failures += 1
                 errors_text = ", ".join(result.errors)
-                if _watchdog_in_grace_period(unhealthy_failures, cfg.watchdog.unhealthy_failures_before_reset):
+                startup_grace = _watchdog_startup_grace_active(loop_started, time.monotonic())
+                if startup_grace or _watchdog_in_grace_period(unhealthy_failures, cfg.watchdog.unhealthy_failures_before_reset):
                     _event(
                         "watchdog unhealthy "
-                        f"({unhealthy_failures}/{cfg.watchdog.unhealthy_failures_before_reset}): {errors_text}"
+                        f"({unhealthy_failures}/{cfg.watchdog.unhealthy_failures_before_reset}"
+                        f"{', startup grace' if startup_grace else ''}): {errors_text}"
                     )
                     try:
                         cli.feed_watchdog()
@@ -205,6 +208,10 @@ async def watchdog_loop() -> None:
 
 def _watchdog_in_grace_period(unhealthy_failures: int, threshold: int) -> bool:
     return unhealthy_failures < threshold
+
+
+def _watchdog_startup_grace_active(loop_started: float, now: float, grace_seconds: float = 120.0) -> bool:
+    return now - loop_started < grace_seconds
 
 
 def _gpu_recovery_state(

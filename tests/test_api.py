@@ -13,6 +13,7 @@ from octofan_controller.app import (
     _watchdog_in_grace_period,
     _watchdog_maintenance_seconds_left,
     _watchdog_needs_rearm,
+    _watchdog_startup_grace_active,
     api_fans_manual,
     api_watchdog_maintenance,
     serialize_status,
@@ -215,6 +216,11 @@ def test_watchdog_maintenance_endpoint_set_and_clear():
     assert _watchdog_maintenance_seconds_left() > 500
     asyncio.run(api_watchdog_maintenance(WatchdogMaintenanceRequest(minutes=0)))
     assert _watchdog_maintenance_seconds_left() == 0
+
+
+def test_watchdog_startup_grace_only_at_loop_start():
+    assert _watchdog_startup_grace_active(loop_started=1000.0, now=1030.0)
+    assert not _watchdog_startup_grace_active(loop_started=1000.0, now=1121.0)
 
 
 def test_metrics_exports_llamacpp_server_status():
