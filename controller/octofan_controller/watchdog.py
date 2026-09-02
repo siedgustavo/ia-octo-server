@@ -55,12 +55,23 @@ async def _run_check(check: WatchdogCheck) -> tuple[bool, str | None]:
 
     host, port = _split_host_port(check.target)
     try:
-        _reader, writer = await asyncio.wait_for(asyncio.open_connection(host, port), timeout=check.timeout_seconds)
-        writer.close()
-        await writer.wait_closed()
+        reader, writer = await asyncio.wait_for(asyncio.open_connection(host, port), timeout=check.timeout_seconds)
+    except Exception as exc:
+        return False, str(exc)
+    try:
+        if check.type == "ssh":
+            banner = await asyncio.wait_for(reader.readuntil(b"\n"), timeout=check.timeout_seconds)
+            if not banner.startswith(b"SSH-"):
+                return False, f"unexpected ssh banner from {check.target}: {banner[:32]!r}"
         return True, None
     except Exception as exc:
         return False, str(exc)
+    finally:
+        writer.close()
+        try:
+            await writer.wait_closed()
+        except Exception:
+            pass
 
 
 def _split_host_port(target: str) -> tuple[str, int]:

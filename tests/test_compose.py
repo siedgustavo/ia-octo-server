@@ -35,11 +35,14 @@ def test_retired_llamacpp_health_check_is_disabled_but_host_watchdog_stays_enabl
     assert config["watchdog"]["enabled"] is True
     assert config["watchdog"]["checks"] == [
         {
-            "type": "tcp",
+            "type": "ssh",
             "target": "host.docker.internal:22",
             "timeout_seconds": 1.0,
         }
     ]
+    assert config["watchdog"]["gpus_expected"] == 4
+    assert config["watchdog"]["gpu_recovery_enabled"] is True
+    assert config["watchdog"]["gpu_recovery_restart_containers"] == ["octofan-ollama"]
 
 
 def test_ollama_uses_gpu_scheduler_and_unloads_models_after_three_idle_hours():

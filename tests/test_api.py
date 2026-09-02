@@ -6,15 +6,19 @@ os.environ["OCTOFAN_MOCK"] = "1"
 
 from octofan_controller.app import (
     ManualFanRequest,
+    WatchdogMaintenanceRequest,
     _desired_led_modes,
     _gpu_idle_stop_candidate,
+    _gpu_recovery_state,
     _watchdog_in_grace_period,
+    _watchdog_maintenance_seconds_left,
     _watchdog_needs_rearm,
     api_fans_manual,
+    api_watchdog_maintenance,
     serialize_status,
     state,
 )
-from octofan_controller.config import AppConfig, load_config
+from octofan_controller.config import AppConfig, WatchdogConfig, load_config
 from octofan_controller.control import FanControlDecision
 from octofan_controller.llamacpp import LlamaCppServerStatus, LlamaCppStatus
 from octofan_controller.ollama import OllamaStatus
@@ -181,6 +185,36 @@ def test_watchdog_rearms_when_firmware_reports_disarmed():
     assert not _watchdog_needs_rearm(configured=True, status=armed)
     assert not _watchdog_needs_rearm(configured=False, status=disarmed)
     assert not _watchdog_needs_rearm(configured=True, status=offline)
+
+
+def test_gpu_recovery_state_grace_window_before_reset():
+    cfg = WatchdogConfig(gpus_expected=4, gpu_recovery_enabled=True, gpu_recovery_grace_seconds=300)
+    errors = ["expected 4 GPUs, nvidia-smi reports 3"]
+
+    blocking, deadline, run_recovery, note = _gpu_recovery_state(errors, None, now=1000.0, cfg=cfg)
+    assert not blocking and run_recovery and deadline == 1300.0
+
+    blocking, deadline, run_recovery, note = _gpu_recovery_state(errors, deadline, now=1150.0, cfg=cfg)
+    assert not blocking and not run_recovery and note == "GPU recovery in progress"
+
+    blocking, deadline, run_recovery, note = _gpu_recovery_state(errors, deadline, now=1301.0, cfg=cfg)
+    assert blocking and deadline is None and note == "GPU recovery exhausted"
+
+    blocking, deadline, _, _ = _gpu_recovery_state([], deadline, now=1400.0, cfg=cfg)
+    assert not blocking and deadline is None
+
+
+def test_gpu_recovery_state_disabled_blocks_immediately():
+    cfg = WatchdogConfig(gpus_expected=4, gpu_recovery_enabled=False)
+    blocking, deadline, run_recovery, _ = _gpu_recovery_state(["boom"], None, now=1000.0, cfg=cfg)
+    assert blocking and deadline is None and not run_recovery
+
+
+def test_watchdog_maintenance_endpoint_set_and_clear():
+    asyncio.run(api_watchdog_maintenance(WatchdogMaintenanceRequest(minutes=10)))
+    assert _watchdog_maintenance_seconds_left() > 500
+    asyncio.run(api_watchdog_maintenance(WatchdogMaintenanceRequest(minutes=0)))
+    assert _watchdog_maintenance_seconds_left() == 0
 
 
 def test_metrics_exports_llamacpp_server_status():

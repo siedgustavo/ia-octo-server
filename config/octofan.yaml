@@ -40,8 +40,12 @@ watchdog:
   feed_interval_seconds: 30.0
   unhealthy_failures_before_reset: 3
   gpus_expected: 4
+  gpu_recovery_enabled: true
+  gpu_recovery_grace_seconds: 300
+  gpu_recovery_restart_containers:
+  - octofan-ollama
   checks:
-  - type: tcp
+  - type: ssh
     target: host.docker.internal:22
     timeout_seconds: 1.0
 display:

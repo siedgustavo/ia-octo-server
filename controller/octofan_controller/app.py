@@ -12,15 +12,16 @@ from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel
 
 from .cli import OctofanCli, percent_to_pwm
-from .config import AppConfig, load_config, save_config
+from .config import AppConfig, WatchdogConfig, load_config, save_config
 from .control import (
     CriticalTemperatureGuard,
     calculate_fan_control_decision,
     clamp_active_fan_percent,
 )
 from .display import render_display, resolve_display_title
+from .docker import DockerApiClient
 from .llamacpp import LlamaCppClient, LlamaCppStatus
-from .metrics import metrics_payload, update_metrics
+from .metrics import metrics_payload, update_metrics, watchdog_metric
 from .nvidia import NvidiaSmi, NvidiaStatus
 from .ollama import OllamaClient, OllamaStatus
 from .parser import ControllerStatus
@@ -52,6 +53,7 @@ cli = OctofanCli(BIN_PATH)
 llamacpp_client = LlamaCppClient()
 ollama_client = OllamaClient()
 nvidia_smi = NvidiaSmi()
+docker_client = DockerApiClient()
 critical_temperature_guard = CriticalTemperatureGuard()
 state: dict[str, Any] = {
     "config": load_config(CONFIG_PATH),
@@ -70,6 +72,7 @@ state: dict[str, Any] = {
     "led_modes": {},
     "events": [],
     "watchdog": None,
+    "watchdog_maintenance_until": None,
 }
 
 
@@ -131,6 +134,7 @@ async def poll_loop() -> None:
 async def watchdog_loop() -> None:
     configured = False
     unhealthy_failures = 0
+    gpu_recovery_deadline: float | None = None
     while True:
         cfg: AppConfig = state["config"]
         if cfg.watchdog.enabled:
@@ -143,17 +147,30 @@ async def watchdog_loop() -> None:
                     configured = True
                 except Exception as exc:
                     _event(f"failed to configure watchdog: {exc}")
-            result = await run_watchdog_checks(cfg.watchdog)
-            if state["nvidia_ready"]:
-                gpu_errors = gpu_watchdog_errors(state["nvidia"], cfg.watchdog.gpus_expected)
-                if gpu_errors:
-                    result = WatchdogResult(
-                        healthy=False,
-                        checked=result.checked + 1,
-                        errors=result.errors + gpu_errors,
-                    )
+            maintenance_left = _watchdog_maintenance_seconds_left()
+            watchdog_metric.labels("maintenance").set(1 if maintenance_left else 0)
+            base = await run_watchdog_checks(cfg.watchdog)
+            gpu_errors = gpu_watchdog_errors(state["nvidia"], cfg.watchdog.gpus_expected) if state["nvidia_ready"] else []
+            blocking, gpu_recovery_deadline, run_recovery, gpu_note = _gpu_recovery_state(
+                gpu_errors, gpu_recovery_deadline, time.monotonic(), cfg.watchdog
+            )
+            if run_recovery:
+                _event(f"GPU watchdog: {gpu_errors[0]}; restarting {cfg.watchdog.gpu_recovery_restart_containers or 'nothing configured'} before escalating to firmware reset")
+                asyncio.create_task(_run_gpu_recovery(cfg.watchdog.gpu_recovery_restart_containers))
+            errors = list(base.errors)
+            if gpu_errors:
+                if blocking:
+                    errors.extend(gpu_errors)
+                elif gpu_note:
+                    errors.append(gpu_note)
+            result = WatchdogResult(healthy=not base.errors and not blocking, checked=base.checked + (1 if gpu_errors else 0), errors=errors)
             state["watchdog"] = result
-            if result.healthy:
+            if maintenance_left:
+                try:
+                    cli.feed_watchdog()
+                except Exception as exc:
+                    _event(f"failed to feed watchdog during maintenance: {exc}")
+            elif result.healthy:
                 unhealthy_failures = 0
                 try:
                     cli.feed_watchdog()
@@ -161,21 +178,22 @@ async def watchdog_loop() -> None:
                     _event(f"failed to feed watchdog: {exc}")
             else:
                 unhealthy_failures += 1
-                errors = ", ".join(result.errors)
+                errors_text = ", ".join(result.errors)
                 if _watchdog_in_grace_period(unhealthy_failures, cfg.watchdog.unhealthy_failures_before_reset):
                     _event(
                         "watchdog unhealthy "
-                        f"({unhealthy_failures}/{cfg.watchdog.unhealthy_failures_before_reset}): {errors}"
+                        f"({unhealthy_failures}/{cfg.watchdog.unhealthy_failures_before_reset}): {errors_text}"
                     )
                     try:
                         cli.feed_watchdog()
                     except Exception as exc:
                         _event(f"failed to feed watchdog during unhealthy grace period: {exc}")
                 else:
-                    _event(f"watchdog unhealthy: {errors}")
+                    _event(f"watchdog unhealthy: {errors_text}")
         else:
             configured = False
             unhealthy_failures = 0
+            gpu_recovery_deadline = None
             state["watchdog"] = None
             if cfg.watchdog.keepalive_when_disabled:
                 try:
@@ -187,6 +205,40 @@ async def watchdog_loop() -> None:
 
 def _watchdog_in_grace_period(unhealthy_failures: int, threshold: int) -> bool:
     return unhealthy_failures < threshold
+
+
+def _gpu_recovery_state(
+    gpu_errors: list[str],
+    deadline: float | None,
+    now: float,
+    cfg: WatchdogConfig,
+) -> tuple[bool, float | None, bool, str | None]:
+    if not gpu_errors:
+        return False, None, False, None
+    if not cfg.gpu_recovery_enabled:
+        return True, deadline, False, None
+    if deadline is None:
+        return False, now + cfg.gpu_recovery_grace_seconds, True, "GPU recovery in progress"
+    if now < deadline:
+        return False, deadline, False, "GPU recovery in progress"
+    return True, None, False, "GPU recovery exhausted"
+
+
+def _watchdog_maintenance_seconds_left() -> int:
+    until = state.get("watchdog_maintenance_until")
+    if until is None:
+        return 0
+    left = until - time.monotonic()
+    if left <= 0:
+        state["watchdog_maintenance_until"] = None
+        return 0
+    return int(left)
+
+
+async def _run_gpu_recovery(container_names: list[str]) -> None:
+    for name in container_names:
+        ok = await asyncio.to_thread(docker_client.restart_container, name)
+        _event(f"GPU watchdog: container {name} restart {'ok' if ok else 'FAILED'}")
 
 
 def _watchdog_needs_rearm(configured: bool, status: ControllerStatus) -> bool:
@@ -288,6 +340,23 @@ async def api_watchdog_test() -> dict[str, Any]:
     return {"healthy": result.healthy, "checked": result.checked, "errors": result.errors}
 
 
+class WatchdogMaintenanceRequest(BaseModel):
+    minutes: int
+
+
+@app.post("/api/watchdog/maintenance")
+async def api_watchdog_maintenance(req: WatchdogMaintenanceRequest) -> dict[str, Any]:
+    if req.minutes <= 0:
+        state["watchdog_maintenance_until"] = None
+        _event("watchdog maintenance disabled")
+    elif req.minutes > 240:
+        raise HTTPException(422, "maintenance minutes must be between 0 and 240")
+    else:
+        state["watchdog_maintenance_until"] = time.monotonic() + req.minutes * 60
+        _event(f"watchdog maintenance enabled for {req.minutes} minutes: feeding regardless of checks")
+    return {"maintenance_seconds_left": _watchdog_maintenance_seconds_left()}
+
+
 @app.post("/api/calibrate-fans")
 async def api_calibrate_fans() -> dict[str, Any]:
     status: ControllerStatus = state["status"]
@@ -358,6 +427,7 @@ def serialize_status() -> dict[str, Any]:
         "psus": {k: vars(v) for k, v in status.psus.items()},
         "bme280": {k: vars(v) for k, v in status.bme280.items()},
         "watchdog": None if watchdog is None else vars(watchdog),
+        "watchdog_maintenance_seconds_left": _watchdog_maintenance_seconds_left(),
         "llamacpp": state["llamacpp"].to_dict(),
         "ollama": state["ollama"].to_dict(),
         "nvidia": state["nvidia"].to_dict(),

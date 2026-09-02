@@ -60,7 +60,7 @@ class FanConfig(BaseModel):
 
 
 class WatchdogCheck(BaseModel):
-    type: Literal["tcp", "http"] = "tcp"
+    type: Literal["tcp", "http", "ssh"] = "tcp"
     target: str = "host.docker.internal:22"
     timeout_seconds: float = Field(default=1.0, ge=0.1, le=30.0)
 
@@ -73,6 +73,9 @@ class WatchdogConfig(BaseModel):
     feed_interval_seconds: float = Field(default=5.0, ge=1.0, le=300.0)
     unhealthy_failures_before_reset: int = Field(default=3, ge=1, le=100)
     gpus_expected: int = Field(default=0, ge=0, le=16)
+    gpu_recovery_enabled: bool = False
+    gpu_recovery_grace_seconds: int = Field(default=240, ge=60, le=1800)
+    gpu_recovery_restart_containers: list[str] = Field(default_factory=list)
     checks: list[WatchdogCheck] = Field(default_factory=list)
 
 
