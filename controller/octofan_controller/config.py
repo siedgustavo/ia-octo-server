@@ -72,6 +72,7 @@ class WatchdogConfig(BaseModel):
     long_timeout_seconds: int = Field(default=1500, ge=60, le=86400)
     feed_interval_seconds: float = Field(default=5.0, ge=1.0, le=300.0)
     unhealthy_failures_before_reset: int = Field(default=3, ge=1, le=100)
+    gpus_expected: int = Field(default=0, ge=0, le=16)
     checks: list[WatchdogCheck] = Field(default_factory=list)
 
 

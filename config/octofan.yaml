@@ -39,6 +39,7 @@ watchdog:
   long_timeout_seconds: 1500
   feed_interval_seconds: 30.0
   unhealthy_failures_before_reset: 3
+  gpus_expected: 4
   checks:
   - type: tcp
     target: host.docker.internal:22

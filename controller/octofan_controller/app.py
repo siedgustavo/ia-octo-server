@@ -24,7 +24,7 @@ from .metrics import metrics_payload, update_metrics
 from .nvidia import NvidiaSmi, NvidiaStatus
 from .ollama import OllamaClient, OllamaStatus
 from .parser import ControllerStatus
-from .watchdog import run_watchdog_checks
+from .watchdog import WatchdogResult, gpu_watchdog_errors, run_watchdog_checks
 
 
 CONFIG_PATH = Path(os.getenv("OCTOFAN_CONFIG", "/config/octofan.yaml"))
@@ -142,6 +142,13 @@ async def watchdog_loop() -> None:
                 except Exception as exc:
                     _event(f"failed to configure watchdog: {exc}")
             result = await run_watchdog_checks(cfg.watchdog)
+            gpu_errors = gpu_watchdog_errors(state["nvidia"], cfg.watchdog.gpus_expected)
+            if gpu_errors:
+                result = WatchdogResult(
+                    healthy=False,
+                    checked=result.checked + 1,
+                    errors=result.errors + gpu_errors,
+                )
             state["watchdog"] = result
             if result.healthy:
                 unhealthy_failures = 0

@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 import httpx
 
 from .config import WatchdogCheck, WatchdogConfig
+from .nvidia import NvidiaStatus
 
 
 @dataclass
@@ -15,6 +16,21 @@ class WatchdogResult:
     healthy: bool
     checked: int
     errors: list[str]
+
+
+def gpu_watchdog_errors(nvidia: NvidiaStatus, gpus_expected: int) -> list[str]:
+    if gpus_expected <= 0:
+        return []
+    if not nvidia.ok:
+        return [f"nvidia-smi failed: {nvidia.error or 'unknown error'}"]
+    errors: list[str] = []
+    phantoms = sum(1 for gpu in nvidia.gpus if not gpu.uuid)
+    if phantoms:
+        errors.append(f"nvidia-smi returned {phantoms} GPU entries without UUID")
+    real = len(nvidia.gpus) - phantoms
+    if real != gpus_expected:
+        errors.append(f"expected {gpus_expected} GPUs, nvidia-smi reports {real}")
+    return errors
 
 
 async def run_watchdog_checks(cfg: WatchdogConfig) -> WatchdogResult:
