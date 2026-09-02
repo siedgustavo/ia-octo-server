@@ -59,6 +59,7 @@ state: dict[str, Any] = {
     "llamacpp": LlamaCppStatus(),
     "ollama": OllamaStatus(),
     "nvidia": NvidiaStatus(ok=False, gpus=[], error="not polled yet"),
+    "nvidia_ready": False,
     "target_fan": None,
     "fan_control": None,
     "applied_fan_target": None,
@@ -118,6 +119,7 @@ async def poll_loop() -> None:
             llamacpp=llamacpp,
             ollama=ollama,
             nvidia=nvidia,
+            nvidia_ready=True,
             target_fan=target,
             fan_control=fan_control,
             gpu_idle_stop_active=gpu_idle_stop_active,
@@ -142,13 +144,14 @@ async def watchdog_loop() -> None:
                 except Exception as exc:
                     _event(f"failed to configure watchdog: {exc}")
             result = await run_watchdog_checks(cfg.watchdog)
-            gpu_errors = gpu_watchdog_errors(state["nvidia"], cfg.watchdog.gpus_expected)
-            if gpu_errors:
-                result = WatchdogResult(
-                    healthy=False,
-                    checked=result.checked + 1,
-                    errors=result.errors + gpu_errors,
-                )
+            if state["nvidia_ready"]:
+                gpu_errors = gpu_watchdog_errors(state["nvidia"], cfg.watchdog.gpus_expected)
+                if gpu_errors:
+                    result = WatchdogResult(
+                        healthy=False,
+                        checked=result.checked + 1,
+                        errors=result.errors + gpu_errors,
+                    )
             state["watchdog"] = result
             if result.healthy:
                 unhealthy_failures = 0
