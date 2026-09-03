@@ -1,118 +1,82 @@
-# Watchdog Plan B: power cycle real via PC4
+# Power cycling del servidor: decision final (2026-09-03)
 
-Objetivo: que el long timeout del firmware del Octofan apague y vuelva a encender la fuente
-del Octominer (power cycle completo: EPS de los Xeon, pico ATX, todo), sin electronica
-exotica y con default **ON** a prueba de controller muerto.
+**Estado: Plan B (corte por PS_ON con relay) ABANDONADO.** El power cycling del servidor
+queda cubierto por dos caminos:
 
-## Logica de diseno
+| Necesidad | Camino |
+| --- | --- |
+| Host colgado / GPU perdida / sshd muerto | Watchdog autonomo del firmware Octofan => pulso **RESET** de la placa (Plan A, cableado y probado) |
+| Placa irreconocible o apagado sostenido | Corte de **220 V** con enchufe inteligente SmartLife/Tuya (Plan C) |
+| Apagado normal | `poweroff` del SO (la mother hace su secuencia ATX; no interviene hardware) |
 
-La mother del minero hacia de intermediaria: PS_ON del JATX llegaba a su header y su
-circuito de power-button (manejado por el controller) lo llevaba a GND. Sin mother, la
-emulamos:
+## Configuracion fisica final
 
+- `PS_ON` del JATX: **puente directo a GND** (fuente siempre encendida por logico ATX).
+- Plan A: **RST SW (PC3) -> RESET_SW del F_PANEL de la ZX directo**. Probado con
+  `fan_controller_cli -x`: la maquina se resetea. El watchdog del firmware escala solo:
+  sin alimento, timeout corto => pulso PC3 (reset de placa + auto-reset del AVR).
+- La linea **PWR SW (PC4) queda sin usar**. Nunca conectarla al PWR_SW de la ZX: `-p`
+  latchea cerrado y deja "boton presionado" hasta que muere el AVR.
+- Enchufe inteligente sobre la alimentacion AC del gabinete.
+
+**Requisitos para que el Plan C funcione (verificar ambos):**
+
+1. Enchufe: `Power Recovery / estado tras corte de energia = ON` (muchos vienen en OFF o
+   "recordar" por defecto).
+2. BIOS de la ZX: `Restore on AC Power Loss = Power On`. Sin esto, cuando el enchufe
+   vuelve, la fuente revive pero la placa queda en standby esperando boton.
+
+Prueba corta: con el rig prendido, cortar 10 s desde el enchufe y devolver; tiene que
+volver solo hasta el daemon.
+
+## Por que se abandoono el Plan B (evidencia de banco, 2026-09-03)
+
+El circuito probado: modulo relay activo-alto (S/-/+) con puente S-+, 5V del propio host,
+y cierre a masa desde PWR SW (PC4) para activarlo. Resultado: apagaba, pero **la bloqueaba
+a la ZX**: boton frontal muerto y sin retorno hasta corte de AC. Causa medida:
+
+1. **Sobrecorriente del pin del AVR**: PC4 es una patita logica del ATmega324PB (~20 mA
+   recomendado / 40 mA abs max). La bobina del modulo pide 50-90 mA. El driver no satura:
+   la "masa" queda en 1-2 V, el modulo trabaja al borde de su tension de atraccion y
+   **rebota**. Multi-flapping de PS_ON = lockup profundo de la placa. Con masa por cable
+   directo (sin pasar por PC4) el corte es unico y limpio, y la placa se recupera.
+2. **OFF demasiado corto**: la duracion del corte quedaba librada al brownout del AVR
+   (lo que tarda en morir el 5V USB ~ 0.5-2 s). Con la fuente casi sin carga las rails
+   ATX no se descargan en ese tiempo y la placa queda en brownout/limbo. Se considero
+   supercap (0.47-1F + diodo + limitador) para garantizar 15-30 s de OFF, pero con el
+   punto 1 pendiente el plan completo requeria PNP inversor + supercap + validaciones.
+3. **Un "OFF sostenido" por controller es imposible con bobina alimentada desde el USB
+   del propio host**: fuente off => muere USB => muere AVR => se libera PC4 => la fuente
+   vuelve. `-p` es ciclicamente un power-cycle, nunca un apagado final. (Para OFF
+   sostenido por hardware: mantener el controller vivo con alimentacion externa
+   (powerbank) + `-p` => latch retenido => fuente off indefinida. Util solo para
+   traslado/aislamiento.)
+
+Registro de la escalera del firmware (firmware_09.hex): short timeout => pulso PC3 +
+WDT del AVR; long timeout => latch PC4 alto, liberado solo en boot init. Con PWR SW sin
+conectar, la escalada longa queda inofensiva por diseño.
+
+## Historico: circuito que se probo (no usar como base)
+
+```text
++5V USB (del host) ──┬── + del modulo ── S del modulo (puente activo-alto)
+                     │
+PWR SW (PC4) ────────┴── masa de activacion   [SOBRECARGA PC4: causa del fallo]
+NC del relay ── entre PSON activo del JATX y GND
 ```
-PS_ON (JATX) ----[contacto NC del relay]---- GND     <- default ON (equivale al puente actual)
-Relay: bobina alimentada con USB-5V del host, en serie con NPN, base al pin **PWR SW** del
-conector del controller (= PC4) via 1k + 10k pull-down
-```
 
-| Estado | PC4 | USB 5V | Relay | PS_ON | Fuente |
-| --- | --- | --- | --- | --- | --- |
-| Host sano (normal) | low | presente | suelto | GND | ON |
-| Long timeout dispara | **high** | presente | atraido | flotante | **OFF** |
-| Fuente apagada => host off | (perdido) | **ido** | suelto | GND | **ON de nuevo** |
-| Controller desenchufado / frito | - | - | suelto | GND | ON |
+Variantes que quedaron documentadas pero no implementadas: PNP inversor (2N3906, base
+10k pull-up a +5V, PWR SW a base) para respetar los 20 mA del pin, y supercap para el
+OFF largo. Si algun dia se retoma, son los dos requisitos obligatorios, mas la prueba
+critica de auto-arranque de la Fase 3 original.
 
-Resultado: el long timeout produce un **apagon de ~10-30 s y re-encendido automatico**.
-Si el host vuelve y el daemon alimenta el watchdog, el ciclo se detiene. Si el host esta
-muerto del todo, el rig queda en ciclo off/on lento (comportamiento esperado de un rig
-headless; es lo que hacia el diseno original).
+## Estados del watchdog de software (referencia)
 
-El latch de PC4 que muestra el firmware (nunca hace `cbi` de PC4) se autode limpia solo en
-este circuito: al apagarse la fuente se pierde el USB 5V del controller => AVR apaga =>
-boot init libera PC4. Por eso la bobina **debe** alimentarse del 5V del USB del host, no de
-5VSB: es el mecanismo de re-encendido.
-
-## Fase 1 - Identificar hilos (multimetro, sin soldar)
-
-Del **conector del controller** (pines ya rotulados en el silkscreen, ver
-`hardware-mods.md` -> "Conector del controller"): solo falta caracterizarlos, no adivinarlos:
-
-1. **GND**: pin `GND` del conector USB-A del controller.
-2. **PWR SW** (= PC4): con el controller en USB de una maquina de prueba, `fan_controller_cli
-   -p` y medir entre los 2 pines del header rotulado y contra GND: determinar si es contacto
-   seco (cierra a GND), push-pull (5 V persistente) o sink activo-bajo. Confirmar que al
-   desenchufar el USB del controller queda libre/auto-liberado.
-3. **RST SW** (= PC3): con `-x`, pulso de ~0.3 s en el header rotulado (misma
-   caracterizacion; si el multimetro no lo alcanza, LED+R en serie).
-4. **USB 5V**: pin `5V` del conector USB-A (alimentacion de la bobina del relay).
-
-Del **JATX (lado backplane)**: cable de 6 hilos ya identificado:
-`5VSB - SVSB - PSON - PSON - GND - GND` (hoy UNO de los PSON esta puenteado a GND).
-
-5. Confirmar con multimetro cuales pines fisicos corresponden al PSON puenteado (el del
-   puente actual) y dejar el **segundo PSON libre** como punto de corte del relay: el
-   contacto NC del relay ira entre ese PSON y GND, y el puente actual se convierte en el
-   override manual de mantenimiento.
-6. Verificar continuidad de `5VSB`/`SVSB` hacia el backplane: informativo (el diseno no lo
-   usa, pero define alternativas futuras).
-
-## Fase 2 - Circuito
-
-Opcion simple (recomendada): **modulo relay 1 canal** (optoaislado, trigger alto o bajo,
-cualquier servo-module de 5 V sirve) + logica:
-
-- `VCC` del modulo <- USB 5V del arnes del controller (con el host prendido).
-- `IN` <- PC4 (con R 1k en serie; 10k pull-down de IN a GND si el modulo es trigger-alto
-  para que float = sin disparo).
-- Contacto **NC** del relay en paralelo con el punto del puente PS_ON-GND actual.
-- Dejar un **switch/toggle manual** en serie con el puente como override de mantenimiento
-  (ON fuerza = fuente prendida sin importar el relay).
-
-Si el modulo es trigger-BAJO (comun en modulos chinos), invertir la logica con un NPN extra
-o usar un PNP en el alto: PC4 low => IN=GND => energizado => NC **abierto** => fuente OFF.
-MAL: ahi la normalidad apagara la fuente. Con trigger-bajo usar contacto **NO** invertido...
-Regla simple y a prueba de olvido: **con el host prendido y PC4 low, el contacto debe estar
-CERRANDO PS_ON-GND**. Medir con multimetro antes de conectar la fuente al bucle.
-
-Alternativa discreta (sin modulo): relay 5 V (bobina <= 5V USB), NPN 2N2222 con base a PC4
-via 1k + 10k pull-down, diodo de rueda libre 1N4148 en la bobina, contacto NC sobre
-PS_ON-GND.
-
-## Fase 3 - Pruebas en banco (fuente sin Xeon conectado, o con EPS desconectado)
-
-1. Controller USB a notebook => `-p`: el relay debe atraer (click), fuente OFF, notebook
-   pierde el USB, relay suelta, fuente ON. Ciclo completo observable.
-2. Medir duracion del off: es el tiempo entre latch de PC4 y perdida de 5V (debe ser
-   instantaneo; el off dura lo que tarda la fuente en morir + el AVR en apagarse = ~2-5 s
-   de off real + boot de la placa).
-3. **Prueba critica de auto-arranque**: con la ZX-DU99D4 conectada (pico + EPS), cortar la
-   fuente grande por `-p` y verificar que la placa **arranca sola** cuando vuelve el 12 V.
-   - Si arranca: fin, todo firmware.
-   - Si NO arranca (queda en S5 porque su PS_ON a la pico sigue desasertado): probar BIOS
-     `Restore on AC / Power Loss = Power On` (muchas AMI chicas lo tienen y la pico hace
-     desaparecer la 5VSB falsa al irse el 12 V).
-   - Si aun asi no: Plan B queda como "apagado remoto" y el re-encendido lo resuelve el
-     Plan C (PDU IP) => la combinacion B+C cubre todo igual.
-4. Integracion: volver a `watchdog.enabled: true` con los valores de prod y probar
-   desalimentando a proposito (parar el daemon o tumbar SSH) y observar escalada completa.
-
-## Notas y riesgos
-
-- PC3/PC4 son push-pull 5 V: hacia el F_PANEL de la placa (RESET_SW del Plan A) SIEMPRE por
-  transistor o R serie, nunca directo (pull-up interno de 3.3 V de la placa).
-- El relay ve 12 V de la fuente "de lado", pero solo conmuta PS_ON-GND (senal): sin riesgos
-  de potencia.
-- Si el controller queda alimentado por una fuente que no muere con el rig (powerbank, otro
-  host), el latch de PC4 **no se autode limpia** y el rig queda apagado permanentemente.
-  Por eso: bobina solo desde el USB del propio host.
-- Firmware revisado: no existe re-pulso de PC4; todo el re-encendido depende de la perdida
-  de power del AVR, tal como esta disenado el circuito de arriba.
-
-## Pendientes
-
-- [ ] Medir PC3/PC4/5V/GND en el arnes del controller (Fase 1 items 1-4)
-- [ ] Confirmar PS_ON/5VSB en JATX (items 5-6)
-- [ ] Probar `-p` en banco con el relay (Fase 3.1-3.2)
-- [ ] Verificar auto-arranque de la placa (item 3) y definir si hace falta BIOS/PDU
-- [ ] Registrar el pinout final del arnes aca mismo y en `hardware-mods.md`
+El daemon alimenta el watchdog del firmware cada `watchdog.feed_interval_seconds` mientras
+`watchdog.checks` (TCP/HTTP/**SSH con validacion de banner**) esten sanos y la condicion
+GPU (`watchdog.gpus_expected`) se cumpla. Ante fallo GPU con `gpu_recovery_enabled`,
+primero reinicia los contenedores configurados
+(`gpu_recovery_restart_containers`, via socket docker montado en el controller) durante
+`gpu_recovery_grace_seconds`; si no se recupera, deja de alimentar y el firmware actua.
+Existe modo mantenimiento (`POST /api/watchdog/maintenance`) que alimenta siempre, y
+gracia de startup de 120 s para absorber flaps de red tras recreates de container.

@@ -74,10 +74,29 @@ Estado fisico actual del gabinete Octominer/Octofan tras la conversion a servido
   `PC4` = latch power-down = **PWR SW**.
 - Los pares USB de este conector son como el controller se alimentaba/comunicaba con la
   mother del minero (por eso JATX y arnes entraban "al mismo lugar").
-- Plan A (reset): el header **RST SW** va al `RESET_SW` del F_PANEL de la ZX-DU99D4 (por
-  transistor o R serie si el pin resulta push-pull 5 V; directo si es contacto seco).
-- Plan B (power): el header **PWR SW** es la senal que maneja el relay del plan
-  (`docs/watchdog-power-cycle.md`).
+- Plan A (reset): el header **RST SW** va al `RESET_SW` del F_PANEL de la ZX-DU99D4
+  **directo** (verificado 2026-08-31: ambas lineas son 3.3 V con pull-up y "presionar" =
+  cierre a GND; no hace falta transistor ni R serie).
+- Plan B (power): **ABANDONADO 2026-09-03** (`docs/watchdog-power-cycle.md`). La linea
+  **PWR SW queda sin usar**: nunca al PWR_SW de la ZX (con `-p` latcheado quedaria
+  "boton presionado para siempre" y la placa no rearanca sola).
+- Estado cableado final (2026-09-03): **RST SW -> RESET_SW de la ZX conectado y probado**
+  (`fan_controller_cli -x` resetea la maquina; el watchdog autonomo del firmware usa la
+  misma linea en su escalada de timeout corto). `PS_ON` del JATX: puente directo. El
+  apagado/ciclo AC queda en un enchufe inteligente SmartLife/Tuya.
+
+## Limite de corriente de los headers PC3/PC4 (2026-09-03)
+
+PC3/PC4 son patitas logicas del ATmega324PB: **~20 mA recomendado / 40 mA abs max** por
+pin. Consecuencias medidas:
+
+- Un modulo relay comun (bobina 50-90 mA) **no se puede colgar directo** de PWR SW: el
+  driver no satura, la "masa" queda en 1-2 V, el modulo vibra al borde de su tension de
+  atraccion y el multiple flap de la senal (en nuestro test, PS_ON) lockupeo la placa ZX
+  (boton muerto hasta corte de AC).
+- Para manejar carga desde estos headers hace falta una etapa de potencia (PNP 2N3906 /
+  BC557 con base 10k pull-up, o relay de senal de <= 20 mA de bobina).
+- RST SW no tiene este problema: no se le cuelga carga, solo el contacto del boton.
 
 ## Enlace I2C controller <-> backplane de la fuente
 
@@ -146,17 +165,23 @@ esa linea no iba a un power-button logico sino al **net de PS_ON** (cerrar = ON 
 OFF, como en las placas mineras sin boton). Tambien encaja con que el rig encendiera con el
 boton del controller.
 
-Medicion definidora ahora directo en el header rotulado del controller (controller
-alimentado desde una fuente USB independiente, rig desconectado):
+### Medicion empírica de los headers (2026-08-31)
 
-| Prueba | PWR SW contacto seco | PWR SW push-pull | PWR SW sink activo-bajo |
+Controller alimentado por USB independiente, multimetro en DC sobre los headers rotulados
+(el silkscreen esta **correcto**; la confusion inicial fue leerlo al reves):
+
+| Header | idle | Durante el comando | Veredicto |
 | --- | --- | --- | --- |
-| idle (sin `-p`) | alta impedancia | 0 V | 5 V con pull-up externo |
-| con `-p` | cerrado a GND | 5 V persistentes | 0 V (a GND) persistentes |
-| sin USB controller | abierto | flotante | flotante |
+| **PWR SW** (PC4) | alta impedancia ("boton soltado") | `-p`: **cierre a GND persistente** (latch) | **contacto seco activo-bajo**, exacto al firmware. Auto-liberacion al morir el AVR. |
+| **RST SW** (PC3) | **3.3 V** (pull-up) | `-x`: pulso corto hacia GND (el tester alcanzo a marcar 2.8 V por refresco; confirmar con reset real sobre la placa) | emulacion de boton reset 3.3 V activo-bajo. |
 
-Segun el resultado, el trigger del relay del Plan B se toma directo del pin PWR SW (push-pull)
-o se arma con el contacto seco. Ver `docs/watchdog-power-cycle.md`.
+Consecuencias directas:
+
+- **Plan A**: RST SW va **directo** al `RESET_SW` de la ZX (mismo nivel 3.3 V, misma
+  semantica "corto a GND = presionado"). No hace falta transistor.
+- **Plan B**: PWR SW es un contacto a masa con auto-liberacion => modulo relay de
+  **trigger activo-bajo** con el contacto entre `IN` y `GND` del modulo; cae la seccion de
+  inversores NPN del doc de power-cycle.
 
 ### Otros hallazgos
 

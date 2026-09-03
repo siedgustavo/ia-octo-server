@@ -55,6 +55,22 @@ Supported profiles are `system`, `thermal`, `power` and `ai`.
 
 Runs the configured watchdog checks without changing watchdog state.
 
+### `POST /api/watchdog/maintenance`
+
+Enables or disables watchdog maintenance mode. While active the daemon keeps feeding the
+firmware watchdog regardless of check results (planned maintenance, container recreates,
+sshd restarts). Auto-expires after the requested minutes.
+
+Payload:
+
+```json
+{"minutes": 15}
+```
+
+`minutes: 0` disables maintenance immediately. Maximum 240. The remaining time is exposed
+in `GET /api/status` as `watchdog_maintenance_seconds_left` and as
+`octofan_watchdog{metric="maintenance"}`.
+
 ### `POST /api/calibrate-fans`
 
 Saves current fan RPM as max RPM through the controller CLI. Use this only when fans are intentionally running at calibration speed.
@@ -97,7 +113,26 @@ Common PSU metric values include `voltage_ac`, `amperage_ac`, `power_ac`, `volta
 
 Watchdog:
 
-- `octofan_watchdog{metric}`
+- `octofan_watchdog{metric}` with `metric` values: `mode` (firmware arming state read back
+  from the controller; the daemon re-arms automatically if it reports disarmed), `resets`
+  (firmware autonomous reset counter) and `maintenance` (1 while maintenance mode is on).
+
+Watchdog policy (config `watchdog.*`):
+
+- `checks`: list of `type: tcp|http|ssh` targets. `ssh` validates the SSH banner, so a
+  zombie `sshd` that only answers TCP fails the check.
+- `gpus_expected`: when > 0, the GPU inventory becomes a watchdog condition: `nvidia-smi`
+  failures, a GPU count mismatch, or phantom entries without UUID mark the watchdog
+  unhealthy.
+- `gpu_recovery_enabled` / `gpu_recovery_grace_seconds` / `gpu_recovery_restart_containers`:
+  on the first GPU-condition failure the daemon restarts the listed containers through the
+  mounted Docker socket and keeps feeding during the grace window; only if the condition
+  persists does it stop feeding and let the firmware act.
+- The unhealthy counter ignores failures during the first 120 s after daemon startup
+  (bridge-network flaps on container recreates).
+- Prometheus alerting rules live in `prometheus/rules/octofan-alerts.yml` (GPU count
+  mismatch, frozen GPU readings under load, `nvidia-smi` collector down, GPU > 85C,
+  controller unreachable).
 
 NVIDIA:
 
