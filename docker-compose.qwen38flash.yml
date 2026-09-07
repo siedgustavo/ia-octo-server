@@ -47,6 +47,14 @@ services:
       - "0.9,1,1,1.1"
       - --n-gpu-layers
       - "999"
+      # Proyector multimodal (Unsloth) para habilitar entrada de imagenes.
+      # Corre en CPU (--no-mmproj-offload): las 4 GPUs ya estan casi al
+      # limite de VRAM con el modelo principal (1-2GiB libres por tarjeta,
+      # ver `llama-server --list-devices`), no hay margen para los ~900MiB
+      # del proyector mas los buffers de activacion al procesar una imagen.
+      - --mmproj
+      - /models/UD-Q4_K_XL/mmproj-F16.gguf
+      - --no-mmproj-offload
       # Contexto nativo declarado por Qwen/Unsloth; no reducir por default.
       - --ctx-size
       - "262144"
