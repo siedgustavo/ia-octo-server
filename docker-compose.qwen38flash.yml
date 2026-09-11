@@ -37,8 +37,15 @@ services:
       - 0.0.0.0
       - --port
       - "8080"
-      # Layer split evita el cuello de botella del switch PCIe Gen2 x1 compartido
-      # por GPU 2 y 3. Ver docs/qwen38flash-split-benchmark.md.
+      # Layer split. Re-validado el 2026-09-11 tras reemplazar los risers (ahora
+      # las 4 GPU son Gen3 x8 directo a root ports, sin el switch ASM1184e):
+      # layer sigue ganando 2.26x en prompt y 2.54x en generacion. El motivo ya
+      # no es el ancho de banda sino la latencia del AllReduce: el chipset Xeon
+      # E5 v4 no soporta P2P (nvidia-smi topo -p2p r = CNS), NCCL no inicializa
+      # y el AllReduce interno de llama.cpp solo soporta 2 dispositivos, asi que
+      # con 4 GPU cae al backend "butterfly". No volver a probar tensor por
+      # cambios de cableado PCIe: haria falta P2P por hardware (o NVLink bridge)
+      # mas NCCL funcional. Ver docs/qwen38flash-split-benchmark.md.
       - --split-mode
       - layer
       - --tensor-split
