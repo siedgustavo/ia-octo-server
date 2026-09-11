@@ -1,0 +1,58 @@
+Sos un asistente de programacion experto. Analiza el siguiente codigo Python,
+detecta bugs, y proponé una refactorizacion con manejo de errores robusto.
+
+import asyncio
+import json
+from dataclasses import dataclass
+from typing import Optional
+
+@dataclass
+class FanState:
+    fan_id: int
+    rpm: int
+    pwm: int
+    percent: Optional[float]
+
+class FanController:
+    def __init__(self, cli_path: str):
+        self.cli_path = cli_path
+        self._lock = asyncio.Lock()
+
+    async def read_state(self, fan_id: int) -> FanState:
+        async with self._lock:
+            proc = await asyncio.create_subprocess_exec(
+                self.cli_path, "-f", str(fan_id), "-r",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            out, err = await proc.communicate()
+            data = json.loads(out.decode())
+            return FanState(fan_id, data["rpm"], data["pwm"], data.get("percent"))
+
+    async def set_pwm(self, fan_id: int, value: int) -> None:
+        if value < 0 or value > 255:
+            raise ValueError("pwm out of range")
+        async with self._lock:
+            proc = await asyncio.create_subprocess_exec(
+                self.cli_path, "-f", str(fan_id), "-v", str(value)
+            )
+            await proc.wait()
+
+Preguntas:
+1. Que pasa si el CLI devuelve JSON invalido o vacio? Como lo manejarias?
+2. El lock serializa TODO el acceso USB. Es correcto para evitar colisiones?
+3. Como agregarias un retry con backoff exponencial ante fallos transitorios?
+4. Escribi tests con pytest y asyncio para read_state y set_pwm.
+
+Ademas, explicame la diferencia entre concurrencia y paralelismo en el contexto
+de asyncio, y por que un GIL de Python afecta el segundo pero no tanto el primero.
+
+Finalmente, dado un sistema de inferencia MoE con expertos distribuidos entre
+VRAM y RAM, describi una estrategia de scheduling que minimice la latencia de
+generacion cuando el ancho de banda de memoria del host es el cuello de botella.
+Considera el impacto de la topologia PCIe y de los shared experts siempre activos.
+
+The quick brown fox jumps over the lazy dog. Numerical stability matters:
+compute softmax as exp(x - max(x)) / sum(exp(x - max(x))) to avoid overflow.
+Consider edge cases: empty input, NaN propagation, integer overflow, and
+division by zero. Write defensive code and document invariants clearly.
