@@ -1,0 +1,72 @@
+# Compose de PRUEBA para benchmarkear MTP en Qwen3.8-Flash-Next.
+# No es parte del stack de produccion (ver docker-compose.qwen38flash.yml).
+# Usa Dockerfile.qwen38flash-mtp-test (rama danielhanchen/llama.cpp qwen4exp/mtp).
+#
+# Uso en octoserver (requiere bajar el qwen38flash de produccion antes, no
+# entran los dos juntos en VRAM):
+#   docker compose -f docker-compose.qwen38flash.yml stop qwen38flash
+#   docker compose -f docker-compose.qwen38flash-mtp-test.yml up --build -d
+#
+# Resultados en docs/qwen38flash-split-benchmark.md.
+
+services:
+  qwen38flash-mtp-test:
+    build:
+      context: ./llamacpp
+      dockerfile: Dockerfile.qwen38flash-mtp-test
+    image: octofan/llamacpp:qwen38flash-mtp-test
+    container_name: qwen38flash-mtp-test
+    gpus: all
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+      SLOT_SAVE_PATH: /kv-cache
+      KV_CACHE_FILE: qwen3.8-flash-next-mtp-test
+      SLOT_COUNT: "1"
+    volumes:
+      - ${QWEN_MODELS_DIR:-/opt/models-archive}:/models:ro
+      - ./kv-cache-mtp-test:/kv-cache
+    ports:
+      - "8092:8080"
+    command:
+      - --model
+      - /models/UD-Q4_K_XL/Qwen3.8-Flash-Next-UD-Q4_K_XL-00001-of-00004.gguf
+      - --model-draft
+      - /models/MTP/mtp-Qwen3.8-Flash-Next-shared-Q8_0.gguf
+      - --spec-type
+      - draft-mtp
+      - --spec-draft-n-max
+      - "2"
+      - --alias
+      - qwen3.8-flash-next-mtp-test
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"
+      - --split-mode
+      - layer
+      - --tensor-split
+      - "1,1,1,0.85"
+      - --n-gpu-layers
+      - "999"
+      - --ctx-size
+      - "131072"
+      - --parallel
+      - "1"
+      - --batch-size
+      - "512"
+      - --ubatch-size
+      - "128"
+      - --cache-type-k
+      - q8_0
+      - --cache-type-v
+      - q8_0
+      - --flash-attn
+      - "on"
+      - --chat-template-kwargs
+      - '{"reasoning_effort":"medium"}'
+      - --jinja
+
+networks:
+  default:
+    name: qwen38flash-mtp-test

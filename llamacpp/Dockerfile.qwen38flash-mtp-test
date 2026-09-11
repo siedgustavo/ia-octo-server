@@ -1,0 +1,69 @@
+# Build de PRUEBA para benchmarkear MTP (speculative decoding) en
+# Qwen3.8-Flash-Next. NO es la imagen de produccion (ver Dockerfile.qwen38flash).
+#
+# El soporte --spec-type draft-mtp para qwen4exp no esta mergeado en
+# ggml-org/llama.cpp todavia (PR #27836 / #28243, ambos abiertos al
+# 2026-09-05). Usa la rama de trabajo del maintainer de Unsloth, que es la
+# que documenta https://unsloth.ai/docs/models/qwen3.8-next para correr MTP.
+# Fuente: https://huggingface.co/unsloth/Qwen3.8-Flash-Next-GGUF/blob/main/MTP/README.md
+
+ARG CUDA_VERSION=12.6.3
+ARG UBUNTU_VERSION=24.04
+
+FROM nvidia/cuda:${CUDA_VERSION}-devel-ubuntu${UBUNTU_VERSION} AS build
+
+ARG LLAMACPP_REPO=https://github.com/danielhanchen/llama.cpp
+ARG LLAMACPP_BRANCH=qwen4exp/mtp
+ARG CUDA_ARCH=86
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        git cmake ninja-build build-essential \
+        libcurl4-openssl-dev ca-certificates pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV CUDA_STUBS=/usr/local/cuda/lib64/stubs
+RUN ln -sf "${CUDA_STUBS}/libcuda.so" "${CUDA_STUBS}/libcuda.so.1"
+
+WORKDIR /src
+# Rama en movimiento (commits del mismo 2026-09-05): fijar el ref exacto se
+# hace en el momento del build para dejar registro de que commit se probo.
+RUN git clone --recurse-submodules --branch "${LLAMACPP_BRANCH}" --depth 1 \
+        "${LLAMACPP_REPO}" llama.cpp \
+    && cd llama.cpp && git rev-parse HEAD > /src/llama.cpp.commit \
+    && git submodule update --init --recursive
+
+WORKDIR /src/llama.cpp
+RUN cmake -B build -G Ninja \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DGGML_CUDA=ON \
+        -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH} \
+        -DGGML_NATIVE=OFF \
+        -DBUILD_SHARED_LIBS=OFF \
+        -DLLAMA_CURL=ON \
+        -DLLAMA_BUILD_TESTS=OFF \
+        -DLLAMA_BUILD_EXAMPLES=OFF \
+        -DLLAMA_BUILD_SERVER=ON \
+        -DCMAKE_EXE_LINKER_FLAGS="-L${CUDA_STUBS} -Wl,-rpath-link,${CUDA_STUBS}" \
+        -DCMAKE_SHARED_LINKER_FLAGS="-L${CUDA_STUBS} -Wl,-rpath-link,${CUDA_STUBS}" \
+    && cmake --build build --config Release -j "$(nproc)" \
+    && cmake --install build --prefix /opt/llama.cpp
+
+FROM nvidia/cuda:${CUDA_VERSION}-runtime-ubuntu${UBUNTU_VERSION}
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libcurl4-openssl-dev libgomp1 ca-certificates curl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=build /opt/llama.cpp /opt/llama.cpp
+COPY --from=build /src/llama.cpp.commit /opt/llama.cpp/COMMIT
+COPY entrypoint-kv-cache.sh /opt/llama.cpp/entrypoint.sh
+RUN chmod +x /opt/llama.cpp/entrypoint.sh
+ENV PATH=/opt/llama.cpp/bin:${PATH}
+ENV LD_LIBRARY_PATH=/opt/llama.cpp/lib:${LD_LIBRARY_PATH}
+ENV NVIDIA_VISIBLE_DEVICES=all
+ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
+
+EXPOSE 8080
+ENTRYPOINT ["/opt/llama.cpp/entrypoint.sh"]
