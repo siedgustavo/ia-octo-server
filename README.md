@@ -208,5 +208,6 @@ OCTOFAN_MOCK=1 docker compose up --build
 - [API and metrics](docs/api-and-metrics.md)
 - [GLM-5.3-Flash tuning and lessons](docs/glm53flash-benchmark.md)
 - [Qwen3.8-Flash-Next split benchmark](docs/qwen38flash-split-benchmark.md)
+- [Octoserver vs NVIDIA DGX Spark](docs/octoserver-vs-dgx-spark.md)
 - [Hardware mods](docs/hardware-mods.md)
 - [Watchdog power cycle (Plan B)](docs/watchdog-power-cycle.md)
