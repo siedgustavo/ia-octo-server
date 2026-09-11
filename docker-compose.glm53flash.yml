@@ -12,8 +12,12 @@
 #  - Imagen glm5next-mtp-27752: build con soporte GLM5Next + kernels DeltaNet/DSA.
 #  - Cuantizacion IQ1_S (~93 GB): mas liviana que Q2_K_XL, ~14% mas rapida.
 #  - --fit on (auto-fit): reparte capas/expertos por VRAM real y BALANCEA mejor
-#    la generacion que un tensor-split manual. Mover mas expertos a GPU acelera
-#    el prompt pero FRENA la generacion por el trafico via risers x1 en GPU2/3.
+#    la generacion que un tensor-split manual. NO usar --n-cpu-moe +
+#    --tensor-split a mano: --tensor-split reparte por CANTIDAD DE CAPAS, no por
+#    memoria, y en un MoE deja GPU0/1 casi vacias (~41 GiB desperdiciados),
+#    empujando mas expertos a CPU. Medido el 2026-09-11: n-cpu-moe 28 +
+#    split 1,1,1,1 da 30 tok/s prompt y 10 tok/s gen, contra 227/21.5 del
+#    auto-fit. Ver docs/glm53flash-benchmark.md.
 #  - --flash-attn on: en este build libera ~8-9 GiB/GPU y no rompe MLA.
 #  - ctx 131072 (128k): el usuario lo fijo; libera KV vs 262k y mejora gen.
 #  - MTP (--spec-type draft-mtp) descartado: acepta 96,9% draft pero baja la gen
@@ -62,8 +66,14 @@ services:
       # Reemplaza al tensor-split/n-cpu-moe manuales y balancea mejor la gen.
       - --fit
       - "on"
+      # 512 MiB de margen por GPU en vez de 1024: mide +19.8% prompt y +5.2%
+      # generacion (227.2/21.5 contra 189.6/20.5 tok/s). Validado con estres de
+      # contexto largo hasta 100k tokens sin OOM, quedando 675-769 MiB libres en
+      # las GPU mas cargadas. Si alguna vez aparece un OOM, volver a 1024 con
+      # GLM_FIT_TARGET sin tocar este archivo.
+      # Ver docs/glm53flash-benchmark.md, "Re-benchmark de GLM, 2026-09-11".
       - --fit-target
-      - ${GLM_FIT_TARGET:-1024,1024,1024,1024}
+      - ${GLM_FIT_TARGET:-512,512,512,512}
       # El modelo declara 1M nativo, pero para esta instancia dedicada el
       # usuario eligio explicitamente el mismo contexto operativo que Qwen.
       # 128k libera KV cache vs 262k y sube la generacion (~13 -> ~15 tok/s).

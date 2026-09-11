@@ -8,6 +8,15 @@ expuesta como API compatible con OpenAI en el puerto 8090.
 Este documento consolida varias iteraciones de prueba. La configuracion vigente
 esta al final, en "Configuracion final desplegada".
 
+> **Nota de vigencia (2026-09-11).** Las mediciones fechadas 2026-08-29 se
+> tomaron con la topologia PCIe **anterior** (GPU 2 y 3 a Gen2 x1 tras un switch
+> ASM1184e). Los risers se reemplazaron: hoy las cuatro GPU corren a Gen3 x8
+> directo a root ports del CPU. GLM se **re-benchmarkeo**: la generacion subio
+> ~33% (15.4 -> 20.5 tok/s), se adopto `--fit-target 512` (21.5 tok/s) y el
+> "hallazgo contraintuitivo" de la conclusion 3 quedo **refutado**. Ver
+> "Cambio de topologia PCIe, 2026-09-11" al final; ante contradicciones, mandan
+> las secciones del 2026-09-11.
+
 ## Entorno
 
 - Fecha: 2026-08-29 (America/Argentina/Buenos_Aires)
@@ -57,7 +66,8 @@ pero no aumenta la VRAM total ni evita el tramo en CPU.
 | Parametros totales / activos | 125B / 6B | 321B / 18B |
 | Modelo completo en VRAM | Si | No |
 | MoE en CPU | 0 capas | ~34 capas |
-| Generacion medida | ~43 tok/s | ~15 tok/s |
+| Generacion medida (2026-08) | ~43 tok/s | ~15 tok/s |
+| Generacion medida (2026-09-11) | ~51 tok/s | ~21.5 tok/s |
 
 ## Iteraciones de prueba
 
@@ -166,6 +176,11 @@ Rendimiento resultante:
 | Prompt processing | ~22 tok/s |
 | Generacion | **~15.4 tok/s** |
 
+> **Desactualizado (2026-09-11).** `--fit-target` paso a `512,512,512,512` tras
+> el re-benchmark con la topologia PCIe nueva, y el rendimiento medido hoy es
+> 227.2 tok/s de prompt y 21.5 tok/s de generacion. La config vigente real esta
+> en `docker-compose.glm53flash.yml`. Ver "Re-benchmark de GLM, 2026-09-11".
+
 ## Comportamiento con OpenCode (prueba end-to-end real)
 
 - El prompt inicial de OpenCode (system + tools + AGENTS.md) es de **~9.200
@@ -203,15 +218,195 @@ reemplazar los risers x1 de GPU 2/3.
 2. **MTP no ayuda** en este hardware: el cuello es el MoE en CPU/RAM, no la GPU.
 3. **Mas expertos en GPU no siempre es mejor:** acelera prompt, frena generacion
    por el trafico via risers x1.
+   **REFUTADO el 2026-09-11**: era un artefacto del reparto manual, que
+   desperdicia VRAM. Ver "El hallazgo contraintuitivo de agosto era un
+   artefacto".
 4. La unica palanca de gran impacto pendiente es **reemplazar los risers de
    GPU 2/3 (Gen2 x1 -> x16)**. Eso atacaria directamente la latencia entre GPUs
    y permitiria mas expertos en GPU sin la penalizacion actual. En software ya
    se exploro casi todo el margen disponible.
+   **Hecho el 2026-09-11** (quedo en Gen3 x8, no x16). Ver "Re-benchmark de
+   GLM, 2026-09-11" para el resultado y las conclusiones que lo reemplazan.
+
+## Revision 2026-09-05: mejoras de Unsloth, sin impacto
+
+Se reviso la [guia de Unsloth](https://unsloth.ai/docs/models/glm-5.3-flash) y el
+release `v0.1.806-beta` (4 de septiembre) por si resolvian el cuello de botella
+de esta config. **No aplica, se descarta re-testear.**
+
+- La mejora anunciada ("faster decoding path + MTP support, hasta 3.3x mas
+  rapido") esta benchmarkeada en **1x B200 (180 GiB HBM)**, un escenario donde
+  el modelo entra completo en VRAM. Es el caso GPU-bound, lo opuesto a nuestro
+  setup.
+- En octoserver el cuello es CPU-bound: ~34 capas de expertos MoE offloadeadas
+  a RAM por falta de VRAM combinada (96 GiB en 4 GPUs, modelo ~93-109 GB sin
+  contar KV/buffers). Por eso MTP ya se probo y se descarto aca (ver seccion
+  "4. MTP" mas arriba): mas verificacion en paralelo no ayuda cuando el limite
+  es alimentar expertos en CPU, no computo en GPU.
+- El changelog no menciona ningun fix a kernels de expertos-en-CPU,
+  `--n-cpu-moe`, ni latencia inter-GPU por PCIe lento (risers x1 de GPU 2/3).
+  Solo agrega mejoras de tool calling en chats largos, sin relacion con
+  rendimiento.
+- Conclusion: la unica palanca de gran impacto sigue siendo la de siempre,
+  reemplazar los risers de GPU 2/3 (Gen2 x1 -> x16). Nada de esta revision
+  cambia la config vigente.
+
+## Cambio de topologia PCIe, 2026-09-11
+
+Se reemplazaron los risers. El cambio fue mayor que solo el ancho del enlace:
+**desaparecio el switch ASM1184e** y las cuatro GPU pasaron a colgar directo de
+root ports del CPU.
+
+| Aspecto | Antes | Ahora |
+|---|---|---|
+| GPU 0 y 1 | Gen3 x16 | Gen3 x8 |
+| GPU 2 y 3 | Gen2 x1, compartido tras ASM1184e | Gen3 x8, root port propio |
+| Switch intermedio | Si | No |
+| Ancho por GPU 2/3 | ~500 MB/s entre las dos | ~7.9 GB/s cada una |
+
+Verificado bajo carga (`pcie.link.gen.current=3`, `width.current=8` en las
+cuatro). En reposo ASPM las baja a 2.5GT/s, es normal.
+
+Peer-to-peer sigue **no disponible** (`nvidia-smi topo -p2p r` = `CNS` en todos
+los pares): el chipset Xeon E5 v4 no lo soporta y las 3090 no tienen NVLink
+bridge. Esto no cambia con los risers.
+
+### Re-benchmark de GLM, 2026-09-11
+
+Metodologia identica a la usada en `docs/qwen38flash-split-benchmark.md`: prompt
+fijo de 4166 tokens, 256 tokens forzados con `ignore_eos`, `temperature: 0`,
+`seed: 1234`, `cache_prompt: false`, sin streaming, 3 repeticiones, TPS tomados
+del objeto `timings` del server. Modelo, build e imagen sin cambios.
+
+| Config (128k, IQ1_S) | Prompt tok/s | Generacion tok/s | Tiempo cliente | VRAM libre min. |
+|---|---:|---:|---:|---:|
+| auto-fit, `--fit-target 1024` (vigente) | 189.589 | 20.467 | 34.615 s | 1213 MiB |
+| `n-cpu-moe 28`, split `1,1,1,1` | 30.285 | 9.995 | 163.269 s | 4351 MiB |
+| auto-fit, `--fit-target 512` | **227.216** | **21.529** | **30.359 s** | 675 MiB |
+
+Contra las mediciones de agosto (topologia vieja):
+
+| Config | Prompt ago | Prompt sep | Generacion ago | Generacion sep |
+|---|---:|---:|---:|---:|
+| auto-fit | ~22 | 189.589 | ~15.4 | 20.467 |
+| `n-cpu-moe 28`, split `1,1,1,1` | 36.3 | 30.285 | ~10 | 9.995 |
+
+> **Cuidado con el prompt tok/s de agosto.** El salto de ~22 a ~190 tok/s (8.6x)
+> es demasiado grande para atribuirlo solo a los risers. La carga exacta de
+> agosto no quedo documentada (solo "misma carga controlada,
+> `cache_prompt=false`") y ademas hoy el modelo estaba integramente en page
+> cache del host. La comparacion **solida** es la de generacion, que es mucho
+> menos sensible a esos factores: **+33% en auto-fit** (15.4 -> 20.5) y
+> **sin cambio en la config manual** (~10 -> 10.0).
+
+### El hallazgo contraintuitivo de agosto era un artefacto
+
+La conclusion 3 original decia que mover mas expertos a GPU acelera el prompt
+pero **frena la generacion**, y lo atribuia al trafico de activaciones por los
+risers x1 de GPU 2/3. **Esa explicacion no se sostiene.** Dos evidencias:
+
+1. La config manual (`n-cpu-moe 28`, split `1,1,1,1`) mide **igual que en
+   agosto** en generacion (9.995 vs ~10 tok/s) pese a que los risers cambiaron.
+   Si el cuello hubiera sido el riser x1, tendria que haber mejorado.
+2. Al empujar de verdad hacia mas expertos en GPU, pero **respetando el balance
+   de memoria** (auto-fit con `--fit-target 512`), mejoraron **las dos**
+   metricas: +19.8% prompt y +5.2% generacion sobre el auto-fit vigente.
+
+La causa real es que **`--tensor-split` reparte por cantidad de capas, no por
+memoria**. Con `n-cpu-moe 28` los MoE de las primeras 28 capas van a CPU; las
+capas que conservan sus expertos son las tardias, y en `split-mode layer` las
+capas tardias caen en GPU 2 y 3. Resultado medido:
+
+| GPU | VRAM usada | VRAM libre |
+|---:|---:|---:|
+| 0 | 3996 MiB | 20132 MiB |
+| 1 | 2750 MiB | 21377 MiB |
+| 2 | 17302 MiB | 6825 MiB |
+| 3 | 19776 MiB | 4351 MiB |
+
+GPU 0 y 1 quedan **casi vacias**: ~41 GiB de VRAM desperdiciada. Con esa VRAM
+sin usar, quedan mas expertos en CPU de los necesarios, y la config se vuelve
+**mas** CPU-bound, no menos. Por eso es lenta, y por eso los risers no la
+ayudan: su cuello nunca fue el PCIe.
+
+Dicho de otra forma: el auto-fit no ganaba por "balancear el trafico entre
+GPUs", ganaba por **usar toda la VRAM disponible**. La leccion util no es "menos
+expertos en GPU es mejor" sino "no repartir a mano con `--tensor-split`, que
+ignora cuanta memoria pesa cada capa".
+
+### Perfil de carga observado
+
+Muestreando durante el benchmark del auto-fit vigente se ven dos fases bien
+distintas:
+
+- **Prompt processing:** las GPU pican a 76-92% de a una por vez (secuencial,
+  propio de `split-mode layer`), CPU del host en 2-4%. Fase GPU-bound.
+- **Generacion:** las cuatro GPU quedan parejas en 12-17% y la CPU sube a
+  14-19.5%. Fase CPU-bound, consistente con el diagnostico original del
+  documento.
+
+El cuello dominante de la generacion **sigue siendo el MoE en CPU**. Lo que
+cambio es que ahora se puede achicar ese tramo usando mejor la VRAM. Nota: el
+sintoma descrito arriba en "El problema central" ("las GPU quedan practicamente
+al 0% durante la generacion") ya no se observa; hoy es 12-17%.
+
+### Estres de contexto largo con `--fit-target 512`
+
+El margen de 675-769 MiB en GPU 1 y 2 es justo el escenario que provoco un OOM
+en qwen38flash (ver `docs/qwen38flash-split-benchmark.md`, "Ajuste para contexto
+largo"), asi que se verifico antes de recomendarlo:
+
+| Prompt | Prompt tok/s | Generacion tok/s | Resultado |
+|---:|---:|---:|---|
+| 16008 | 239.86 | 17.60 | OK |
+| 32008 | 223.55 | 14.08 | OK |
+| 64009 | 193.85 | 10.29 | OK |
+| 100008 | 165.46 | 7.80 | OK |
+
+Sin OOM ni errores de `cudaMalloc` en ningun escalon. VRAM libre tras el estres:
+2668 / 769 / 675 / 1277 MiB. La caida de generacion con el contexto (17.6 -> 7.8
+tok/s) es el comportamiento esperado, no un problema de esta config.
+
+**Limitacion de la prueba:** se llego a 100k de los 131072 tokens de contexto, no
+al maximo. Un prompt cercano al tope podria comportarse distinto.
+
+### Conclusiones actualizadas
+
+1. Se adopta **`--fit-target 512,512,512,512`**: +19.8% prompt y +5.2%
+   generacion sobre `1024`, sin OOM hasta 100k tokens. Es un parametro de entorno
+   (`GLM_FIT_TARGET`), asi que volver a `1024` es inmediato si aparece un OOM.
+2. **El auto-fit sigue siendo la forma correcta de repartir.** No usar
+   `--n-cpu-moe` + `--tensor-split` manuales: `--tensor-split` reparte por
+   cantidad de capas y desperdicia VRAM masivamente en un MoE.
+3. La conclusion 3 original queda **refutada**: mas expertos en GPU si mejora la
+   generacion, siempre que el reparto respete la memoria real de cada GPU.
+4. La conclusion 4 original queda **cumplida y superada**: los risers ya no son
+   la palanca pendiente. La palanca que queda es la de siempre, VRAM total
+   (96 GiB para un modelo de ~93 GB mas KV y buffers), y esa no se resuelve con
+   cableado.
+
+### Trabajo pendiente sugerido
+
+1. Validar `--fit-target 512` con un prompt cercano al tope de 131072 tokens (el
+   estres llego a 100k).
+2. Probar `--load-mode none`: el build emite `tensor overrides to CPU are used
+   with mmap enabled - consider using --load-mode none for better performance`.
+   No se evaluo en esta ronda.
+3. Re-medir el comportamiento end-to-end con OpenCode, que es donde entra en
+   juego `--cache-ram` y no lo cubre el benchmark sintetico.
+
+No tiene sentido volver a probar `--split-mode tensor` en GLM: se descarto para
+Qwen con la topologia nueva y el motivo (falta de P2P + el AllReduce interno de
+llama.cpp que solo soporta 2 dispositivos) es independiente del modelo y del
+cableado PCIe.
+
+Tampoco tiene sentido volver a probar `--n-cpu-moe` + `--tensor-split` manuales:
+quedo demostrado que desperdician VRAM por repartir segun cantidad de capas.
 
 ## Estado posterior
 
-- `glm53flash`: activo y saludable en `http://octoserver.core.sied.ar:8090`,
-  levantado por `docker-compose.glm53flash.yml`.
+- `glm53flash`: definido en `docker-compose.glm53flash.yml`, **detenido** al
+  2026-09-11. Comparte VRAM con `qwen38flash`, son mutuamente excluyentes.
 - Alias / id OpenAI: `glm-5.3-flash-iq1-s` (coincide con la config de OpenCode).
-- `qwen38flash`: detenido limpiamente para liberar sus GPU (recuperable).
+- `qwen38flash`: activo y saludable en `http://octoserver.core.sied.ar:8091`.
 - Ventiladores: permanecen en modo automatico.
