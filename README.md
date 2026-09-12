@@ -1,10 +1,88 @@
-# Octofan AI Server
+![Octoserver: an Octominer repurposed for local AI inference with four RTX 3090 GPUs](docs/images/octoserver-cover.png)
 
-Container stack for reusing an Octominer/Octofan chassis as an AI inference server enclosure.
+# Octoserver · From mining rig to local AI
 
-The stack keeps the original `fan_controller_cli` binary as the hardware interface and replaces the HiveOS scripts with a Python/FastAPI controller, Prometheus metrics, and a provisioned Grafana dashboard.
+**Four RTX 3090s. 96 GiB of VRAM. A second life for an Octominer.**
 
-The original HiveOS package files are preserved only as reference material under `reference/octofan-hiveos-originals/`.
+[![GPUs](https://img.shields.io/badge/GPU-4%C3%97_RTX_3090-76B900)](#the-hardware)
+[![VRAM](https://img.shields.io/badge/VRAM-96_GiB-0078D4)](#the-hardware)
+[![Inference](https://img.shields.io/badge/Inference-Ollama_%2B_llama.cpp-blue)](#services)
+[![Monitoring](https://img.shields.io/badge/Monitoring-Prometheus_%2B_Grafana-orange)](#what-it-does)
+
+A mining chassis gets a new job: running large language models locally, with its
+own cooling control, hardware watchdog, live dashboards and an OLED status display.
+**The GPUs do the inference. The rest of the stack keeps the machine running.**
+
+This repository contains the Octofan AI Server stack, hardware notes and performance
+experiments behind Octoserver. Including the experiments that proved our first
+explanation wrong.
+
+**[Explore the benchmarks](#measured-not-just-built)** ·
+**[Get started](#quick-start)** ·
+**[Read the architecture](docs/architecture.md)** ·
+**[Browse the docs](#documentation)**
+
+## Measured, not just built
+
+Results recorded on September 11, 2026, after upgrading all four GPU links to
+PCIe Gen3 x8:
+
+| Workload | Result | What it means |
+|---|---:|---|
+| gpt-oss-120b MXFP4, Ollama, ~2k prompt | **104 tokens/s** generation | A 120B-class model running entirely on the GPUs |
+| Qwen3.8-Flash-Next, llama.cpp, ~4k prompt | **901 tokens/s** prompt · **51 tokens/s** generation | The dedicated local inference service |
+| GLM-5.3-Flash IQ1_S, auto-fit, ~4k prompt | **227 tokens/s** prompt · **21.5 tokens/s** generation | A larger MoE model using GPU memory plus CPU offload |
+
+### How does it compare with a DGX Spark?
+
+Our gpt-oss-120b run recorded **104 tokens/s**, versus **58.7 tokens/s** in the
+published llama.cpp DGX Spark reference: an observed **1.8× difference**.
+
+That's a compelling result for repurposed hardware, but **not a controlled
+hardware shootout**: our run used Ollama and its GGUF conversion; the Spark
+reference used llama-bench, a different build and different context handling.
+These measurements do not establish a universal speed advantage. Nor do they
+establish a tokens-per-watt winner: our power samples were not synchronized with
+a matching Spark measurement.
+
+**[Read the comparison, measurements and limitations →](docs/octoserver-vs-dgx-spark.md)**
+
+### The tuning lessons were just as useful
+
+- **New risers helped, but tensor split still lost.** Layer split delivered
+  2.26× the prompt throughput and 2.54× the generation throughput of the tested
+  tensor configuration. [Results →](docs/qwen38flash-split-benchmark.md)
+- **More GPUs only help if their memory gets used.** One manual GLM placement
+  left GPU 0 and GPU 1 almost empty. Auto-fit made substantially better use of
+  the available VRAM. [Results →](docs/glm53flash-benchmark.md)
+- **Capacity and speed are different constraints.** A model fitting entirely
+  on the GPUs behaves very differently from one that needs CPU offload.
+
+## The hardware
+
+| Component | Octoserver |
+|---|---|
+| Chassis | Repurposed Octominer / Octofan mining enclosure |
+| GPUs | **4 × NVIDIA RTX 3090**, 24 GiB each, Ampere |
+| GPU links | PCIe Gen3 x8 per card, direct CPU root ports |
+| GPU peer-to-peer | Unavailable in the measured configuration |
+| CPU | 2 × Intel Xeon E5-2680 v4, 28 cores / 56 threads total |
+| Host memory | Approximately 125 GiB reported by the OS |
+| Storage | Samsung 980 PRO 2 TB NVMe |
+| Deployment | Docker Compose; Ollama and dedicated llama.cpp services |
+
+The 96 GiB of VRAM is distributed across four cards, not a single unified memory
+pool. Model placement, KV cache and temporary buffers all matter.
+
+## More than a model server
+
+The stack keeps the original `fan_controller_cli` binary as the hardware interface
+and replaces the HiveOS scripts with a Python/FastAPI controller, Prometheus
+metrics and provisioned Grafana dashboards. It connects inference software to the
+physical machine: temperatures, power supplies, fans, LEDs and watchdog recovery.
+
+The original HiveOS package files are preserved as reference material under
+`reference/octofan-hiveos-originals/`.
 
 ## What It Does
 
@@ -26,6 +104,11 @@ The original HiveOS package files are preserved only as reference material under
 - `node-exporter`: host system and network metrics, running in the host network namespace.
 - `grafana`: dashboard at `http://localhost:3000` (`admin` / `octofan`).
 - `ollama`: on-demand Ollama API at `http://localhost:11434`, with every host GPU visible.
+- `qwen38flash`: dedicated llama.cpp service on port `8091`, defined in `docker-compose.qwen38flash.yml`.
+- `glm53flash`: dedicated llama.cpp service on port `8090`, defined in `docker-compose.glm53flash.yml`.
+
+The dedicated inference services use separate Compose files and compete for the
+same GPU memory. The benchmarks above ran them individually.
 
 ## Repository Layout
 
@@ -35,6 +118,10 @@ The original HiveOS package files are preserved only as reference material under
 - `prometheus/prometheus.yml`: scrape configuration.
 - `reference/octofan-hiveos-originals/`: original HiveOS files retained for reference.
 - `tests/`: parser, control, display and API tests.
+- `llamacpp/`: inference images and KV-cache persistence entrypoint.
+- `ollama/`: model manifests and Ollama integration.
+- `docs/`: benchmarks, hardware investigations and operating notes.
+- `tools/expert-profiler/`: MoE expert profiling experiments.
 
 ## Quick Start
 
@@ -210,4 +297,4 @@ OCTOFAN_MOCK=1 docker compose up --build
 - [Qwen3.8-Flash-Next split benchmark](docs/qwen38flash-split-benchmark.md)
 - [Octoserver vs NVIDIA DGX Spark](docs/octoserver-vs-dgx-spark.md)
 - [Hardware mods](docs/hardware-mods.md)
-- [Watchdog power cycle (Plan B)](docs/watchdog-power-cycle.md)
+- [Watchdog and power-cycle decisions](docs/watchdog-power-cycle.md)
