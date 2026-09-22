@@ -228,7 +228,7 @@ def _gpu_recovery_state(
         return False, now + cfg.gpu_recovery_grace_seconds, True, "GPU recovery in progress"
     if now < deadline:
         return False, deadline, False, "GPU recovery in progress"
-    return True, None, False, "GPU recovery exhausted"
+    return True, deadline, False, "GPU recovery exhausted"
 
 
 def _watchdog_maintenance_seconds_left() -> int:

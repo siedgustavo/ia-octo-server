@@ -199,7 +199,10 @@ def test_gpu_recovery_state_grace_window_before_reset():
     assert not blocking and not run_recovery and note == "GPU recovery in progress"
 
     blocking, deadline, run_recovery, note = _gpu_recovery_state(errors, deadline, now=1301.0, cfg=cfg)
-    assert blocking and deadline is None and note == "GPU recovery exhausted"
+    assert blocking and deadline == 1300.0 and not run_recovery and note == "GPU recovery exhausted"
+
+    blocking, deadline, run_recovery, note = _gpu_recovery_state(errors, deadline, now=1331.0, cfg=cfg)
+    assert blocking and deadline == 1300.0 and not run_recovery and note == "GPU recovery exhausted"
 
     blocking, deadline, _, _ = _gpu_recovery_state([], deadline, now=1400.0, cfg=cfg)
     assert not blocking and deadline is None
