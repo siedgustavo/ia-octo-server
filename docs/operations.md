@@ -241,17 +241,18 @@ has kernel-panicked: no software on the host participates once the watchdog is a
 | Timeout | Config key | Board action |
 | --- | --- | --- |
 | Short | `short_timeout_seconds` | Pulse the motherboard **RESET** header (hardware reset, independent of the OS). |
-| Long | `long_timeout_seconds` | Press the **POWER SW** header: a held press forces a hard power-off, then the board powers the machine back on. Use this as the escape hatch when the reset does not recover the host. |
+| Long | `long_timeout_seconds` | The firmware drives **PWR SW**, but this line is disconnected in production. It cannot recover a host that remains stuck after RESET. |
 
 Current production values: short `120s`, long `1500s`. With `feed_interval_seconds: 30` and
 `unhealthy_failures_before_reset: 3`, a hung host (SSH check failing) stops being fed after
-~90-120s, gets a hardware reset, and gets a power-cycle if it has not come back by the long
-timeout.
+~90-120s. If the Octofan remains powered and armed, the short timeout pulses RESET. The long
+timeout cannot power-cycle this production host; use the smart plug to cut AC power if RESET
+does not recover it. See [the current wiring and power-cycle procedure](watchdog-power-cycle.md).
 
 Limits:
 
-- The board controls the power button signal, not the AC line. It cannot cut mains power; for
-  true per-outlet power control use the APC UPS switchable outlets or an IP PDU.
+- The board cannot cut mains power. Production uses a SmartLife/Tuya smart plug for AC
+  power cycling, with power recovery set to ON.
 - The watchdog state lives in the board. If the controller container dies while the watchdog is
   armed, the board escalates on its own. Use `keepalive_when_disabled: true` when intentionally
   disabling the reset policy so a stopped/unhealthy controller does not trip the board.
