@@ -279,12 +279,14 @@ and the hottest NVIDIA GPU, then uses the highest demand. Production uses these 
 | Intake | <=30C at 10% | 40C at 100% | 45C |
 | Exhaust | <=30C at 10% | 45C at 100% | 50C |
 | Exhaust - intake | <=7C at 10% | 18C at 100% | 22C |
-| Hottest GPU | <=75C at 10% | 85C at 40% | 88C |
+| Hottest GPU | <=45C at 10% | 70C at 85% | 88C |
 
 Between each pair of points, demand is interpolated linearly. Intake, exhaust and delta can request
-the full configured range. GPU temperature is intentionally only a capped assistance signal up to
-`gpu_curve_max_percent`: GPUs have their own cooling, and historical 68-70C workloads did not heat
-the measured exhaust above 26C. Normal increases are limited by `max_step_percent` per poll;
+the full configured range. The GPU curve starts early because the middle GPU reached 80C and 95%
+onboard fan speed while the chassis target was only 34%. At 55C, 60C and 65C the GPU requests
+40%, 55% and 70% chassis fan speed respectively. The 85% cap applies from 70C to the critical
+threshold of 88C, which immediately requests 100%. Normal increases are limited by
+`max_step_percent` per poll;
 decreases use the slower `max_down_step_percent`. Changes within `target_deadband_percent` are
 ignored. Crossing any critical threshold immediately selects `max_percent` without slew limiting.
 
