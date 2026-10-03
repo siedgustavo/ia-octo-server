@@ -410,3 +410,42 @@ quedo demostrado que desperdician VRAM por repartir segun cantidad de capas.
 - Alias / id OpenAI: `glm-5.3-flash-iq1-s` (coincide con la config de OpenCode).
 - `qwen38flash`: activo y saludable en `http://octoserver.core.sied.ar:8091`.
 - Ventiladores: permanecen en modo automatico.
+
+## Evaluacion de upstream b11381, 2026-10-03
+
+El soporte GLM-5.3-Flash se integro en llama.cpp upstream mediante
+[#27773](https://github.com/ggml-org/llama.cpp/pull/27773). Se evaluo `b11381`,
+commit `836d57176dc699a726c55418e4f96b8ca628e1bf`, contra la imagen efectiva del
+compose actual, que reporta build 10667 y commit `2e0e57f10`.
+
+El GGUF original de Unsloth no carga directamente en upstream porque declara
+`general.architecture=glm5next`, mientras la implementacion integrada usa
+`glm5-next` y cambio nombres de tensores del indexer. Unsloth publico un primer
+shard reescrito que permite reutilizar los otros dos shards de IQ1_S:
+
+```text
+Shard_Rewrite/GLM-5.3-Flash-UD-IQ1_S-00001-of-00003.gguf_file
+sha256 909a8a2dedb493c5a694facfd1e0e9a3309ac66fbb9d270c024ff5d12e0d565f
+```
+
+Se mantuvieron modelo IQ1_S, contexto 131072, `split-mode layer`, auto-fit con
+target 512 MiB, batch/ubatch 512/128, Flash Attention y el resto de los
+parametros. El benchmark uso el mismo prompt de 4166 tokens, 256 tokens de
+salida, `ignore_eos=true`, `temperature=0`, `seed=1234` y
+`cache_prompt=false`, con tres repeticiones frescas para cada build.
+
+| Build | Prompt tok/s | Generacion tok/s | Tiempo cliente | VRAM libre min. |
+|---|---:|---:|---:|---:|
+| Actual, b10667 | **228.684** | 21.258 | **30.386 s** | 735 MiB |
+| Upstream b11381 | 194.583 | **22.056** | 33.145 s | 683 MiB |
+
+Upstream mejora generation 3.8%, pero pierde 14.9% de prompt processing y
+empeora 9.1% el tiempo total. La distribucion de VRAM es equivalente y ambas
+configuraciones quedan dentro del margen ya validado. `b11381` tambien ignora
+los tensores `blk.45.*` de MTP cuando no se habilita speculative decoding, como
+corresponde.
+
+**Veredicto:** no actualizar GLM a b11381. La pequena mejora de decode no
+compensa la regresion de prefill ni de latencia total. Conservar el build actual
+y el GGUF original; el directorio con el shard reescrito queda solo para pruebas
+upstream aisladas.
