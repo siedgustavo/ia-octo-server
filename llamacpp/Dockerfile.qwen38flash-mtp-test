@@ -1,19 +1,15 @@
 # Build de PRUEBA para benchmarkear MTP (speculative decoding) en
 # Qwen3.8-Flash-Next. NO es la imagen de produccion (ver Dockerfile.qwen38flash).
-#
-# El soporte --spec-type draft-mtp para qwen4exp no esta mergeado en
-# ggml-org/llama.cpp todavia (PR #27836 / #28243, ambos abiertos al
-# 2026-09-05). Usa la rama de trabajo del maintainer de Unsloth, que es la
-# que documenta https://unsloth.ai/docs/models/qwen3.8-next para correr MTP.
-# Fuente: https://huggingface.co/unsloth/Qwen3.8-Flash-Next-GGUF/blob/main/MTP/README.md
+# El soporte upstream llego en PR #29761. Los drafts viejos de Unsloth no son
+# compatibles; usar el GGUF convertido por ggml-org indicado en el compose.
 
 ARG CUDA_VERSION=12.6.3
 ARG UBUNTU_VERSION=24.04
 
 FROM nvidia/cuda:${CUDA_VERSION}-devel-ubuntu${UBUNTU_VERSION} AS build
 
-ARG LLAMACPP_REPO=https://github.com/danielhanchen/llama.cpp
-ARG LLAMACPP_BRANCH=qwen4exp/mtp
+ARG LLAMACPP_REPO=https://github.com/ggml-org/llama.cpp
+ARG LLAMACPP_COMMIT=836d57176dc699a726c55418e4f96b8ca628e1bf
 ARG CUDA_ARCH=86
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -26,11 +22,11 @@ ENV CUDA_STUBS=/usr/local/cuda/lib64/stubs
 RUN ln -sf "${CUDA_STUBS}/libcuda.so" "${CUDA_STUBS}/libcuda.so.1"
 
 WORKDIR /src
-# Rama en movimiento (commits del mismo 2026-09-05): fijar el ref exacto se
-# hace en el momento del build para dejar registro de que commit se probo.
-RUN git clone --recurse-submodules --branch "${LLAMACPP_BRANCH}" --depth 1 \
-        "${LLAMACPP_REPO}" llama.cpp \
-    && cd llama.cpp && git rev-parse HEAD > /src/llama.cpp.commit \
+# Mantener el commit exacto para que el benchmark sea reproducible.
+RUN git clone --recurse-submodules "${LLAMACPP_REPO}" llama.cpp \
+    && cd llama.cpp \
+    && git checkout "${LLAMACPP_COMMIT}" \
+    && git rev-parse HEAD > /src/llama.cpp.commit \
     && git submodule update --init --recursive
 
 WORKDIR /src/llama.cpp

@@ -24,13 +24,13 @@ explanation wrong.
 
 ## Measured, not just built
 
-Results recorded on September 11, 2026, after upgrading all four GPU links to
-PCIe Gen3 x8:
+Results recorded through October 3, 2026, with all four GPU links at PCIe Gen3
+x8:
 
 | Workload | Result | What it means |
 |---|---:|---|
 | gpt-oss-120b MXFP4, Ollama, ~2k prompt | **104 tokens/s** generation | A 120B-class model running entirely on the GPUs |
-| Qwen3.8-Flash-Next, llama.cpp, ~4k prompt | **901 tokens/s** prompt · **51 tokens/s** generation | The dedicated local inference service |
+| Qwen3.8-Flash-Next, llama.cpp b11381, ~4k prompt | **634 tokens/s** prompt · **58 tokens/s** generation | The dedicated local inference service; long-context decode improves more |
 | GLM-5.3-Flash IQ1_S, auto-fit, ~4k prompt | **227 tokens/s** prompt · **21.5 tokens/s** generation | A larger MoE model using GPU memory plus CPU offload |
 
 ### How does it compare with a DGX Spark?

@@ -476,3 +476,193 @@ Produccion quedo restaurada en modo layer, healthy, con la distribucion de VRAM
 esperada (1421-2571 MiB libres por GPU). El KV cache persistido se regrabo en el
 apagado limpio del contenedor de prod, en el mismo modo y split, asi que siguio
 siendo coherente y no hubo que invalidarlo.
+
+## Contexto largo y mejoras upstream, 2026-09-20
+
+Se investigo una caida marcada de TPS al superar los 200k tokens durante una
+sesion real de OpenCode. No se reinicio ni modifico el servicio durante el
+diagnostico.
+
+### Estado observado en produccion
+
+La configuracion efectiva coincidia con este compose:
+
+```text
+llama.cpp b10660, commit 6c84c7d5d8
+--split-mode layer
+--tensor-split 0.9,1,1,1.1
+--n-gpu-layers 999
+--ctx-size 262144
+--cache-type-k q8_0
+--cache-type-v q8_0
+--flash-attn on
+```
+
+Las 49/49 capas estaban en GPU, las cuatro RTX 3090 negociaban PCIe Gen3 x8 y
+no habia throttling, swap, OOM, reinicios ni espera de disco. Por lo tanto, la
+caida no era un offload accidental ni un problema de tensor parallelism.
+
+Timings tomados de los logs de solicitudes reales:
+
+| Contexto de entrada | Generacion observada |
+|---:|---:|
+| 118822 tokens | ~12.3 tok/s |
+| 201595 tokens | ~7.0 tok/s |
+| 221230 tokens | ~6.25 tok/s |
+| 229137 tokens | ~6.0 tok/s |
+
+No es un benchmark controlado porque el contenido y la cantidad de tokens
+generados variaron entre solicitudes, pero la serie muestra una relacion casi
+inversa entre longitud de contexto y TPS. Es consistente con el costo de
+recorrer el KV cache largo durante decode. Qwen3.8-Flash-Next tiene 48 capas,
+atencion completa cada cuatro capas y un indexer sparse con `top_k=2048`.
+
+En la solicitud observada durante el diagnostico, llama.cpp recibio 118822
+tokens con `n_prompt_tokens_cache=0`: la nueva conversacion solo compartia tres
+tokens con el slot anterior de ~229k, invalido sus checkpoints y pago un prefill
+completo de 231.9 segundos a 512.3 tok/s. Esto es independiente del menor TPS
+de generacion a contexto largo, pero explica la latencia adicional de ese turno.
+
+### Mejoras ya integradas en llama.cpp
+
+Produccion esta fijada al commit que introdujo el soporte inicial de `qwen4exp`.
+Al 2026-09-20, upstream estaba en `b11064` (`a894dae93`) e incluia varias
+correcciones y optimizaciones posteriores:
+
+- [#27880](https://github.com/ggml-org/llama.cpp/pull/27880): reduce los graph
+  splits de Qwen4Exp. En la prueba publicada bajo Metal paso de 4 a 2 splits,
+  aunque el benchmark corto no mostro una mejora estable de TPS.
+- [#28023](https://github.com/ggml-org/llama.cpp/pull/28023): elimina copias y
+  una reduccion ineficiente de los heads del indexer. En una RTX PRO 6000 con
+  55k de contexto mejoro prompt processing de 2170 a 2366 tok/s (~9%); el autor
+  aclara que no cambia generation.
+- [#28068](https://github.com/ggml-org/llama.cpp/pull/28068): corrige la
+  normalizacion GDN de `max` a `rsqrt`. Afecta a `qwen4exp` y es una correccion
+  de fidelidad del modelo, no solo de rendimiento.
+- [#28896](https://github.com/ggml-org/llama.cpp/pull/28896): habilita la
+  fusion RMSNorm + multiplicacion para Qwen4Exp; reporta ~3% mas prompt
+  processing.
+- [#28901](https://github.com/ggml-org/llama.cpp/pull/28901): agrega kernels
+  fusionados para las hyper-connections de Qwen4Exp. En DGX Spark reporta +14%
+  en prompt processing y +2% en generation con contexto corto.
+- [#28770](https://github.com/ggml-org/llama.cpp/pull/28770), mergeado el
+  2026-09-20 como `3cf03257f`: habilita sparse Flash Attention para Qwen4Exp en
+  CUDA a partir de ~32k de contexto. Es el cambio mas directamente relacionado
+  con la degradacion observada.
+
+El benchmark publicado para sparse Flash Attention fue:
+
+| Prueba | Antes | Sparse FA | Mejora |
+|---|---:|---:|---:|
+| `pp2048@d100000` | 252.81 tok/s | 318.28 tok/s | 1.26x |
+| `tg32@d100000` | 12.00 tok/s | 14.19 tok/s | 1.18x |
+
+Estos resultados fueron obtenidos en DGX Spark con una cuantizacion IQ1_S, no
+en Octoserver. Demuestran que la optimizacion existe y que beneficia contexto
+largo, pero no deben extrapolarse como resultados de las RTX 3090. En especial,
+el autor indica que el indexer todavia vuelve a puntuar el KV cache completo en
+cada token. Sparse FA reduce el trabajo de la atencion posterior sobre los
+bloques seleccionados, pero no elimina la dependencia del TPS con la longitud
+total del contexto.
+
+### Estado de MTP
+
+MTP para Qwen3.8-Flash-Next todavia no estaba integrado en upstream:
+
+- [#27836](https://github.com/ggml-org/llama.cpp/pull/27836) seguia abierto y
+  marcado como draft.
+- [#28243](https://github.com/ggml-org/llama.cpp/pull/28243) seguia abierto,
+  con actividad hasta el 2026-09-18.
+
+Por lo tanto, actualizar a upstream permite probar sparse Flash Attention y el
+resto de las mejoras, pero no reemplaza la build experimental MTP documentada
+arriba.
+
+### Proxima prueba recomendada
+
+Construir una imagen temporal separada, fijada como minimo a `3cf03257f` o a un
+commit estable posterior, y repetir la misma metodologia controlada contra la
+build `b10660`. Mantener `split-mode layer`, el reparto `0.9,1,1,1.1`, contexto
+262144, KV Q8_0, batch/ubatch y modelo sin cambios para aislar el efecto de la
+version de llama.cpp.
+
+La comparacion debe medir prompt processing y generation al menos en 4k, 128k,
+200k y 230k de contexto. Tambien debe verificar calidad de salida por el cambio
+de normalizacion GDN, VRAM libre, graph splits, errores CUDA y que sparse FA se
+active realmente. La imagen de prueba debe usar otro directorio de KV cache: no
+restaurar el slot persistido por `b10660` sobre la build nueva, porque cambiaron
+la normalizacion, el estado recurrente y la implementacion de checkpoints.
+
+## Actualizacion a b11381 y MTP upstream, 2026-10-03
+
+Se construyo una imagen temporal fijada a llama.cpp `b11381`, commit
+`836d57176dc699a726c55418e4f96b8ca628e1bf`. Las pruebas conservaron el modelo
+principal Q4_K_XL, `split-mode layer`, contexto 262144, KV Q8_0 y batch/ubatch
+512/128. El KV de prueba se aislo del directorio productivo.
+
+### Comparacion sin MTP
+
+Benchmark controlado con prompt fijo, 256 tokens forzados, `ignore_eos=true`,
+`temperature=0`, `seed=1234` y `cache_prompt=false`:
+
+| Contexto | Build | Prompt tok/s | Generacion tok/s |
+|---:|---|---:|---:|
+| ~4k | b10660 | 907.68 | 51.75 |
+| ~4k | b11381 | 634.23 | 58.09 |
+| 128018 | b10660 | 582.27 | 11.72 |
+| 128018 | b11381 | 509.08 | 31.54 |
+| 200018 | b10660 | 468.27 | 7.49 |
+| 200018 | b11381 | 471.89 | 25.27 |
+
+En contexto corto b11381 mejora generation 12.2%, pero pierde 30.1% de prompt
+processing. En contexto largo la diferencia es decisiva: generation mejora
+2.69x a 128k y 3.37x a 200k, mientras prompt processing queda 12.6% abajo a
+128k y practicamente empata a 200k. Tambien usa aproximadamente 298 MiB menos
+por GPU en reposo. Para el uso interactivo que motivo esta prueba, el decode de
+sesiones largas pesa mas que la regresion de prefill corto, por lo que b11381
+reemplaza a b10660.
+
+### MTP upstream
+
+El soporte Qwen4Exp MTP se integro en upstream mediante
+[#29761](https://github.com/ggml-org/llama.cpp/pull/29761). Los drafts `shared`
+y autocontenidos publicados antes por Unsloth no son compatibles con esta
+implementacion: el primero falla por falta de `token_embd.weight` y el segundo
+aborta al inicializar el contexto recurrente. La prueba valida usa el draft
+oficial convertido por ggml-org:
+
+```text
+ggml-org/Qwen3.8-Flash-Next-GGUF
+mtp-Qwen3.8-Flash-Next-Q4_0.gguf
+sha256 d484e6e541a36b714976f72f7d1a86ae2cc450cff110b81e3656512784abd1c6
+```
+
+Con contexto 131072 y reparto manual `1,1,1,0.85`, un A/B exacto de tres
+repeticiones dio:
+
+| Configuracion b11381 | Prompt tok/s | Generacion tok/s | Tiempo total |
+|---|---:|---:|---:|
+| Sin MTP | 634.39 | 57.50 | 11.15 s |
+| MTP, `n-max=2` | 574.41 | 77.93 | 10.73 s |
+
+MTP mejora generation 35.5%, reduce prefill 9.5% y solo reduce 3.8% el tiempo
+total de esta carga corta. La aceptacion del draft vario entre 58.1% y 100%
+segun la continuacion.
+
+El draft entra con el contexto nativo de 262144, pero el reparto manual deja
+solo 350 MiB libres en GPU 0. Auto-fit, sin fijar `tensor-split` ni
+`n-gpu-layers`, conserva el slot completo y deja 1.1-2.4 GiB libres por GPU.
+Ese reparto reduce el promedio corto con MTP a 541.07 prompt tok/s y 73.28
+generation tok/s.
+
+La prueba larga de 128018 tokens con auto-fit produjo 415.96 prompt tok/s y
+28.31 generation tok/s, con 81.4% de aceptacion. Es peor en ambas metricas que
+b11381 sin MTP (509.08 y 31.54 tok/s). El costo adicional del draft supera la
+especulacion aceptada cuando el KV es largo.
+
+### Veredicto vigente
+
+Se actualiza produccion a b11381 sin MTP, manteniendo `split-mode layer`, el
+reparto `0.9,1,1,1.1` y contexto nativo 262144. MTP queda solo como compose de
+prueba reproducible: ayuda al decode corto, pero casi no mejora la latencia
+total y perjudica el caso de contexto largo que mas importa en esta maquina.

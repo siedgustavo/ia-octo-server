@@ -1,5 +1,5 @@
 # llama.cpp dedicado para Qwen3.8-Flash-Next (qwen4exp).
-# El soporte qwen4exp ya esta en upstream desde 6c84c7d5d8.
+# Fijado a b11381, que incluye sparse Flash Attention y correcciones de Qwen4Exp.
 
 ARG CUDA_VERSION=12.6.3
 ARG UBUNTU_VERSION=24.04
@@ -7,7 +7,7 @@ ARG UBUNTU_VERSION=24.04
 FROM nvidia/cuda:${CUDA_VERSION}-devel-ubuntu${UBUNTU_VERSION} AS build
 
 ARG LLAMACPP_REPO=https://github.com/ggml-org/llama.cpp
-ARG LLAMACPP_COMMIT=6c84c7d5d8833c6e0df69628f75a0f599797934e
+ARG LLAMACPP_COMMIT=836d57176dc699a726c55418e4f96b8ca628e1bf
 ARG CUDA_ARCH=86
 
 ENV DEBIAN_FRONTEND=noninteractive
