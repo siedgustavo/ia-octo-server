@@ -18,7 +18,9 @@ services:
       NVIDIA_DRIVER_CAPABILITIES: compute,utility
       # Leidas por entrypoint-kv-cache.sh para el save/restore de cada slot.
       SLOT_SAVE_PATH: /kv-cache
-      KV_CACHE_FILE: qwen3.8-flash-next
+      # No compartir slots persistidos entre builds con implementaciones de
+      # estado recurrente/checkpoints distintas.
+      KV_CACHE_FILE: qwen3.8-flash-next-b11381
       # Debe coincidir con --parallel de mas abajo.
       SLOT_COUNT: "1"
     volumes:
