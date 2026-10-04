@@ -94,6 +94,16 @@ intentionally want indefinite residency.
 
 Both local model definitions set `num_batch=128` and `repeat_penalty=1.0`. The batch setting reduces GPU compute-buffer usage for their large context windows. The repetition penalty setting matches the former llama.cpp behavior and avoids a measured twofold generation slowdown on these models.
 
+> **Never use `docker compose up --remove-orphans` from the main `docker-compose.yml` while the
+> dedicated Qwen/GLM `llama.cpp` stacks (`docker-compose.qwen38flash.yml`,
+> `docker-compose.glm53flash.yml`) are running.** Those containers live in the same Compose
+> project namespace but are started from separate compose files, so the main project considers
+> them orphans and `--remove-orphans` will stop and remove them. This has happened in production:
+> recreating `ollama` with `--remove-orphans` silently deleted the running `qwen38flash`
+> container. If you need to recreate a single service, target it explicitly without that flag
+> (`docker compose up -d --force-recreate ollama`), or stop and restart the other stacks
+> deliberately if cleanup is actually needed.
+
 Create local models from the read-only archive mount. Importing registers an active Ollama copy while preserving the cold GGUF in `/opt/models-archive`:
 
 ```bash
