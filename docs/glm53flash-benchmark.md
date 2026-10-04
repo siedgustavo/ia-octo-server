@@ -449,3 +449,106 @@ corresponde.
 compensa la regresion de prefill ni de latencia total. Conservar el build actual
 y el GGUF original; el directorio con el shard reescrito queda solo para pruebas
 upstream aisladas.
+
+## Barrido de ubatch y KV, 2026-10-03
+
+Objetivo: mejorar el prompt processing sin tocar `--fit-target` (ya optimizado
+en el re-benchmark de 2026-09-11) ni arriesgar la generacion, que sigue siendo
+CPU-bound por los expertos MoE ofloadeados a RAM.
+
+### Palancas sin efecto
+
+Probadas con benchmark corto (4166 tokens prompt, 256 de salida, build/imagen
+sin cambios, `--fit-target 512`):
+
+| Cambio | Prompt tok/s | Generacion tok/s | Resultado |
+|---|---:|---:|---|
+| Baseline (`-t`/`-tb` auto=28, `--load-mode` auto) | 229.14 | 21.45 | referencia |
+| `--load-mode none` | 229.99 | 21.14 | sin diferencia |
+| `-t 42 -tb 42` | 228.47 | 21.37 | sin diferencia |
+| `-t 56 -tb 56` (hyperthreads) | 228.11 | 21.05 | sin diferencia |
+
+Ni forzar `--load-mode none` (evitar mmap) ni subir threads por encima del
+default de 28 cambio nada. Confirma que la generacion esta limitada por el
+ancho de banda de memoria del host al recorrer los expertos en RAM, no por
+cantidad de threads disponibles ni por el modo de carga del modelo.
+
+### ubatch-size: ganancia real de prefill
+
+Igual que en Qwen (ver `docs/qwen38flash-split-benchmark.md`, "Barrido de
+ubatch"), subir `--ubatch-size` de 128 a 256 mejoro el prompt processing sin
+tocar la generacion:
+
+| Config | Prompt tok/s | Generacion tok/s | Tiempo cliente |
+|---|---:|---:|---:|
+| `ubatch=128` (antes) | 229.14 | 21.45 | 30.23 s |
+| `ubatch=256` (ahora) | 294.91 | 21.42 | 26.20 s |
+
++28.7% de prompt processing, generacion identica (la generacion no usa el
+microbatch), -13.3% de tiempo total en esta carga corta.
+
+### Validacion a contexto largo (120019 tokens, cerca del tope de 131072)
+
+Se repitio el mismo prompt largo usado en las pruebas de Qwen, a profundidad
+120019 tokens:
+
+| ubatch | Prompt tok/s | Generacion tok/s | Tiempo cliente | VRAM libre min. |
+|---:|---:|---:|---:|---:|
+| 128 (antes) | 151.26 | 6.77 | 831.26 s | 671 MiB |
+| 256 (ahora) | 170.61 | 6.76 | 741.34 s | 429 MiB |
+
++12.8% de prompt processing, generacion sin cambio, -10.8% de tiempo total.
+Sin OOM, con margen positivo pero mas ajustado que antes (429 MiB).
+
+### KV Q8_0 explicito: margen de seguridad, no velocidad
+
+Este compose nunca fijaba `--cache-type-k`/`-v` (corria en F16 por default).
+Se probo fijarlos a Q8_0 explicitamente, manteniendo `ubatch=256` y
+`--fit-target 512` sin cambios:
+
+| KV | Prompt tok/s (corto) | Generacion tok/s (corto) | VRAM libre min. (120019 tokens) |
+|---|---:|---:|---:|
+| F16 (default, antes) | — | — | 429 MiB |
+| Q8_0 (ahora) | 295.36 | 21.46 | **549 MiB** |
+| Q4_0 (probado) | 298.12 | 21.53 | no estresado a contexto largo |
+
+A contexto corto, Q8_0 no cambia la velocidad (dentro del ruido frente a F16).
+A contexto largo (120019 tokens), **Q8_0 no mejora el tok/s pero sube el margen
+libre de 429 a 549 MiB** sin costo de velocidad: el auto-fit con
+`--fit-target 512` no usa el ahorro de VRAM del KV mas chico para colocar mas
+expertos en GPU (el margen objetivo ya estaba satisfecho), asi que el ahorro
+queda como colchon de seguridad extra. Se adopta como mejora de robustez, no de
+rendimiento.
+
+### Intentos descartados: mas agresivos, mas riesgosos
+
+**`--fit-target 256` (bajar el margen objetivo del auto-fit) + `ubatch=256` +
+KV Q8_0**, estresado a 120019 tokens: 177.78 tok/s prompt (+4% sobre
+fit-target 512), 6.69 tok/s generacion (sin cambio), pero el margen libre cayo a
+**121 MiB** en la GPU mas ajustada. Ganancia marginal por un riesgo de OOM
+alto. **No se adopta.**
+
+**`ubatch=384` + KV Q8_0 + `--fit-target 512`**, estresado a 120019 tokens:
+194.31 tok/s prompt (+13.7% sobre `ubatch=256`), 6.69 tok/s generacion (sin
+cambio), margen libre de **291 MiB**. Es mas rapido que `ubatch=256`, pero este
+compose no fija `--ctx-checkpoints` (a diferencia de `qwen38flash`, que si lo
+hace) y hay reportes de la comunidad upstream de que los checkpoints de
+contexto de GLM pueden crecer a varios cientos de MiB o mas de 1 GiB en
+sesiones largas, sin un techo acotado en esta build. Combinar ese crecimiento
+no controlado con un margen base de solo 291 MiB es un riesgo de OOM real en
+produccion. **No se adopta como default**; queda documentado como opcion
+agresiva para quien quiera mas velocidad a cambio de monitorear mas de cerca.
+
+### batch-size logico: sin efecto, igual que en Qwen
+
+Confirmado con `ubatch=256` fijo: `--batch-size 512` y `--batch-size 2048`
+dieron resultados identicos (296.36 vs 296.53 tok/s prompt, 21.35 vs 21.51
+generacion). **`--batch-size` se deja sin cambios en 512.**
+
+### Cambio aplicado
+
+`docker-compose.glm53flash.yml`: `--ubatch-size` sube de `128` a `256`, se
+agrega `--cache-type-k q8_0 --cache-type-v q8_0` (antes sin fijar, corria en
+F16). `--fit-target` se mantiene en `512,512,512,512`, `--batch-size` en `512`,
+`--ctx-size` en `131072`. No se toco `--load-mode` ni la cantidad de threads
+(ambos confirmados sin efecto).

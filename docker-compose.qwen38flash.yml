@@ -82,8 +82,18 @@ services:
       - "1"
       - --batch-size
       - "512"
+      # Subido de 128 a 256 el 2026-10-03: el compute buffer del indexer
+      # (top_k/argsort) escala con ubatch, y a 262144 de contexto 512 OOMea
+      # bajo carga real (CUDA out of memory en GPU3 al llegar a ~115k tokens
+      # de un prefill largo, aunque en reposo mostraba margen). 384 tambien
+      # es inseguro (deja 35 MiB libres estresando a 220k tokens, el pico
+      # real observado en produccion). 256 fue la unica opcion que paso ese
+      # mismo estres (220019 tokens) con margen sano (719 MiB libres en la
+      # GPU mas ajustada) y ademas acelera bastante el prefill: +36% a 4k,
+      # +40% a 120k, +33% a 220k, sin tocar la velocidad de generacion.
+      # Ver docs/qwen38flash-split-benchmark.md, "Barrido de ubatch, 2026-10-03".
       - --ubatch-size
-      - "128"
+      - "256"
       - --cache-type-k
       - q8_0
       - --cache-type-v

@@ -666,3 +666,122 @@ Se actualiza produccion a b11381 sin MTP, manteniendo `split-mode layer`, el
 reparto `0.9,1,1,1.1` y contexto nativo 262144. MTP queda solo como compose de
 prueba reproducible: ayuda al decode corto, pero casi no mejora la latencia
 total y perjudica el caso de contexto largo que mas importa en esta maquina.
+
+## Barrido de ubatch, 2026-10-03
+
+Motivo: con `b11381` el prompt processing corto quedo por debajo de `b10660`
+(907.68 -> 634.23 tok/s). Se busco recuperar ese rendimiento sin perder el
+contexto nativo de 262144 ni cambiar la cuantizacion del modelo o del KV.
+
+### batch-size logico no importa
+
+Se barrio `--batch-size` (512, 2048, 8192) dejando `--ubatch-size 128` fijo, en
+contexto 131072 y 262144. Los tres valores dieron resultados identicos dentro
+del ruido (~630 tok/s prompt, ~58 tok/s generacion) en los dos contextos. Con
+una sola sesion (`--parallel 1`), el batch logico no tiene margen para hacer
+pipeline entre requests, asi que no aporta nada por si solo. Confirmado tambien
+al final del barrido con `--ubatch-size 256`: `--batch-size 512` y `2048` dieron
+852 y 856 tok/s respectivamente (diferencia de ruido). **`--batch-size` se deja
+sin cambios en 512.**
+
+### ubatch-size es la palanca real
+
+Con `--batch-size 2048` fijo, se barrio `--ubatch-size` (128, 256, 512, 1024) en
+contexto 131072 y 262144, benchmark corto (4167 tokens prompt, 256 de salida):
+
+| Contexto | ubatch | Prompt tok/s | Generacion tok/s | Tiempo cliente | VRAM libre min. |
+|---:|---:|---:|---:|---:|---:|
+| 131072 | 128 | 627.94 | 57.41 | 11.27 s | 2581 MiB |
+| 131072 | 256 | 865.04 | 57.96 | 9.36 s | 2249 MiB |
+| 131072 | 512 | 1119.70 | 58.57 | 8.23 s | 1627 MiB |
+| 131072 | 1024 | 1309.90 | 58.59 | 7.69 s | 377 MiB |
+| 262144 | 128 | 631.53 | 58.00 | 11.15 s | 1579 MiB |
+| 262144 | 256 | 864.41 | 57.93 | 9.37 s | 1059 MiB |
+| 262144 | 512 | 1112.92 | 56.87 | 8.38 s | 1021 MiB |
+
+`ubatch` escala el prefill casi linealmente sin tocar la generacion (siempre
+~57-59 tok/s): la generacion es autoregresiva, un token por paso, y no usa el
+microbatch. `1024` deja solo 377 MiB libres en reposo, ya al limite.
+
+### El contexto reservado, no la posicion real, decide el margen
+
+El dato critico aparecio al estresar con un prompt largo real (120018-120019
+tokens, ignore_eos, 256 de salida), que es el escenario que importa para
+sesiones largas de OpenCode:
+
+| Contexto | ubatch | Resultado | Prompt tok/s | Generacion tok/s | VRAM libre min. |
+|---:|---:|---|---:|---:|---:|
+| 131072 | 512 | OK | 885.86 | 32.37 | 1259 MiB |
+| 196608 | 512 | OK | 884.68 | 32.58 | 389 MiB |
+| 262144 | 512 | **OOM CUDA** | — | — | fallo en GPU3 a n_tokens=114688 |
+
+El error fue `cudaMalloc failed: out of memory` en `argsort_f32_i32_cuda_cub`
+(el `top_k`/`argsort` del indexer sparse de Qwen4Exp), con el contenedor
+siguiendo vivo pero la solicitud fallando. Lo notable: el OOM ocurrio
+practicamente en el mismo punto del prefill (~114-115k tokens) sin importar si
+`--ctx-size` era 131072 o 262144, y con KV en Q4_0 (deberia pesar menos) tambien
+fallo igual. La explicacion: **el buffer base reservado para el KV y las
+estructuras del indexer escala con `--ctx-size`, no con los tokens realmente
+usados**. Con contexto 262144 ese buffer base es casi el doble que con 131072,
+asi que deja mucho menos margen libre para el buffer temporal de `top_k`, que si
+escala con la profundidad alcanzada (`n_kv`). Por eso `ubatch=512` entra holgado
+a 131072 pero no a 262144: el problema no es el ubatch en si, es la combinacion
+de un buffer base grande (contexto largo) con un buffer temporal grande (ubatch
+alto).
+
+Esto reproduce, con otra causa de fondo, el mismo patron ya documentado en
+"Ajuste para contexto largo" (el OOM de GPU 0 por buffers temporales del
+`top_k/argsort`): este modelo reserva ese buffer en funcion del contexto
+maximo configurado, no del contexto efectivamente usado.
+
+### Buscando el punto seguro a contexto completo (262144)
+
+Se repitio el estres largo variando solo `ubatch`, manteniendo `ctx-size
+262144` fijo (el contexto nativo, sin reducirlo):
+
+| ubatch | Tokens de prueba | Prompt tok/s | Generacion tok/s | Tiempo cliente | VRAM libre min. |
+|---:|---:|---:|---:|---:|---:|
+| 256 | 120019 | 714.72 | 32.37 | 143.78 s | 1259 MiB |
+| 256 | 220019 | 628.39 | 23.52 | 361.74 s | **719 MiB** |
+| 384 | 220019 | 697.66 | 23.66 | 326.93 s | **35 MiB** |
+| 512 | 114688 (parcial) | — | — | — | **OOM** |
+
+220019 tokens es deliberadamente cercano al pico real mas alto observado en
+produccion (229137 tokens, ver "Contexto largo y mejoras upstream, 2026-09-20").
+`ubatch=384` sobrevive ese estres pero deja apenas 35 MiB libres: cualquier
+variacion de contenido, otro turno de la conversacion o un pico de actividad
+empujaria a OOM. `ubatch=512` ni siquiera completa el prefill. **`ubatch=256` es
+el unico valor que paso el estres cercano al pico historico con margen sano**
+(719 MiB), y ya mejora el prompt processing en todo el rango:
+
+| Carga | `ubatch=128` (antes) | `ubatch=256` (ahora) | Mejora |
+|---|---:|---:|---:|
+| Corto (~4k tokens) | 631.53 tok/s | 864.41 tok/s | +36.9% |
+| Largo (120k tokens) | ~509 tok/s* | 714.72 tok/s | +40.4%* |
+| Cercano al pico (220k tokens) | ~472 tok/s** | 628.39 tok/s | +33.1%** |
+
+\* Comparado contra el dato de 128018 tokens de la seccion "Actualizacion a
+b11381" (509.08 tok/s), profundidad similar pero no identica.
+\*\* Comparado contra el dato de 200018 tokens de la misma seccion (471.89
+tok/s), profundidad similar pero no identica.
+
+La generacion se mantuvo estable en todo el barrido (~23-32 tok/s segun
+profundidad, sin cambios atribuibles al ubatch). No se toco `--cache-type-k`,
+`--cache-type-v` ni la cuantizacion del modelo: la ganancia es puramente del
+tamaño de microbatch.
+
+### KV en Q4 (probado, no adoptado)
+
+Se probo `--cache-type-k q4_0` (solo K) y ambos K/V en Q4_0, en contexto 131072
+con `ubatch=512`: el prompt processing corto fue identico al Q8_0/Q8_0 (1125.37
+y 1120.55 vs 1119.70 tok/s, dentro del ruido) y la generacion tambien
+(57.73-58.01 vs 58.57 tok/s). Es decir, **Q4 en el KV no acelera nada por si
+solo** en este modelo/arquitectura; solo libera VRAM. Como `ubatch=256` ya
+resuelve el objetivo (velocidad) sin tocar la precision del KV, no se adopta Q4
+para no arriesgar calidad de salida sin beneficio medido.
+
+### Cambio aplicado
+
+`docker-compose.qwen38flash.yml`: `--ubatch-size` sube de `128` a `256`.
+`--batch-size` se mantiene en `512`. `--ctx-size` se mantiene en `262144` (no se
+redujo el contexto nativo). Cuantizacion de modelo y KV sin cambios.

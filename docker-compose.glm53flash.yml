@@ -22,6 +22,12 @@
 #  - ctx 131072 (128k): el usuario lo fijo; libera KV vs 262k y mejora gen.
 #  - MTP (--spec-type draft-mtp) descartado: acepta 96,9% draft pero baja la gen
 #    a 9 tok/s porque el cuello es el MoE en CPU/RAM, no la GPU.
+#
+# Barrido adicional (2026-10-03): --load-mode none y subir threads (-t/-tb a
+# 42 u 56, contra el default de 28) no cambiaron nada (generacion limitada
+# por ancho de banda de memoria del host, no por cantidad de threads ni modo
+# de carga). --ubatch-size 128->256 si gano bastante prefill sin tocar la
+# generacion; ver el comentario junto a --ubatch-size mas abajo.
 
 services:
   glm53flash:
@@ -82,12 +88,34 @@ services:
       # Una unica sesion dedicada evita reservar contexto para slots sin uso.
       - --parallel
       - "1"
-      # El compute buffer del grafo escala con ubatch; con ubatch 128 se mantiene
-      # acotado y el auto-fit puede reservarlo sin OOM.
+      # El compute buffer del grafo escala con ubatch. Subido de 128 a 256 el
+      # 2026-10-03: a 256 el prefill mejora +29% en corto (229->295 tok/s) y
+      # +13-29% en contexto largo segun la profundidad, sin tocar generacion
+      # (CPU-bound por los expertos MoE ofloadeados, no por el batch). Se
+      # probo bajar --fit-target a 256 para sumarle margen al auto-fit, pero
+      # la ganancia fue nula (+4% prompt, 0% gen) y el margen quedo en 121
+      # MiB, muy riesgoso. Tambien se probo ubatch 384: otro +14% de prompt,
+      # pero el margen baja a 291 MiB y GLM tiene reportes upstream de
+      # checkpoints de contexto que crecen a varios cientos de MiB o mas de
+      # 1 GiB en sesiones largas (este compose no fija --ctx-checkpoints, a
+      # diferencia de qwen38flash) asi que no se adopta por el riesgo de OOM
+      # combinado. Validado con estres de contexto largo (120019 tokens)
+      # sin OOM, quedando 429-549 MiB libres en la GPU mas ajustada.
+      # Ver docs/glm53flash-benchmark.md, "Barrido de ubatch y KV, 2026-10-03".
       - --batch-size
       - "512"
       - --ubatch-size
-      - "128"
+      - "256"
+      # KV cache Q8_0: antes este compose no fijaba tipo de KV (F16 por
+      # default). A --fit-target 512 no cambia el placement de expertos ni
+      # la velocidad (229.99 vs 229.14 tok/s, dentro del ruido), pero libera
+      # margen real: 549 MiB libres contra 429 MiB con KV en F16 bajo el
+      # mismo estres de 120019 tokens. Es margen de seguridad gratis, no una
+      # mejora de velocidad.
+      - --cache-type-k
+      - q8_0
+      - --cache-type-v
+      - q8_0
       # Flash Attention ON: en este build no rompe MLA y libera ~8-9 GiB/GPU,
       # margen que el auto-fit usa para colocar mas expertos en GPU.
       - --flash-attn
