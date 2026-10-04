@@ -48,8 +48,8 @@ def test_retired_llamacpp_health_check_is_disabled_but_host_watchdog_stays_enabl
 def test_ollama_uses_gpu_scheduler_and_unloads_models_after_three_idle_hours():
     ollama = load_compose()["services"]["ollama"]
 
-    assert ollama["build"]["context"] == "./ollama"
-    assert ollama["image"] == "${OLLAMA_IMAGE:-octofan/ollama:0.32.13-vram}"
+    assert "build" not in ollama
+    assert ollama["image"] == "${OLLAMA_IMAGE:-ollama/ollama:0.35.1}"
     assert ollama["gpus"] == "all"
     assert ollama["dns"] == ["${OLLAMA_DNS:-172.16.1.1}"]
     assert "deploy" not in ollama
@@ -64,16 +64,6 @@ def test_ollama_uses_gpu_scheduler_and_unloads_models_after_three_idle_hours():
         "${MODELS_ARCHIVE_DIR:-/opt/models-archive}:/models-archive:ro"
         in ollama["volumes"]
     )
-
-
-def test_ollama_scheduler_patch_uses_all_available_vram_for_single_gpu_placement():
-    patch = (ROOT / "ollama" / "scheduler-vram-headroom.patch").read_text(encoding="utf-8")
-
-    assert "+\t\t\t\tif predictedForLoad > freeMemory {" in patch
-    assert "+\t\t\tif predictedVRAM > candidateAvailable {" in patch
-    assert "+\t\t\tif predictedVRAM > candidateAvailable*80/100 {" not in patch
-    assert "f.GraphSize(uint64(numCtx), 1024, 1, envconfig.KvCacheType()" in patch
-    assert "return weights + kvCache + compute + placementReserve" in patch
 
 
 def test_ollama_local_models_use_tuned_inference_parameters():

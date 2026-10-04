@@ -71,19 +71,26 @@ OLLAMA_NUM_PARALLEL=1
 OLLAMA_SCHED_SPREAD=false
 ```
 
-This packs a model into one GPU whenever its weights, context and compute buffers fit, and only
-splits it across multiple GPUs when necessary. The 4-bit KV cache quarters KV-cache memory relative
-to `f16`, while `OLLAMA_KEEP_ALIVE=3h` unloads models after three idle hours. Context is pinned in each
-model manifest to that model's native maximum; there is deliberately no container-wide context
-override. Operational context must never be lower than 128k even when the larger context reduces
-throughput. The local Ollama image is built from 0.32.13 with a
-scheduler patch that removes its conservative 20% VRAM reserve both when admitting a model and
-when selecting a single GPU. Its placement estimate also honors the configured quantized KV
-cache and recurrent layers instead of assuming an `f16` cache for every layer. The official CUDA
-and llama-server libraries remain unchanged. When another model truly needs memory, Ollama queues
-the request and unloads idle models as necessary. API callers can override the residency policy
-per request with `keep_alive`. A request-level value overrides the global three-hour default;
-clients must not send a negative value unless they intentionally want indefinite residency.
+This packs a model into one GPU whenever its weights, context and compute buffers fit within 80%
+of free VRAM, and only splits it across multiple GPUs when necessary. The 4-bit KV cache quarters
+KV-cache memory relative to `f16`, while `OLLAMA_KEEP_ALIVE=3h` unloads models after three idle
+hours. Context is pinned in each model manifest to that model's native maximum; there is
+deliberately no container-wide context override. Operational context must never be lower than
+128k even when the larger context reduces throughput. Ollama runs the **official**
+`ollama/ollama` image unmodified (currently `0.35.1`), accepting its built-in scheduler headroom:
+the stock binary reserves 20% of free VRAM before admitting a model or picking a single GPU, and
+that threshold is not configurable. This repo previously built a patched binary from source to
+remove that reserve, but Ollama's internal GGUF-reading API changed enough between releases
+(the `ggml` package backing `PredictServerVRAM`'s `GraphSize` call was replaced by a new `fs/gguf`
+package with no equivalent) that re-porting the patch on every upgrade became fragile and risky to
+get subtly wrong. Models that need that level of control (asymmetric `--tensor-split`, a specific
+`--ubatch-size`, disk-persisted KV slot caching, etc.) run as dedicated `llama.cpp` containers
+instead — see `docker-compose.qwen38flash.yml` and `docker-compose.glm53flash.yml`. When another
+model truly needs memory, Ollama queues the request and unloads idle models as necessary. API
+callers can override the residency policy per request with `keep_alive`. A request-level value
+overrides the global three-hour default; clients must not send a negative value unless they
+intentionally want indefinite residency.
+
 
 Both local model definitions set `num_batch=128` and `repeat_penalty=1.0`. The batch setting reduces GPU compute-buffer usage for their large context windows. The repetition penalty setting matches the former llama.cpp behavior and avoids a measured twofold generation slowdown on these models.
 

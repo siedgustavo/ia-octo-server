@@ -79,9 +79,7 @@ services:
       - prometheus
 
   ollama:
-    build:
-      context: ./ollama
-    image: ${OLLAMA_IMAGE:-octofan/ollama:0.32.13-vram}
+    image: ${OLLAMA_IMAGE:-ollama/ollama:0.35.1}
     container_name: octofan-ollama
     dns:
       - ${OLLAMA_DNS:-172.16.1.1}
