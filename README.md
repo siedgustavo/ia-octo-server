@@ -217,8 +217,7 @@ Ollama stores its active model inventory under `${OLLAMA_DATA_DIR:-/opt/ollama}`
 
 ```bash
 docker compose up -d ollama
-docker compose exec ollama ollama create qwen3coder:30b -f /model-definitions/qwen3coder.Modelfile
-docker compose exec ollama ollama create qwen3.6:35b -f /model-definitions/qwen36-uncensored.Modelfile
+docker compose exec ollama ollama create deepseek-v4-flash:284b -f /model-definitions/deepseek-v4-flash-284b.Modelfile
 docker compose exec ollama ollama list
 ```
 
@@ -239,12 +238,10 @@ The scheduler can distribute a model across all visible GPUs and unload idle mod
 The installed inventory uses only `name:parameter-count` tags:
 
 ```bash
-qwen36-fable:27b
 deepseek-v4-flash:284b
 mistral-medium-3.5:128b
 qwen3-coder-next:80b
-qwen3coder:30b
-qwen3.6:35b
+qwen3.8:27b-q8_0
 ```
 
 `deepseek-v4-flash:284b` uses Unsloth's `UD-Q8_K_XL` quantization of the 0731

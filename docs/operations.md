@@ -104,28 +104,16 @@ Both local model definitions set `num_batch=128` and `repeat_penalty=1.0`. The b
 > (`docker compose up -d --force-recreate ollama`), or stop and restart the other stacks
 > deliberately if cleanup is actually needed.
 
-Create local models from the read-only archive mount. Importing registers an active Ollama copy while preserving the cold GGUF in `/opt/models-archive`:
-
-```bash
-docker compose up -d ollama
-docker compose exec ollama \
-  ollama create qwen3coder:30b -f /model-definitions/qwen3coder.Modelfile
-docker compose exec ollama \
-  ollama create qwen3.6:35b -f /model-definitions/qwen36-uncensored.Modelfile
-```
+Create local models from the read-only archive mount. Importing registers an active Ollama copy while preserving the cold GGUF in `/opt/models-archive`. DeepSeek V4 Flash below is the current example of this workflow.
 
 On an existing installation, rebuild temporary aliases from the registered models and then copy
 them back onto the stable names. This updates only manifests and reuses the stored blobs:
 
 ```bash
-docker compose exec ollama ollama create qwen3coder:configured \
-  -f /model-definitions/qwen3coder-alias-256k.Modelfile
-docker compose exec ollama ollama cp qwen3coder:configured qwen3coder:30b
-docker compose exec ollama ollama rm qwen3coder:configured
-docker compose exec ollama ollama create qwen3.6:configured \
-  -f /model-definitions/qwen36-alias-256k.Modelfile
-docker compose exec ollama ollama cp qwen3.6:configured qwen3.6:35b
-docker compose exec ollama ollama rm qwen3.6:configured
+docker compose exec ollama ollama create qwen3-coder-next:configured \
+  -f /model-definitions/qwen3-coder-next-80b.Modelfile
+docker compose exec ollama ollama cp qwen3-coder-next:configured qwen3-coder-next:80b
+docker compose exec ollama ollama rm qwen3-coder-next:configured
 ```
 
 Inspect models stored on disk and models currently occupying memory:
@@ -142,14 +130,12 @@ Add experimental models with `docker compose exec ollama ollama pull <model>`. O
 Production model tags follow `name:parameter-count`:
 
 ```bash
-qwen36-fable:27b
 deepseek-v4-flash:284b
 mistral-medium-3.5:128b
 qwen3-coder-next:80b
 qwen3.8:27b-q8_0
-qwen3coder:30b
-qwen3.6:35b
 ```
+
 
 DeepSeek V4 Flash uses the Unsloth 0731 `UD-Q8_K_XL` GGUF and its native
 1,048,576-token context. The approximately 162 GB model cannot fit entirely in
@@ -177,10 +163,6 @@ Each tag has a dedicated manifest. Interactive models pin their native context; 
 through a temporary tag so the stable name remains available:
 
 ```bash
-docker compose exec ollama ollama create qwen36-fable:configured \
-  -f /model-definitions/qwen36-fable-27b.Modelfile
-docker compose exec ollama ollama cp qwen36-fable:configured qwen36-fable:27b
-docker compose exec ollama ollama rm qwen36-fable:configured
 docker compose exec ollama ollama create mistral-medium-3.5:configured \
   -f /model-definitions/mistral-medium-3.5-128b.Modelfile
 docker compose exec ollama ollama cp mistral-medium-3.5:configured mistral-medium-3.5:128b

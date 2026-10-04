@@ -1,3 +1,0 @@
-FROM qwen36-fable:27b
-
-PARAMETER num_ctx 262144

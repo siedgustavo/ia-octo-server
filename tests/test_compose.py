@@ -66,41 +66,6 @@ def test_ollama_uses_gpu_scheduler_and_unloads_models_after_three_idle_hours():
     )
 
 
-def test_ollama_local_models_use_tuned_inference_parameters():
-    for filename in (
-        "qwen3coder.Modelfile",
-        "qwen36-uncensored.Modelfile",
-        "qwen3coder-alias-256k.Modelfile",
-        "qwen36-alias-256k.Modelfile",
-    ):
-        definition = (ROOT / "ollama" / filename).read_text(encoding="utf-8")
-        assert "PARAMETER num_ctx 262144" in definition
-        assert "PARAMETER num_batch 128" in definition
-        assert "PARAMETER num_gpu" not in definition
-        assert "PARAMETER repeat_penalty 1.0" in definition
-
-
-def test_archived_local_models_use_the_read_only_archive_mount():
-    qwen36 = (ROOT / "ollama" / "qwen36-uncensored.Modelfile").read_text(
-        encoding="utf-8"
-    )
-    qwen3coder = (ROOT / "ollama" / "qwen3coder.Modelfile").read_text(
-        encoding="utf-8"
-    )
-
-    assert "FROM /models-archive/qwen3.6/" in qwen36
-    assert "Aggressive-Q8_K_P.gguf" in qwen36
-    assert "mmproj-Qwen3.6-35B" in qwen36
-    assert "FROM /models-archive/qwen3coder/30b-iq4_xs/" in qwen3coder
-
-
-def test_qwen36_fable_uses_its_native_maximum_context():
-    definition = (ROOT / "ollama" / "qwen36-fable-27b.Modelfile").read_text(encoding="utf-8")
-
-    assert "FROM qwen36-fable:27b" in definition
-    assert "PARAMETER num_ctx 262144" in definition
-
-
 def test_downloaded_models_pin_their_workload_context():
     mistral = (ROOT / "ollama" / "mistral-medium-3.5-128b.Modelfile").read_text(
         encoding="utf-8"
@@ -131,7 +96,6 @@ def test_downloaded_model_tags_use_name_and_parameter_count():
         "deepseek-v4-flash-284b.Modelfile": (
             "FROM deepseek-v4-flash:imported"
         ),
-        "qwen36-fable-27b.Modelfile": "FROM qwen36-fable:27b",
         "mistral-medium-3.5-128b.Modelfile": (
             "FROM hf.co/mradermacher/Mistral-Medium-3.5-128B-i1-GGUF:IQ2_S"
         ),
