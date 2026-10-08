@@ -785,3 +785,128 @@ para no arriesgar calidad de salida sin beneficio medido.
 `docker-compose.qwen38flash.yml`: `--ubatch-size` sube de `128` a `256`.
 `--batch-size` se mantiene en `512`. `--ctx-size` se mantiene en `262144` (no se
 redujo el contexto nativo). Cuantizacion de modelo y KV sin cambios.
+
+## Comparacion con Ollama 0.35.1, 2026-10-08
+
+Se evaluo si el mismo GGUF podia pasar al Ollama del stack principal sin perder
+rendimiento. La prueba uso los cuatro shards de `UD-Q4_K_XL`, contexto 262144,
+un solo slot, KV Q8_0, Flash Attention y `num_batch=256`. Se eligio 256 porque
+Ollama usa el mismo valor para batch y ubatch; no permite reproducir el
+`batch=512, ubatch=256` de produccion, y `ubatch=512` ya demostro ser inseguro
+con contexto largo.
+
+Ollama 0.35.1 embebe llama.cpp `b11232`, anterior al `b11381` del servicio
+dedicado. El runner cargo las 49/49 capas en GPU, uso las cuatro RTX 3090 y
+repartio los pesos por capas con una distribucion de VRAM equivalente a la
+configuracion manual vigente. No hubo offload de capas ni tensor parallelism.
+
+Se excluyo la primera solicitud, que incluyo aproximadamente 44 segundos de
+lazy loading del mmap. Tambien se evitaron los resultados artificialmente altos
+de prompt cache usando prompts sin prefijo reutilizable.
+
+### Resultados A/B
+
+Prompt aleatorio fijo, 3527 tokens de entrada y 256 tokens forzados de salida:
+
+| Backend | Prompt tok/s | Generacion tok/s |
+|---|---:|---:|
+| llama-server b11381 | 838.10 | 56.88 |
+| Ollama 0.35.1 / b11232 | 571.11 | 55.54 |
+| Diferencia Ollama | **-31.9%** | **-2.4%** |
+
+Prompt repetitivo fijo de contexto largo, 128016 tokens de entrada y 256 tokens
+forzados de salida:
+
+| Backend | Prompt tok/s | Generacion tok/s | Tiempo cliente |
+|---|---:|---:|---:|
+| llama-server b11381 | 708.73 | 31.69 | 189.48 s |
+| Ollama 0.35.1 / b11232 | 623.84 | 19.84 | 219.28 s |
+| Diferencia Ollama | **-12.0%** | **-37.4%** | **+15.7%** |
+
+El contexto largo es el resultado decisivo para el uso real con OpenCode. La
+caida de decode coincide con que Ollama esta 149 commits por detras del backend
+vigente y no contiene todas las correcciones y optimizaciones de Qwen4Exp que
+motivaron el salto a b11381.
+
+### Veredicto
+
+Ollama 0.35.1 puede ejecutar correctamente el modelo completo y conservar el
+contexto nativo, pero **no iguala la performance actual**. No se migra
+`qwen38flash`: una perdida de 37% en generacion a 128k pesa mas que la comodidad
+de orquestacion.
+
+Ademas del rendimiento, hoy se perderian dos controles operativos importantes:
+
+- Ollama no permite configurar batch y ubatch por separado.
+- No expone el guardado/restauracion del slot KV a disco usado por el servicio
+  dedicado.
+
+Conviene repetir la prueba cuando Ollama incorpore un llama.cpp igual o posterior
+a b11381 y permita un ubatch independiente. El Modelfile reproducible queda en
+`ollama/qwen38-flash-next-benchmark.Modelfile`; no es un manifiesto de
+produccion.
+
+## Ollama personalizado con b11381 y ubatch independiente, 2026-10-08
+
+Para separar las dos limitaciones anteriores se construyo una imagen temporal
+basada en Ollama 0.35.1 con:
+
+- llama.cpp fijado al mismo commit `b11381` de produccion.
+- una opcion `num_ubatch` separada, con fallback a `num_batch` para conservar el
+  comportamiento normal de Ollama.
+- backend CUDA 13 compilado solo para `sm_86`.
+
+La implementacion reproducible esta en `ollama-custom/`. La imagen resultante es
+`octofan/ollama:0.35.1-b11381` y reporta version
+`0.35.1-custom-b11381`. CLEF se excluye porque el parche de compatibilidad de
+Ollama 0.35.1 no aplica sobre b11381; esto no afecta Qwen4Exp.
+
+Durante la primera validacion el runner cargo en CPU porque `libggml-cuda.so`
+dependia de `libnccl.so.2` y la biblioteca no habia pasado a la etapa runtime.
+Se corrigio el Dockerfile copiando NCCL desde la etapa CUDA. Tras reconstruir,
+Ollama detecto las cuatro RTX 3090 y el runner efectivo mostro:
+
+```text
+-c 262144 -np 1 --cache-type-k q8_0 --cache-type-v q8_0
+--flash-attn on -b 512 -ub 256
+load_tensors: offloaded 49/49 layers to GPU
+```
+
+### A/B exacto contra produccion
+
+Cada fila usa exactamente el mismo prompt en ambos backends, 256 tokens de
+salida, `temperature=0`, `seed=1234`, sin streaming ni reutilizacion de prompt.
+La primera carga del modelo quedo fuera de las mediciones.
+
+| Carga | Backend | Prompt tok/s | Generacion tok/s | Tiempo cliente |
+|---|---|---:|---:|---:|
+| 3543 tokens | llama-server b11381 | 812.42 | 58.16 | 9.94 s |
+| 3543 tokens | Ollama custom b11381 | 816.34 | 55.05 | 9.28 s |
+| 3543 tokens | Diferencia Ollama | **+0.5%** | **-5.4%** | **-6.6%** |
+| 128023 tokens | llama-server b11381 | 706.90 | 31.87 | 189.89 s |
+| 128023 tokens | Ollama custom b11381 | 636.64 | 30.23 | 210.83 s |
+| 128023 tokens | Diferencia Ollama | **-9.9%** | **-5.1%** | **+11.0%** |
+
+El cambio recupera casi toda la regresion de decode del Ollama oficial a 128k:
+19.84 pasa a 30.23 tok/s, cerca de los 31.87 tok/s del servicio dedicado. El
+prefill largo queda practicamente igual al Ollama oficial y alrededor de 10%
+por debajo de llama-server.
+
+Una diferencia restante es el reparto automatico de Ollama. Auto-fit asigno
+13/13/13/10 capas y dejo aproximadamente 1.2-4.9 GiB libres por GPU; produccion
+usa `--tensor-split 0.9,1,1,1.1` para desplazar peso hacia GPU 3 y proteger GPU
+0 durante los buffers temporales del indexer. Ollama no expone `tensor-split`,
+por lo que esta prueba no reproduce ese control operativo.
+
+### Veredicto
+
+La variante personalizada demuestra que actualizar llama.cpp y separar ubatch
+resuelve la mayor parte de la brecha, pero **no supera ni iguala de forma global
+al servicio dedicado**. No se migra produccion: a 128k tarda 11% mas, no permite
+fijar el reparto de capas y sigue sin persistencia del slot KV a disco. La imagen
+queda como build reproducible opcional; no se cambia `OLLAMA_IMAGE` ni los
+manifiestos productivos.
+
+Al terminar se elimino el modelo importado de aproximadamente 105 GiB y el
+contenedor temporal. `qwen38flash` quedo restaurado, healthy, en modo layer con
+su contexto nativo y batch/ubatch 512/256.

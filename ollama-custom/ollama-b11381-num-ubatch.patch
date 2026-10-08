@@ -1,0 +1,71 @@
+diff --git a/api/types.go b/api/types.go
+index e6a14ab..326ea14 100644
+--- a/api/types.go
++++ b/api/types.go
+@@ -588,6 +588,7 @@ type Options struct {
+ type Runner struct {
+ 	NumCtx          int   `json:"num_ctx,omitempty"`
+ 	NumBatch        int   `json:"num_batch,omitempty"`
++	NumUbatch       int   `json:"num_ubatch,omitempty"`
+ 	NumGPU          int   `json:"num_gpu,omitempty"`
+ 	MainGPU         *int  `json:"main_gpu,omitempty"`
+ 	UseMMap         *bool `json:"use_mmap,omitempty"`
+diff --git a/llm/llama_server.go b/llm/llama_server.go
+index 8f7c0f7..3c74c45 100644
+--- a/llm/llama_server.go
++++ b/llm/llama_server.go
+@@ -591,7 +591,11 @@ func appendBatchArgs(params []string, opts api.Options, embedding bool, numParal
+ 	}
+ 
+ 	if opts.NumBatch > 0 {
+-		params = append(params, "-b", strconv.Itoa(opts.NumBatch), "-ub", strconv.Itoa(opts.NumBatch))
++		ubatchSize := opts.NumUbatch
++		if ubatchSize <= 0 {
++			ubatchSize = opts.NumBatch
++		}
++		params = append(params, "-b", strconv.Itoa(opts.NumBatch), "-ub", strconv.Itoa(ubatchSize))
+ 	}
+ 	return params
+ }
+diff --git a/llm/llama_server_test.go b/llm/llama_server_test.go
+index 74af978..608679b 100644
+--- a/llm/llama_server_test.go
++++ b/llm/llama_server_test.go
+@@ -1929,6 +1929,12 @@ func TestAppendBatchArgs(t *testing.T) {
+ 			numParallel: 1,
+ 			want:        []string{"-b", "1024", "-ub", "1024"},
+ 		},
++		{
++			name:        "generation sets independent physical batch",
++			opts:        api.Options{Runner: api.Runner{NumBatch: 512, NumUbatch: 256}},
++			numParallel: 1,
++			want:        []string{"-b", "512", "-ub", "256"},
++		},
+ 		{
+ 			name:        "generation omits unset batch",
+ 			opts:        api.Options{},
+diff --git a/cmake/apply-git-patches.cmake b/cmake/apply-git-patches.cmake
+index 14a2712..651f76d 100644
+--- a/cmake/apply-git-patches.cmake
++++ b/cmake/apply-git-patches.cmake
+@@ -25,6 +25,7 @@ get_filename_component(_git_ceiling "${_patch_workdir}" DIRECTORY)
+ set(_git_apply_env GIT_CEILING_DIRECTORIES=${_git_ceiling})
+ 
+ file(GLOB_RECURSE _patches "${PATCH_DIR}/*.patch")
++list(FILTER _patches EXCLUDE REGEX "/002-clef\\.patch$")
+ set(_patch_entries)
+ foreach(PATCH_FILE IN LISTS _patches)
+     get_filename_component(_patch_name "${PATCH_FILE}" NAME)
+diff --git a/llama/server/CMakeLists.txt b/llama/server/CMakeLists.txt
+index a1181ba..2cfa07e 100644
+--- a/llama/server/CMakeLists.txt
++++ b/llama/server/CMakeLists.txt
+@@ -186,8 +186,6 @@ FetchContent_Declare(
+     ${_ollama_compat_patch_cmd}
+ )
+ FetchContent_MakeAvailable(llama_cpp)
+-target_sources(server-context PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../clef/clef.cpp)
+-target_include_directories(server-context PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../clef)
+ 
+ if(NOT COMMAND license_add_file)
+     message(FATAL_ERROR "llama.cpp license registry (cmake/license.cmake) not found; check the llama.cpp update")
