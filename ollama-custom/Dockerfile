@@ -10,7 +10,7 @@ RUN apt-get update \
 WORKDIR /src
 RUN git clone --branch "${OLLAMA_VERSION}" --depth 1 https://github.com/ollama/ollama.git .
 COPY ollama-custom/ollama-b11381-num-ubatch.patch /tmp/ollama.patch
-RUN git apply /tmp/ollama.patch \
+RUN git apply --unidiff-zero /tmp/ollama.patch \
     && printf '%s\n' "${LLAMACPP_COMMIT}" > LLAMA_CPP_VERSION
 
 FROM golang:1.26-bookworm AS go-build

@@ -854,6 +854,8 @@ basada en Ollama 0.35.1 con:
 - llama.cpp fijado al mismo commit `b11381` de produccion.
 - una opcion `num_ubatch` separada, con fallback a `num_batch` para conservar el
   comportamiento normal de Ollama.
+- una opcion `tensor_split` que selecciona split por capas y pasa el reparto
+  manual a llama-server; `main_gpu` conserva prioridad cuando se configura.
 - backend CUDA 13 compilado solo para `sm_86`.
 
 La implementacion reproducible esta en `ollama-custom/`. La imagen resultante es
@@ -868,11 +870,12 @@ Ollama detecto las cuatro RTX 3090 y el runner efectivo mostro:
 
 ```text
 -c 262144 -np 1 --cache-type-k q8_0 --cache-type-v q8_0
---flash-attn on -b 512 -ub 256
+--flash-attn on -b 512 -ub 256 -ngl 999
+--split-mode layer --tensor-split 0.9,1,1,1.1
 load_tensors: offloaded 49/49 layers to GPU
 ```
 
-### A/B exacto contra produccion
+### A/B inicial con reparto automatico
 
 Cada fila usa exactamente el mismo prompt en ambos backends, 256 tokens de
 salida, `temperature=0`, `seed=1234`, sin streaming ni reutilizacion de prompt.
@@ -892,20 +895,45 @@ El cambio recupera casi toda la regresion de decode del Ollama oficial a 128k:
 prefill largo queda practicamente igual al Ollama oficial y alrededor de 10%
 por debajo de llama-server.
 
-Una diferencia restante es el reparto automatico de Ollama. Auto-fit asigno
+La diferencia restante en esta primera corrida era el reparto automatico de
+Ollama. Auto-fit asigno
 13/13/13/10 capas y dejo aproximadamente 1.2-4.9 GiB libres por GPU; produccion
 usa `--tensor-split 0.9,1,1,1.1` para desplazar peso hacia GPU 3 y proteger GPU
-0 durante los buffers temporales del indexer. Ollama no expone `tensor-split`,
-por lo que esta prueba no reproduce ese control operativo.
+0 durante los buffers temporales del indexer.
+
+### Re-test con reparto manual
+
+Se agrego `tensor_split` al fork y `num_gpu 999` al Modelfile. El runner paso a
+usar exactamente los argumentos de produccion indicados arriba. Los buffers de
+modelo quedaron en 19714 / 18981 / 19231 / 20131 MiB para GPU 0-3, replicando
+el balance del servicio dedicado y dejando 1.0-2.2 GiB libres por GPU.
+
+Se repitieron los mismos prompts del A/B anterior:
+
+| Carga | Backend | Prompt tok/s | Generacion tok/s | Tiempo cliente |
+|---|---|---:|---:|---:|
+| 3543 tokens | llama-server b11381 | 812.42 | 58.16 | 9.94 s |
+| 3543 tokens | Ollama custom + tensor split | 849.44 | 58.09 | 8.90 s |
+| 3543 tokens | Diferencia Ollama | **+4.6%** | **-0.1%** | **-10.4%** |
+| 128023 tokens | llama-server b11381 | 706.90 | 31.87 | 189.89 s |
+| 128023 tokens | Ollama custom + tensor split | 707.07 | 31.65 | 190.44 s |
+| 128023 tokens | Diferencia Ollama | **+0.02%** | **-0.7%** | **+0.3%** |
+
+En contexto largo las diferencias son ruido de medicion. Esto confirma que la
+brecha restante no provenia del proxy HTTP ni del scheduler Go de Ollama: era el
+reparto de capas elegido por auto-fit.
 
 ### Veredicto
 
-La variante personalizada demuestra que actualizar llama.cpp y separar ubatch
-resuelve la mayor parte de la brecha, pero **no supera ni iguala de forma global
-al servicio dedicado**. No se migra produccion: a 128k tarda 11% mas, no permite
-fijar el reparto de capas y sigue sin persistencia del slot KV a disco. La imagen
-queda como build reproducible opcional; no se cambia `OLLAMA_IMAGE` ni los
-manifiestos productivos.
+La variante personalizada **iguala el rendimiento del servicio dedicado** al
+combinar el mismo llama.cpp, batch/ubatch y reparto de capas. Desde el punto de
+vista de throughput ya no hay un bloqueo para migrar Qwen3.8-Flash-Next a
+Ollama.
+
+No se cambia produccion en esta prueba. Sigue pendiente la diferencia operativa
+de persistencia del slot KV a disco, descartada por ahora para decidir sobre
+rendimiento. La imagen queda como build reproducible opcional y no se cambia
+`OLLAMA_IMAGE` ni los manifiestos productivos.
 
 Al terminar se elimino el modelo importado de aproximadamente 105 GiB y el
 contenedor temporal. `qwen38flash` quedo restaurado, healthy, en modo layer con

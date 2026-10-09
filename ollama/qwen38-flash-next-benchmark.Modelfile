@@ -6,3 +6,5 @@ FROM /models-archive/UD-Q4_K_XL/Qwen3.8-Flash-Next-UD-Q4_K_XL-00004-of-00004.ggu
 PARAMETER num_ctx 262144
 PARAMETER num_batch 512
 PARAMETER num_ubatch 256
+PARAMETER num_gpu 999
+PARAMETER tensor_split 0.9,1,1,1.1
