@@ -48,14 +48,14 @@ def test_retired_llamacpp_health_check_is_disabled_but_host_watchdog_stays_enabl
 def test_ollama_uses_gpu_scheduler_and_unloads_models_after_three_idle_hours():
     ollama = load_compose()["services"]["ollama"]
 
-    assert "build" not in ollama
-    assert ollama["image"] == "${OLLAMA_IMAGE:-ollama/ollama:0.35.1}"
+    assert ollama["build"]["dockerfile"] == "ollama-custom/Dockerfile"
+    assert ollama["image"] == "${OLLAMA_IMAGE:-octofan/ollama:0.35.1-b11381}"
     assert ollama["gpus"] == "all"
     assert ollama["dns"] == ["${OLLAMA_DNS:-172.16.1.1}"]
     assert "deploy" not in ollama
     assert ollama["environment"]["OLLAMA_KEEP_ALIVE"] == "${OLLAMA_KEEP_ALIVE:-3h}"
     assert "OLLAMA_CONTEXT_LENGTH" not in ollama["environment"]
-    assert ollama["environment"]["OLLAMA_KV_CACHE_TYPE"] == "${OLLAMA_KV_CACHE_TYPE:-q4_0}"
+    assert ollama["environment"]["OLLAMA_KV_CACHE_TYPE"] == "${OLLAMA_KV_CACHE_TYPE:-q8_0}"
     assert "OLLAMA_MAX_LOADED_MODELS" not in ollama["environment"]
     assert ollama["environment"]["OLLAMA_NUM_PARALLEL"] == "${OLLAMA_NUM_PARALLEL:-1}"
     assert ollama["environment"]["OLLAMA_SCHED_SPREAD"] == "${OLLAMA_SCHED_SPREAD:-false}"
@@ -79,6 +79,9 @@ def test_downloaded_models_pin_their_workload_context():
     deepseek = (ROOT / "ollama" / "deepseek-v4-flash-284b.Modelfile").read_text(
         encoding="utf-8"
     )
+    qwen_flash = (ROOT / "ollama" / "qwen3.8-flash-next.Modelfile").read_text(
+        encoding="utf-8"
+    )
 
     assert "Mistral-Medium-3.5-128B-i1-GGUF:IQ2_S" in mistral
     assert "PARAMETER num_ctx 32768" in mistral
@@ -89,6 +92,11 @@ def test_downloaded_models_pin_their_workload_context():
     assert "PARAMETER num_ctx 1048576" in deepseek
     assert "PARAMETER num_batch 128" in deepseek
     assert "PARAMETER repeat_penalty 1.0" in deepseek
+    assert "PARAMETER num_ctx 262144" in qwen_flash
+    assert "PARAMETER num_batch 512" in qwen_flash
+    assert "PARAMETER num_ubatch 256" in qwen_flash
+    assert "PARAMETER num_gpu 999" in qwen_flash
+    assert "PARAMETER tensor_split 0.9,1,1,1.1" in qwen_flash
 
 
 def test_downloaded_model_tags_use_name_and_parameter_count():
@@ -101,6 +109,7 @@ def test_downloaded_model_tags_use_name_and_parameter_count():
         ),
         "qwen3-coder-next-80b.Modelfile": "FROM qwen3-coder-next:80b",
         "qwen38-27b-q8_0.Modelfile": "FROM qwen3.8:27b-q8_0",
+        "qwen3.8-flash-next.Modelfile": "FROM /models-archive/UD-Q4_K_XL/Qwen3.8-Flash-Next-UD-Q4_K_XL-00001-of-00004.gguf",
     }
 
     for filename, source in expected_sources.items():

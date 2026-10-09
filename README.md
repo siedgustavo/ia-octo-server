@@ -206,8 +206,8 @@ The OLED `ai` profile shows the host IP, AI health (`Ollama N models loaded`, `O
 
 ## Ollama
 
-The stack includes one Ollama instance with every NVIDIA GPU on the host visible. It processes one request
-per model in parallel, packs a model into one GPU whenever it fits, uses a 4-bit KV cache to
+The stack includes one custom Ollama instance with every NVIDIA GPU on the host visible. It processes one request
+per model in parallel, packs a model into one GPU whenever it fits, uses an 8-bit KV cache to
 reduce context memory, and uses `OLLAMA_KEEP_ALIVE=3h` so models unload after three hours without
 requests. Request-level `keep_alive` can override this default. Models that do not fit in one card are still
 split across the available GPUs automatically. Compose uses `gpus: all`, so adding or removing a card does
@@ -218,10 +218,11 @@ Ollama stores its active model inventory under `${OLLAMA_DATA_DIR:-/opt/ollama}`
 ```bash
 docker compose up -d ollama
 docker compose exec ollama ollama create deepseek-v4-flash:284b -f /model-definitions/deepseek-v4-flash-284b.Modelfile
+docker compose exec ollama ollama create qwen3.8-flash-next:176b -f /model-definitions/qwen3.8-flash-next.Modelfile
 docker compose exec ollama ollama list
 ```
 
-Each installed model pins its context in its own manifest; there is no container-wide context override. Interactive models use their native maximum and are never configured below 128k. The dedicated `mistral-medium-3.5:128b` writing model is the exception: sied-poster caps scraped input at 8,000 characters and requests at most 4,096 output tokens, so its IQ2_S manifest uses 32k to keep more layers on the GPUs. The imported Qwen models also use `num_batch=128` and `repeat_penalty=1.0` to avoid the large sampler overhead measured with their 248k-token vocabularies. Ollama runs the official `ollama/ollama:0.35.1` image unmodified, including its built-in 20% VRAM reserve for model admission and single-GPU placement. Other models can be added with `ollama pull`, and Ollama loads them only when requested:
+Each installed model pins its context in its own manifest; there is no container-wide context override. Interactive models use their native maximum and are never configured below 128k. The dedicated `mistral-medium-3.5:128b` writing model is the exception: sied-poster caps scraped input at 8,000 characters and requests at most 4,096 output tokens, so its IQ2_S manifest uses 32k to keep more layers on the GPUs. The imported Qwen models also use `num_batch=128` and `repeat_penalty=1.0` to avoid the large sampler overhead measured with their 248k-token vocabularies. Qwen3.8-Flash-Next pins llama.cpp b11381, `num_batch=512`, `num_ubatch=256`, and the production layer split in its own manifest. The default Ollama image is built from `ollama-custom/Dockerfile`. Other models can be added with `ollama pull`, and Ollama loads them only when requested:
 
 ```bash
 docker compose exec ollama ollama pull gemma3
@@ -242,6 +243,7 @@ deepseek-v4-flash:284b
 mistral-medium-3.5:128b
 qwen3-coder-next:80b
 qwen3.8:27b-q8_0
+qwen3.8-flash-next:176b
 ```
 
 `deepseek-v4-flash:284b` uses Unsloth's `UD-Q8_K_XL` quantization of the 0731

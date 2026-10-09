@@ -79,7 +79,10 @@ services:
       - prometheus
 
   ollama:
-    image: ${OLLAMA_IMAGE:-ollama/ollama:0.35.1}
+    build:
+      context: .
+      dockerfile: ollama-custom/Dockerfile
+    image: ${OLLAMA_IMAGE:-octofan/ollama:0.35.1-b11381}
     container_name: octofan-ollama
     dns:
       - ${OLLAMA_DNS:-172.16.1.1}
@@ -88,7 +91,7 @@ services:
     environment:
       OLLAMA_HOST: 0.0.0.0:11434
       OLLAMA_KEEP_ALIVE: "${OLLAMA_KEEP_ALIVE:-3h}"
-      OLLAMA_KV_CACHE_TYPE: "${OLLAMA_KV_CACHE_TYPE:-q4_0}"
+      OLLAMA_KV_CACHE_TYPE: "${OLLAMA_KV_CACHE_TYPE:-q8_0}"
       OLLAMA_NUM_PARALLEL: "${OLLAMA_NUM_PARALLEL:-1}"
       OLLAMA_SCHED_SPREAD: "${OLLAMA_SCHED_SPREAD:-false}"
     volumes:
