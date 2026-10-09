@@ -208,8 +208,9 @@ The OLED `ai` profile shows the host IP, AI health (`Ollama N models loaded`, `O
 
 The stack includes one custom Ollama instance with every NVIDIA GPU on the host visible. It processes one request
 per model in parallel, packs a model into one GPU whenever it fits, uses an 8-bit KV cache to
-reduce context memory, and uses `OLLAMA_KEEP_ALIVE=3h` so models unload after three hours without
-requests. Request-level `keep_alive` can override this default. Models that do not fit in one card are still
+reduce context memory, and uses `OLLAMA_KEEP_ALIVE=-1` so loaded models remain resident indefinitely.
+Ollama can still evict them when another model needs their VRAM. Request-level `keep_alive` can override
+this default. Models that do not fit in one card are still
 split across the available GPUs automatically. Compose uses `gpus: all`, so adding or removing a card does
 not require maintaining a list of GPU indices.
 

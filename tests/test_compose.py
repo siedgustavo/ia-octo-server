@@ -45,7 +45,7 @@ def test_retired_llamacpp_health_check_is_disabled_but_host_watchdog_stays_enabl
     assert config["watchdog"]["gpu_recovery_restart_containers"] == ["octofan-ollama"]
 
 
-def test_ollama_uses_gpu_scheduler_and_unloads_models_after_three_idle_hours():
+def test_ollama_keeps_models_loaded_until_vram_pressure():
     ollama = load_compose()["services"]["ollama"]
 
     assert ollama["build"]["dockerfile"] == "ollama-custom/Dockerfile"
@@ -53,7 +53,7 @@ def test_ollama_uses_gpu_scheduler_and_unloads_models_after_three_idle_hours():
     assert ollama["gpus"] == "all"
     assert ollama["dns"] == ["${OLLAMA_DNS:-172.16.1.1}"]
     assert "deploy" not in ollama
-    assert ollama["environment"]["OLLAMA_KEEP_ALIVE"] == "${OLLAMA_KEEP_ALIVE:-3h}"
+    assert ollama["environment"]["OLLAMA_KEEP_ALIVE"] == "${OLLAMA_KEEP_ALIVE:--1}"
     assert "OLLAMA_CONTEXT_LENGTH" not in ollama["environment"]
     assert ollama["environment"]["OLLAMA_KV_CACHE_TYPE"] == "${OLLAMA_KV_CACHE_TYPE:-q8_0}"
     assert "OLLAMA_MAX_LOADED_MODELS" not in ollama["environment"]
