@@ -1,0 +1,74 @@
+diff --git a/llm/llama_server.go b/llm/llama_server.go
+index f38ba6c..2e4ce2f 100644
+--- a/llm/llama_server.go
++++ b/llm/llama_server.go
+@@ -422,6 +422,8 @@ func startLlamaServer(launch llamaServerLaunchConfig, out io.Writer) (cmd *exec.
+ 
+ 	params = appendContextShiftArgs(params, launch.opts, launch.config.ContextShift)
+ 
++	params = appendCacheRAMArgs(params, envconfig.Var("OLLAMA_CACHE_RAM_MIB"))
++
+ 	// Set up library paths for GPU backend discovery
+ 	cmd = exec.Command(exe, params...)
+ 
+@@ -792,6 +794,25 @@ func appendJinjaArgs(params []string, config LlamaServerConfig) []string {
+ 	return params
+ }
+ 
++// appendCacheRAMArgs passes OLLAMA_CACHE_RAM_MIB to llama-server --cache-ram.
++// It sizes the host-RAM prompt cache that keeps idle conversations restorable
++// when a single slot alternates between clients. Unset keeps llama.cpp's
++// default (8192 MiB); -1 means unlimited and 0 disables the cache.
++func appendCacheRAMArgs(params []string, raw string) []string {
++	raw = strings.TrimSpace(raw)
++	if raw == "" {
++		return params
++	}
++
++	mib, err := strconv.Atoi(raw)
++	if err != nil || mib < -1 {
++		slog.Warn("invalid OLLAMA_CACHE_RAM_MIB, using llama-server default", "value", raw)
++		return params
++	}
++
++	return append(params, "--cache-ram", strconv.Itoa(mib))
++}
++
+ func appendContextShiftArgs(params []string, opts api.Options, enabled bool) []string {
+ 	if !enabled {
+ 		return params
+diff --git a/llm/llama_server_test.go b/llm/llama_server_test.go
+index d31f191..6b478da 100644
+--- a/llm/llama_server_test.go
++++ b/llm/llama_server_test.go
+@@ -2545,6 +2545,30 @@ func TestAppendContextShiftArgs(t *testing.T) {
+ 	}
+ }
+ 
++func TestAppendCacheRAMArgs(t *testing.T) {
++	tests := []struct {
++		raw  string
++		want []string
++	}{
++		{raw: "", want: []string{"base"}},
++		{raw: "32768", want: []string{"base", "--cache-ram", "32768"}},
++		{raw: " 16384 ", want: []string{"base", "--cache-ram", "16384"}},
++		{raw: "0", want: []string{"base", "--cache-ram", "0"}},
++		{raw: "-1", want: []string{"base", "--cache-ram", "-1"}},
++		{raw: "-2", want: []string{"base"}},
++		{raw: "32GiB", want: []string{"base"}},
++	}
++
++	for _, tt := range tests {
++		t.Run(tt.raw, func(t *testing.T) {
++			got := appendCacheRAMArgs([]string{"base"}, tt.raw)
++			if !slices.Equal(got, tt.want) {
++				t.Fatalf("appendCacheRAMArgs(%q) = %v, want %v", tt.raw, got, tt.want)
++			}
++		})
++	}
++}
++
+ func TestAppendDraftArgs(t *testing.T) {
+ 	tests := []struct {
+ 		name      string

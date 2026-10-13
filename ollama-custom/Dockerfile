@@ -11,8 +11,10 @@ WORKDIR /src
 RUN git clone --branch "${OLLAMA_VERSION}" --depth 1 https://github.com/ollama/ollama.git .
 COPY ollama-custom/ollama-b11381-num-ubatch.patch /tmp/ollama.patch
 COPY ollama-custom/ollama-context-shift-pin.patch /tmp/ollama-context-shift-pin.patch
+COPY ollama-custom/ollama-cache-ram.patch /tmp/ollama-cache-ram.patch
 RUN git apply --unidiff-zero /tmp/ollama.patch \
     && git apply /tmp/ollama-context-shift-pin.patch \
+    && git apply /tmp/ollama-cache-ram.patch \
     && printf '%s\n' "${LLAMACPP_COMMIT}" > LLAMA_CPP_VERSION
 
 FROM golang:1.26-bookworm AS go-build

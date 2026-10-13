@@ -964,3 +964,23 @@ Diagnostico rapido:
 ```bash
 docker logs --since 6h octofan-ollama 2>&1 | grep -c "starting llama-server"
 ```
+
+## Prompt cache en RAM (`--cache-ram`), 2026-10-13
+
+Con `OLLAMA_NUM_PARALLEL=1` hay un solo slot. Al cambiar de conversacion,
+llama-server guarda el estado del slot en un prompt cache en RAM del host y
+restaura la entrada con mayor prefijo comun (p. ej. 89404 tokens restaurados en
+~1 s, procesando solo 119 tokens nuevos). Como Qwen4Exp es hibrido/recurrente,
+cada entrada incluye los context checkpoints (~113 MiB c/u, hasta 32), asi que
+el estado ocupa bastante mas que el KV: 16926 tokens = 1390 MiB con 9 checkpoints.
+
+El default de llama.cpp es 8192 MiB. Una conversacion cercana a 262k tokens
+(~4 GiB de KV + ~3.6 GiB de checkpoints) roza el limite, y llama.cpp descarta
+directamente las entradas mas grandes que el limite. El limite de tokens se
+amplia solo segun los MiB (`server_prompt_cache::update`), asi que alcanza
+con subir los MiB.
+
+`ollama-custom/ollama-cache-ram.patch` agrega `OLLAMA_CACHE_RAM_MIB` y lo pasa
+como `--cache-ram`. Compose usa 32768 MiB (el host tiene 125 GiB). Es memoria
+anonima del runner y se libera al descargar el modelo. Si falla la reserva,
+llama.cpp baja el limite solo, sin abortar.

@@ -99,6 +99,10 @@ services:
       # shift=false (/api/chat) and clients that omit it (/v1) force a full model
       # reload on every alternating request.
       OLLAMA_CONTEXT_SHIFT: "${OLLAMA_CONTEXT_SHIFT:-true}"
+      # Host-RAM prompt cache per runner (llama-server --cache-ram, custom patch).
+      # Keeps idle conversations restorable when the single slot alternates
+      # between clients; llama.cpp default is 8192 MiB.
+      OLLAMA_CACHE_RAM_MIB: "${OLLAMA_CACHE_RAM_MIB:-32768}"
     volumes:
       - ${OLLAMA_DATA_DIR:-/opt/ollama}:/root/.ollama
       - ${MODELS_DIR:-/opt/llamacpp/models}:/models:ro
