@@ -1,0 +1,86 @@
+diff --git a/server/sched.go b/server/sched.go
+index 5354913..4a0aab3 100644
+--- a/server/sched.go
++++ b/server/sched.go
+@@ -11,6 +11,7 @@ import (
+ 	"runtime"
+ 	"slices"
+ 	"sort"
++	"strconv"
+ 	"strings"
+ 	"sync"
+ 	"time"
+@@ -132,6 +133,16 @@ func schedulerModelKey(m *Model) string {
+ }
+ 
+ func resolveContextShift(shift *bool, m *Model) bool {
++	// OLLAMA_CONTEXT_SHIFT pins context shift as a server-wide launch attribute.
++	// Without it, clients that disagree on the request-level shift option force
++	// a full runner reload on every alternating request.
++	if raw := strings.TrimSpace(envconfig.Var("OLLAMA_CONTEXT_SHIFT")); raw != "" {
++		if forced, err := strconv.ParseBool(raw); err == nil {
++			return forced && supportsContextShift(m)
++		}
++		slog.Warn("invalid OLLAMA_CONTEXT_SHIFT, using request shift option", "value", raw)
++	}
++
+ 	if shift != nil {
+ 		return *shift
+ 	}
+diff --git a/server/sched_test.go b/server/sched_test.go
+index 829144f..66331e2 100644
+--- a/server/sched_test.go
++++ b/server/sched_test.go
+@@ -952,6 +952,52 @@ func TestResolveContextShift(t *testing.T) {
+ 	}
+ }
+ 
++func TestResolveContextShiftServerOverride(t *testing.T) {
++	trueValue := true
++	falseValue := false
++	deepseek := &Model{Config: model.ConfigV2{ModelFamily: "deepseek2"}}
++
++	t.Setenv("OLLAMA_CONTEXT_SHIFT", "true")
++	require.True(t, resolveContextShift(nil, nil))
++	require.True(t, resolveContextShift(&falseValue, nil))
++	require.False(t, resolveContextShift(&trueValue, deepseek))
++
++	t.Setenv("OLLAMA_CONTEXT_SHIFT", "false")
++	require.False(t, resolveContextShift(nil, nil))
++	require.False(t, resolveContextShift(&trueValue, nil))
++
++	t.Setenv("OLLAMA_CONTEXT_SHIFT", "bogus")
++	require.False(t, resolveContextShift(&falseValue, nil))
++	require.True(t, resolveContextShift(nil, nil))
++}
++
++func TestSchedNeedsReloadIgnoresClientShiftWhenServerPinsContextShift(t *testing.T) {
++	ctx, done := context.WithTimeout(t.Context(), 100*time.Millisecond)
++	defer done()
++
++	falseValue := false
++	llm := &mockLlm{vramByGPU: map[ml.DeviceID]uint64{}}
++	opts := api.DefaultOptions()
++	model := &Model{ModelPath: "model.gguf"}
++	runner := &runnerRef{
++		model:        model,
++		Options:      &opts,
++		llama:        llm,
++		numParallel:  1,
++		contextShift: true,
++	}
++	req := &LlmRequest{
++		model: model,
++		opts:  api.DefaultOptions(),
++		shift: &falseValue,
++	}
++
++	require.True(t, runner.needsReload(ctx, req))
++
++	t.Setenv("OLLAMA_CONTEXT_SHIFT", "true")
++	require.False(t, runner.needsReload(ctx, req))
++}
++
+ func TestSchedNeedsReloadIgnoresAutomaticNumCtxClamp(t *testing.T) {
+ 	ctx, done := context.WithTimeout(t.Context(), 100*time.Millisecond)
+ 	defer done()

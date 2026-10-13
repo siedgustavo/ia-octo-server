@@ -59,11 +59,24 @@ def test_ollama_keeps_models_loaded_until_vram_pressure():
     assert "OLLAMA_MAX_LOADED_MODELS" not in ollama["environment"]
     assert ollama["environment"]["OLLAMA_NUM_PARALLEL"] == "${OLLAMA_NUM_PARALLEL:-1}"
     assert ollama["environment"]["OLLAMA_SCHED_SPREAD"] == "${OLLAMA_SCHED_SPREAD:-false}"
+    assert ollama["environment"]["OLLAMA_CONTEXT_SHIFT"] == "${OLLAMA_CONTEXT_SHIFT:-true}"
     assert "${MODELS_DIR:-/opt/llamacpp/models}:/models:ro" in ollama["volumes"]
     assert (
         "${MODELS_ARCHIVE_DIR:-/opt/models-archive}:/models-archive:ro"
         in ollama["volumes"]
     )
+
+
+def test_ollama_image_pins_context_shift_to_avoid_reload_thrash():
+    dockerfile = (ROOT / "ollama-custom" / "Dockerfile").read_text(encoding="utf-8")
+    patch = (ROOT / "ollama-custom" / "ollama-context-shift-pin.patch").read_text(
+        encoding="utf-8"
+    )
+
+    assert "COPY ollama-custom/ollama-context-shift-pin.patch" in dockerfile
+    assert "git apply /tmp/ollama-context-shift-pin.patch" in dockerfile
+    assert 'envconfig.Var("OLLAMA_CONTEXT_SHIFT")' in patch
+    assert "TestSchedNeedsReloadIgnoresClientShiftWhenServerPinsContextShift" in patch
 
 
 def test_downloaded_models_pin_their_workload_context():

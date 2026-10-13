@@ -95,6 +95,10 @@ services:
       OLLAMA_KV_CACHE_TYPE: "${OLLAMA_KV_CACHE_TYPE:-q8_0}"
       OLLAMA_NUM_PARALLEL: "${OLLAMA_NUM_PARALLEL:-1}"
       OLLAMA_SCHED_SPREAD: "${OLLAMA_SCHED_SPREAD:-false}"
+      # Pin context shift server-wide (custom patch). Otherwise clients that send
+      # shift=false (/api/chat) and clients that omit it (/v1) force a full model
+      # reload on every alternating request.
+      OLLAMA_CONTEXT_SHIFT: "${OLLAMA_CONTEXT_SHIFT:-true}"
     volumes:
       - ${OLLAMA_DATA_DIR:-/opt/ollama}:/root/.ollama
       - ${MODELS_DIR:-/opt/llamacpp/models}:/models:ro

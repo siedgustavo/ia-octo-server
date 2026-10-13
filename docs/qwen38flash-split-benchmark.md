@@ -938,3 +938,29 @@ rendimiento. La imagen queda como build reproducible opcional y no se cambia
 Al terminar se elimino el modelo importado de aproximadamente 105 GiB y el
 contenedor temporal. `qwen38flash` quedo restaurado, healthy, en modo layer con
 su contexto nativo y batch/ubatch 512/256.
+
+## Cuelgues por recarga del runner (context shift), 2026-10-13
+
+Sintoma: `qwen3.8-flash-next:176b` en Ollama "se colgaba": requests de 2-8 min,
+`499` (cliente corta) y `500`, sin errores de GPU ni OOM. En 6 h el modelo se
+cargo 40 veces.
+
+Causa: Ollama 0.35.1 trata el context shift como atributo de arranque de
+llama-server y `needsReload` (`server/sched.go`) recarga el runner si no coincide
+con el del request. `diskstation` (172.16.1.10) llama `/api/chat` con
+`shift: false` y los clientes `/v1/chat/completions` (corsario, gpu-workers) lo
+omiten, que upstream resuelve como `true`. Cada alternancia relanzaba
+llama-server (`--context-shift --keep 4` si/no): ~20 s de carga mas reprocesar el
+prompt completo (hasta ~90k tokens) sin cache.
+
+Fix: `ollama-custom/ollama-context-shift-pin.patch` agrega `OLLAMA_CONTEXT_SHIFT`.
+Si esta definido fija el valor para todo el servidor, ignorando el `shift` del request
+(respeta la exclusion de `deepseek2`). Compose lo fija en `true`, igual al
+default upstream. La unica diferencia para clientes que mandan `shift: false` es
+que un prompt mayor al contexto (262144) se trunca en vez de devolver error.
+
+Diagnostico rapido:
+
+```bash
+docker logs --since 6h octofan-ollama 2>&1 | grep -c "starting llama-server"
+```
