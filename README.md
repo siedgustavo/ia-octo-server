@@ -225,6 +225,12 @@ docker compose exec ollama ollama list
 
 Each installed model pins its context in its own manifest; there is no container-wide context override. Interactive models use their native maximum and are never configured below 128k. The dedicated `mistral-medium-3.5:128b` writing model is the exception: sied-poster caps scraped input at 8,000 characters and requests at most 4,096 output tokens, so its IQ2_S manifest uses 32k to keep more layers on the GPUs. The imported Qwen models also use `num_batch=128` and `repeat_penalty=1.0` to avoid the large sampler overhead measured with their 248k-token vocabularies. Qwen3.8-Flash-Next pins llama.cpp b11381, `num_batch=512`, `num_ubatch=256`, and the production layer split in its own manifest. The default Ollama image is built from `ollama-custom/Dockerfile`. Other models can be added with `ollama pull`, and Ollama loads them only when requested:
 
+Qwen3.8-Flash-Next vision depends on the separate Unsloth
+`UD-Q4_K_XL/mmproj-F16.gguf` projector. Its Modelfile imports the projector with
+an additional `FROM`; without it, Ollama registers a text-only model and rejects
+images. See [Qwen3.8-Flash-Next vision support](docs/operations.md#qwen38-flash-next-vision-support)
+for diagnosis, model recreation, and an end-to-end image test.
+
 ```bash
 docker compose exec ollama ollama pull gemma3
 curl http://localhost:11434/api/chat -d '{

@@ -184,6 +184,57 @@ docker compose exec ollama ollama create qwen3.8-flash-next:176b \
   -f /model-definitions/qwen3.8-flash-next.Modelfile
 ```
 
+### Qwen3.8-Flash-Next vision support
+
+Qwen3.8-Flash-Next requires the separate Unsloth multimodal projector in
+addition to its four model shards. Keep
+`/opt/models-archive/UD-Q4_K_XL/mmproj-F16.gguf` and this final line in
+`ollama/qwen3.8-flash-next.Modelfile`:
+
+```text
+FROM /models-archive/UD-Q4_K_XL/mmproj-F16.gguf
+```
+
+Omitting that line creates a valid text-only Ollama model. Image requests then
+fail with:
+
+```text
+image input is not supported - hint: if this is unexpected, you may need to provide the mmproj
+```
+
+After changing the manifest, stop the loaded runner and recreate the stable tag.
+This interrupts Qwen requests while the runner reloads, but reuses the existing
+model blobs:
+
+```bash
+docker compose exec ollama ollama stop qwen3.8-flash-next:176b
+docker compose exec ollama ollama create qwen3.8-flash-next:176b \
+  -f /model-definitions/qwen3.8-flash-next.Modelfile
+```
+
+Confirm that Ollama reports both the `vision` capability and a `Projector`
+section:
+
+```bash
+docker compose exec ollama ollama show qwen3.8-flash-next:176b
+```
+
+Exercise the complete image path with a local PNG:
+
+```bash
+jq -n --rawfile image <(base64 -w0 /path/to/test.png) '{
+  model: "qwen3.8-flash-next:176b",
+  messages: [{
+    role: "user",
+    content: "Describe this image in one short sentence.",
+    images: [$image]
+  }],
+  stream: false,
+  think: false
+}' | curl --fail-with-body -sS http://localhost:11434/api/chat \
+  -H 'Content-Type: application/json' --data-binary @-
+```
+
 ## Front LEDs
 
 The controller can drive the Octofan front LEDs through `fan_controller_cli -l`.
