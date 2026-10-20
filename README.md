@@ -220,6 +220,7 @@ Ollama stores its active model inventory under `${OLLAMA_DATA_DIR:-/opt/ollama}`
 docker compose up -d ollama
 docker compose exec ollama ollama create deepseek-v4-flash:284b -f /model-definitions/deepseek-v4-flash-284b.Modelfile
 docker compose exec ollama ollama create qwen3.8-flash-next:176b -f /model-definitions/qwen3.8-flash-next.Modelfile
+docker compose exec ollama ollama create qwen3.8-flash-next-uncensored:176b -f /model-definitions/qwen3.8-flash-next-uncensored.Modelfile
 docker compose exec ollama ollama list
 ```
 
@@ -230,6 +231,12 @@ Qwen3.8-Flash-Next vision depends on the separate Unsloth
 an additional `FROM`; without it, Ollama registers a text-only model and rejects
 images. See [Qwen3.8-Flash-Next vision support](docs/operations.md#qwen38-flash-next-vision-support)
 for diagnosis, model recreation, and an end-to-end image test.
+
+`qwen3.8-flash-next-uncensored:176b` is the abliterated build from
+`orcarouter/Qwen3.8-Flash-Next-Uncensored-GGUF` (gated; downloaded with the
+`HF_TOKEN` from `.env`). It uses `Q4_K_S`, the closest size to the stock
+`UD-Q4_K_XL`, plus its own mmproj, and copies the stock manifest's parameters
+verbatim. Both 176b variants fill the four GPUs, so Ollama swaps them on demand.
 
 ```bash
 docker compose exec ollama ollama pull gemma3
@@ -251,6 +258,7 @@ mistral-medium-3.5:128b
 qwen3-coder-next:80b
 qwen3.8:27b-q8_0
 qwen3.8-flash-next:176b
+qwen3.8-flash-next-uncensored:176b
 ```
 
 `deepseek-v4-flash:284b` uses Unsloth's `UD-Q8_K_XL` quantization of the 0731

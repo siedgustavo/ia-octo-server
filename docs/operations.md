@@ -135,6 +135,7 @@ mistral-medium-3.5:128b
 qwen3-coder-next:80b
 qwen3.8:27b-q8_0
 qwen3.8-flash-next:176b
+qwen3.8-flash-next-uncensored:176b
 ```
 
 
@@ -182,7 +183,33 @@ docker compose exec ollama ollama cp deepseek-v4-flash:configured deepseek-v4-fl
 docker compose exec ollama ollama rm deepseek-v4-flash:configured
 docker compose exec ollama ollama create qwen3.8-flash-next:176b \
   -f /model-definitions/qwen3.8-flash-next.Modelfile
+docker compose exec ollama ollama create qwen3.8-flash-next-uncensored:176b \
+  -f /model-definitions/qwen3.8-flash-next-uncensored.Modelfile
 ```
+
+### Qwen3.8-Flash-Next uncensored variant
+
+`qwen3.8-flash-next-uncensored:176b` comes from the gated
+`orcarouter/Qwen3.8-Flash-Next-Uncensored-GGUF` repository. Its `Q4_K_S` shards
+(~112 GB, the closest size to the stock `UD-Q4_K_XL`) and
+`mmproj-Qwen3.8-Flash-Next-Uncensored-F16.gguf` live in
+`/opt/models-archive/Qwen3.8-Flash-Next-Uncensored-Q4_K_S`. Download them with
+the `HF_TOKEN` from `.env`:
+
+```bash
+T=$(grep '^HF_TOKEN=' /opt/ia-octo-server/.env | cut -d= -f2-)
+B=https://huggingface.co/orcarouter/Qwen3.8-Flash-Next-Uncensored-GGUF/resolve/main
+D=/opt/models-archive/Qwen3.8-Flash-Next-Uncensored-Q4_K_S
+for f in mmproj-Qwen3.8-Flash-Next-Uncensored-F16.gguf \
+  Qwen3.8-Flash-Next-Uncensored-Q4_K_S-0000{1,2,3}-of-00003.gguf; do
+  curl -fL -C - -H "Authorization: Bearer $T" -o "$D/$f" "$B/$f"
+done
+```
+
+Its manifest keeps the `PARAMETER` lines identical to
+`qwen3.8-flash-next.Modelfile` (a test enforces this), so tune both together.
+The two 176b variants cannot be resident at the same time; requesting one makes
+Ollama unload the other.
 
 ### Qwen3.8-Flash-Next vision support
 

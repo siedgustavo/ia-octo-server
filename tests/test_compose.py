@@ -125,6 +125,25 @@ def test_downloaded_models_pin_their_workload_context():
     assert "PARAMETER tensor_split 0.9,1,1,1.1" in qwen_flash
 
 
+def test_qwen_flash_uncensored_mirrors_qwen_flash_tuning():
+    definitions = ROOT / "ollama"
+    qwen_flash = (definitions / "qwen3.8-flash-next.Modelfile").read_text(
+        encoding="utf-8"
+    )
+    uncensored = (
+        definitions / "qwen3.8-flash-next-uncensored.Modelfile"
+    ).read_text(encoding="utf-8")
+
+    def parameters(definition):
+        return [line for line in definition.splitlines() if line.startswith("PARAMETER ")]
+
+    assert parameters(uncensored) == parameters(qwen_flash)
+    assert (
+        "FROM /models-archive/Qwen3.8-Flash-Next-Uncensored-Q4_K_S/"
+        "mmproj-Qwen3.8-Flash-Next-Uncensored-F16.gguf"
+    ) in uncensored
+
+
 def test_downloaded_model_tags_use_name_and_parameter_count():
     expected_sources = {
         "deepseek-v4-flash-284b.Modelfile": (
@@ -136,6 +155,7 @@ def test_downloaded_model_tags_use_name_and_parameter_count():
         "qwen3-coder-next-80b.Modelfile": "FROM qwen3-coder-next:80b",
         "qwen38-27b-q8_0.Modelfile": "FROM qwen3.8:27b-q8_0",
         "qwen3.8-flash-next.Modelfile": "FROM /models-archive/UD-Q4_K_XL/Qwen3.8-Flash-Next-UD-Q4_K_XL-00001-of-00004.gguf",
+        "qwen3.8-flash-next-uncensored.Modelfile": "FROM /models-archive/Qwen3.8-Flash-Next-Uncensored-Q4_K_S/Qwen3.8-Flash-Next-Uncensored-Q4_K_S-00001-of-00003.gguf",
     }
 
     for filename, source in expected_sources.items():

@@ -1,0 +1,10 @@
+FROM /models-archive/Qwen3.8-Flash-Next-Uncensored-Q4_K_S/Qwen3.8-Flash-Next-Uncensored-Q4_K_S-00001-of-00003.gguf
+FROM /models-archive/Qwen3.8-Flash-Next-Uncensored-Q4_K_S/Qwen3.8-Flash-Next-Uncensored-Q4_K_S-00002-of-00003.gguf
+FROM /models-archive/Qwen3.8-Flash-Next-Uncensored-Q4_K_S/Qwen3.8-Flash-Next-Uncensored-Q4_K_S-00003-of-00003.gguf
+FROM /models-archive/Qwen3.8-Flash-Next-Uncensored-Q4_K_S/mmproj-Qwen3.8-Flash-Next-Uncensored-F16.gguf
+
+PARAMETER num_ctx 262144
+PARAMETER num_batch 512
+PARAMETER num_ubatch 256
+PARAMETER num_gpu 999
+PARAMETER tensor_split 0.9,1,1,1.1
