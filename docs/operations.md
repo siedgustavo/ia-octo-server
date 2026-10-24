@@ -262,6 +262,37 @@ jq -n --rawfile image <(base64 -w0 /path/to/test.png) '{
   -H 'Content-Type: application/json' --data-binary @-
 ```
 
+## FLUX Image Generation (CPU)
+
+`docker-compose.flux.yml` runs FLUX.1-schnell (GGUF Q8_0) on the CPUs with
+stable-diffusion.cpp `sd-server`. It uses no GPU, so it does not compete with
+Ollama or the llama.cpp stacks for VRAM. It is its own Compose project
+(`octofan-flux`), so `--remove-orphans` on the main stack does not touch it.
+
+```bash
+./scripts/download-flux1-schnell.sh          # ~23 GB into /opt/imagegen/flux
+docker compose -f docker-compose.flux.yml up --build -d
+```
+
+The image builds from a pinned upstream commit (`SDCPP_REF`). Models stay loaded
+in RAM (~23 GB). Web UI at `http://octoserver.core.sied.ar:7860/`.
+
+OpenAI-compatible API (synchronous, returns base64):
+
+```bash
+curl -fsS http://octoserver.core.sied.ar:7860/v1/images/generations \
+  -H 'Content-Type: application/json' \
+  -d '{"prompt":"a cozy server room with glowing GPUs, editorial illustration","size":"1344x768","output_format":"jpeg"}' \
+  | jq -r '.data[0].b64_json' | base64 -d > cover.jpg
+```
+
+Measured 2026-10-23 (2x E5-2680 v4, 28 threads): 1344x768 takes ~8.5 min
+(437 s sampling + 61 s VAE decode). Set the client timeout accordingly.
+
+Defaults: 4 steps, cfg 1.0, euler (schnell is distilled). Extra parameters
+(seed, steps) go inside the prompt as
+`<sd_cpp_extra_args>{"seed":42}</sd_cpp_extra_args>`.
+
 ## Front LEDs
 
 The controller can drive the Octofan front LEDs through `fan_controller_cli -l`.

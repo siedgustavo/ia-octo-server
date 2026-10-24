@@ -106,6 +106,7 @@ The original HiveOS package files are preserved as reference material under
 - `ollama`: on-demand Ollama API at `http://localhost:11434`, with every host GPU visible.
 - `qwen38flash`: dedicated llama.cpp service on port `8091`, defined in `docker-compose.qwen38flash.yml`.
 - `glm53flash`: dedicated llama.cpp service on port `8090`, defined in `docker-compose.glm53flash.yml`.
+- `flux`: CPU-only FLUX.1-schnell image generation (stable-diffusion.cpp `sd-server`) on port `7860`, defined in `docker-compose.flux.yml`. See `docs/operations.md`.
 
 The dedicated inference services use separate Compose files and compete for the
 same GPU memory. The benchmarks above ran them individually.

@@ -1,0 +1,47 @@
+# Generacion de imagenes FLUX.1-schnell por CPU con stable-diffusion.cpp sd-server.
+# Proyecto Compose propio para que el stack principal no lo vea como huerfano.
+# Modelos: scripts/download-flux1-schnell.sh -> FLUX_MODELS_DIR.
+#
+#   docker compose -f docker-compose.flux.yml up --build -d
+#
+# API OpenAI-compatible: POST http://<host>:7860/v1/images/generations
+# Web UI: http://<host>:7860/
+
+name: octofan-flux
+
+services:
+  flux:
+    build:
+      # Dockerfile CPU de upstream (no se publica imagen CPU en ghcr).
+      context: https://github.com/leejet/stable-diffusion.cpp.git#${SDCPP_REF:-95ff76230889898e1bf40058ba272a3699b50dc6}
+      dockerfile: docker/Dockerfile
+    image: ${FLUX_IMAGE:-octofan/sdcpp:cpu-95ff762}
+    container_name: flux
+    restart: unless-stopped
+    entrypoint: ["/sd-server"]
+    command:
+      - --listen-ip
+      - 0.0.0.0
+      - --listen-port
+      - "1234"
+      - --diffusion-model
+      - /models/flux1-schnell-q8_0.gguf
+      - --vae
+      - /models/ae.safetensors
+      - --clip_l
+      - /models/clip_l.safetensors
+      - --t5xxl
+      - /models/t5xxl_fp16.safetensors
+      # schnell esta destilado: 4 pasos, cfg 1, euler.
+      - --steps
+      - "4"
+      - --cfg-scale
+      - "1.0"
+      - --sampling-method
+      - euler
+      - --threads
+      - "${FLUX_THREADS:-28}"
+    volumes:
+      - ${FLUX_MODELS_DIR:-/opt/imagegen/flux}:/models:ro
+    ports:
+      - "${FLUX_PORT:-7860}:1234"

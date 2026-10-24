@@ -161,3 +161,18 @@ def test_downloaded_model_tags_use_name_and_parameter_count():
     for filename, source in expected_sources.items():
         definition = (ROOT / "ollama" / filename).read_text(encoding="utf-8")
         assert source in definition
+
+
+def test_flux_cpu_stack_is_isolated_and_gpu_free():
+    compose = yaml.safe_load((ROOT / "docker-compose.flux.yml").read_text(encoding="utf-8"))
+    # Proyecto propio: el stack principal no debe verlo como huerfano.
+    assert compose["name"] != "ia-octo-server"
+    flux = compose["services"]["flux"]
+
+    assert "gpus" not in flux
+    assert "mem_limit" not in flux
+    assert flux["entrypoint"] == ["/sd-server"]
+    command = flux["command"]
+    assert command[command.index("--steps") + 1] == "4"
+    assert command[command.index("--cfg-scale") + 1] == "1.0"
+    assert command[command.index("--diffusion-model") + 1] == "/models/flux1-schnell-q8_0.gguf"
