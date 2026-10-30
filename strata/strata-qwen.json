@@ -20,6 +20,7 @@
   "cwd": "/opt/strata/terminal",
   "tokenizer": "/data/Strata-data/packs/huihui-v2-ud-q4_k_xl/tokenizer",
   "model_name": "huihui-qwen3.8-flash-next-abliterated-v2-ud-q4_k_xl",
+  "allowed_hosts": ["octoserver.core.sied.ar", "172.16.1.6"],
   "log": "/data/huihui-v2.engine.log",
   "gpu": [0, 1, 2, 3],
   "layer_split": "auto",

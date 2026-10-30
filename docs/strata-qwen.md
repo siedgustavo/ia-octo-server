@@ -42,6 +42,9 @@ restringir con `STRATA_BIND`). API OpenAI compatible en `/v1`, sin autenticació
 HTTP no cifra las solicitudes: usar solo una red de
 confianza, o un túnel SSH/TLS fuera de ella. No implementa la API
 nativa de Ollama. Solo texto; la visión no está configurada. Se reserva el
+nombre `octoserver.core.sied.ar` y la IP `172.16.1.6` en `allowed_hosts`;
+actualizarlos si cambia la dirección del host.
+Se reserva el
 contexto nativo de 262144 tokens, con un solo slot, MTP, presupuesto de 20 GiB
 para expertos en RAM y límite de contenedor de 75 GiB para proteger al host.
 El límite y las reservas de VRAM son conservadores, no una garantía de que un
