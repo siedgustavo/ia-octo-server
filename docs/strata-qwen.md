@@ -27,9 +27,7 @@ docker run --rm --memory 12g \
 
 La capa MTP original debe existir en `/opt/strata-test/Strata-data/mtp/rt`.
 La usa el modelo como borrador; las propuestas son verificadas por Huihui.
-La clave va en `/opt/strata-test/api-key`, propiedad de root, modo `0600`;
-generarla con `openssl rand -hex 24` si no existe y distribuirla por un canal
-seguro. No guardarla en Git.
+El servicio no requiere clave; limitar el acceso a una red de confianza.
 
 ## Operación
 
@@ -40,8 +38,8 @@ docker compose -f docker-compose.strata-qwen.yml stop
 ```
 
 Escucha por defecto en todas las interfaces del host, puerto `18080` (se puede
-restringir con `STRATA_BIND`). API OpenAI compatible en `/v1`, autenticada con
-bearer token. HTTP no cifra la clave ni las solicitudes: usar solo una red de
+restringir con `STRATA_BIND`). API OpenAI compatible en `/v1`, sin autenticación.
+HTTP no cifra las solicitudes: usar solo una red de
 confianza, o un túnel SSH/TLS fuera de ella. No implementa la API
 nativa de Ollama. Solo texto; la visión no está configurada. Se reserva el
 contexto nativo de 262144 tokens, con un solo slot, MTP, presupuesto de 20 GiB
