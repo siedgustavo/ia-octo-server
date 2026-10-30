@@ -27,7 +27,7 @@ services:
       - ./strata/strata-qwen.json:/config/strata-qwen.json:ro
       - ${STRATA_API_KEY_FILE:-/opt/strata-test/api-key}:/run/secrets/strata-api-key:ro
     ports:
-      - "127.0.0.1:${STRATA_PORT:-18080}:8080"
+      - "${STRATA_BIND:-0.0.0.0}:${STRATA_PORT:-18080}:8080"
     healthcheck:
       test: ["CMD-SHELL", "python/bin/python -c 'import json,urllib.request; k=open(\"/run/secrets/strata-api-key\").read().strip(); r=urllib.request.Request(\"http://127.0.0.1:8080/v1/models\",headers={\"Authorization\":\"Bearer \"+k}); d=json.load(urllib.request.urlopen(r,timeout=5)); assert any(x.get(\"status\",{}).get(\"value\")==\"loaded\" for x in d[\"data\"])'"]
       interval: 30s

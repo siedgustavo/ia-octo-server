@@ -39,8 +39,10 @@ docker compose -f docker-compose.strata-qwen.yml logs -f
 docker compose -f docker-compose.strata-qwen.yml stop
 ```
 
-Escucha en `127.0.0.1:18080`; usar un túnel SSH para clientes remotos. API
-OpenAI compatible en `/v1`, autenticada con bearer token. No implementa la API
+Escucha por defecto en todas las interfaces del host, puerto `18080` (se puede
+restringir con `STRATA_BIND`). API OpenAI compatible en `/v1`, autenticada con
+bearer token. HTTP no cifra la clave ni las solicitudes: usar solo una red de
+confianza, o un túnel SSH/TLS fuera de ella. No implementa la API
 nativa de Ollama. Solo texto; la visión no está configurada. Se reserva el
 contexto nativo de 262144 tokens, con un solo slot, MTP, presupuesto de 20 GiB
 para expertos en RAM y límite de contenedor de 75 GiB para proteger al host.
