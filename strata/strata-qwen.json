@@ -1,0 +1,30 @@
+{
+  "exe": "/opt/strata/components/engine/0.1.52-linux-x86_64-cuda-cuda13/strata",
+  "args": [
+    "--pack", "/data/Strata-data/packs/huihui-v2-ud-q4_k_xl",
+    "--native", "/models/Qwen3.8-Flash-Next-UD-Q4_K_XL-00001-of-00004.gguf",
+    "--expert-profile", "/opt/strata/terminal/data/expert-profile.bin",
+    "--expert-cache", "auto",
+    "--prefill", "auto",
+    "--spec", "4",
+    "--spec-min-p", "0.5",
+    "--mtp", "/data/Strata-data/mtp/rt",
+    "--max-context", "262144",
+    "--kv", "int8",
+    "--ple-io", "ram",
+    "--kv-resident", "32768",
+    "--resident-budget-gib", "20",
+    "--vram-reserve-mib", "1200",
+    "--vram-reserve-later-mib", "1500"
+  ],
+  "cwd": "/opt/strata/terminal",
+  "tokenizer": "/data/Strata-data/packs/huihui-v2-ud-q4_k_xl/tokenizer",
+  "model_name": "huihui-qwen3.8-flash-next-abliterated-v2-ud-q4_k_xl",
+  "log": "/data/huihui-v2.engine.log",
+  "gpu": [0, 1, 2, 3],
+  "layer_split": "auto",
+  "env": {
+    "STRATA_HC_Q8": "1",
+    "STRATA_ROUTE_TAIL_SKIP": "0"
+  }
+}

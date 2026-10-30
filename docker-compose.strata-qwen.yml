@@ -1,0 +1,40 @@
+# Strata con Huihui Qwen3.8 Flash Next abliterated V2. Stack independiente:
+# nunca levantar al mismo tiempo que Ollama u otro modelo que ocupe las GPU.
+# Preparar el pack y la clave segun docs/strata-qwen.md antes de iniciarlo.
+services:
+  strata-qwen:
+    image: ghcr.io/niko1221/strata:0.2.7-cuda13@sha256:db96cd9b111c930f7deb77444f38f66e53db43af57644a33a9e8a2f05f038360
+    container_name: strata-qwen
+    gpus: all
+    restart: unless-stopped
+    mem_limit: 75g
+    shm_size: 2g
+    stop_grace_period: 120s
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    working_dir: /opt/strata/terminal
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        export STRATA_API_KEY="$$(cat /run/secrets/strata-api-key)"
+        test "$${#STRATA_API_KEY}" -ge 16 || exit 1
+        exec python/bin/python -m serve.server --engine strata --config /config/strata-qwen.json --host 0.0.0.0 --port 8080 --parallel 1
+    volumes:
+      - ${STRATA_MODELS_DIR:-/opt/models-archive/Huihui-Qwen38-abliterated-v2-UD-Q4_K_XL}:/models:ro
+      - ${STRATA_DATA_DIR:-/opt/strata-test}:/data
+      - ./strata/strata-qwen.json:/config/strata-qwen.json:ro
+      - ${STRATA_API_KEY_FILE:-/opt/strata-test/api-key}:/run/secrets/strata-api-key:ro
+    ports:
+      - "127.0.0.1:${STRATA_PORT:-18080}:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "python/bin/python -c 'import json,urllib.request; k=open(\"/run/secrets/strata-api-key\").read().strip(); r=urllib.request.Request(\"http://127.0.0.1:8080/v1/models\",headers={\"Authorization\":\"Bearer \"+k}); d=json.load(urllib.request.urlopen(r,timeout=5)); assert any(x.get(\"status\",{}).get(\"value\")==\"loaded\" for x in d[\"data\"])'"]
+      interval: 30s
+      timeout: 10s
+      retries: 40
+      start_period: 600s
+
+networks:
+  default:
+    name: strata-qwen
