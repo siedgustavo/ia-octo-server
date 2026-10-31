@@ -4,10 +4,11 @@ Stack dedicado, independiente del Compose principal. Mantener Ollama y otros
 servidores de modelos detenidos mientras Strata ocupa las cuatro GPU. No usar
 `--remove-orphans`: los stacks comparten el proyecto Compose.
 
-## Prueba en curso: 2026-10-30
+## Evaluación en producción: 2026-10-30 a 2026-10-31
 
 Objetivo: evaluar Strata durante uso cotidiano con un Qwen abliterado antes de
-decidir si reemplaza a Ollama. La máquina tiene cuatro RTX 3090 de 24 GiB,
+decidir si reemplaza a Ollama. Resultado: aprobado, quedó como servicio diario
+(ver Decisión más abajo). La máquina tiene cuatro RTX 3090 de 24 GiB,
 125 GiB de RAM y PCIe Gen3 x8 por GPU, sin P2P ni NVLink. Strata usa reparto
 por capas, sin depender de P2P. La imagen es Strata 0.2.7 CUDA 13, motor
 0.1.52; el modelo activo es Huihui V2 UD-Q4_K_XL, no el Qwen original con que
@@ -54,9 +55,36 @@ concurrida.
 
 Se verificó una llamada de herramienta `pwd` desde OpenCode con Huihui, una
 generación simple y el listado de modelos desde otra máquina sin clave. El
-servicio es solo texto y un slot. Aún faltan pruebas sostenidas de programación,
-herramientas, cancelaciones, estabilidad, uso concurrente y contextos largos
-(incluido el límite de 262144), además de evaluar calidad y consumo real.
+servicio es solo texto y un slot.
+
+### Uso diario validado (2026-10-30 a 2026-10-31)
+
+Desde el 2026-10-30 14:34 el servicio quedó levantado y sano, sin reinicios ni
+eventos OOM, usado a diario desde OpenCode: programación con llamadas a
+herramientas y consultas de chat general. Medido sobre las primeras 24 horas
+de uso real:
+
+| Métrica | Valor observado |
+| --- | --- |
+| Requests procesados | 380 |
+| Decode (tok/s) | min 71, mediana 101, p90 125, max 155 |
+| Aciertos del caché de expertos | 99,2–99,9% |
+| Errores, reinicios de contenedor, OOM | 0 |
+| Cancelaciones desde OpenCode | 1, procesada sin errores |
+| RAM del contenedor | 47,6 GiB estables sobre el límite de 75 GiB |
+| VRAM por GPU | ~23 GiB de 24 GiB, 47–50 °C |
+
+Hubo sesiones pesadas con contexto cerca del límite de 262144 y respondieron
+bien. El host quedó sano: ~31 GiB de RAM disponibles, ventiladores en auto y
+watchdog normales tras todo el período. Los tok/s de esta tabla son más bajos
+que los del microbenchmark inicial porque reflejan carga real mixta (salidas
+largas, caché KV grande), no una corrida óptima.
+
+**Decisión (2026-10-31):** Strata con Huihui V2 queda como servicio de
+inferencia diario en las cuatro GPU. Ollama permanece instalado y detenido
+como fallback. Quedan pendientes: uso concurrente real (limitado al slot
+único), una evaluación formal de calidad contra otros modelos y un stress
+sostenido con el contexto de 262144 completo.
 
 ## Modelo y preparación
 
@@ -114,8 +142,10 @@ para expertos en RAM y límite de contenedor de 75 GiB para proteger al host.
 El límite y las reservas de VRAM son conservadores, no una garantía de que un
 contexto completo bajo carga real no pueda agotar memoria.
 
-Ollama permanece instalado y puede restaurarse después de detener Strata con
-`docker start octofan-ollama`. No iniciar ambos modelos en las mismas GPU.
+Desde 2026-10-31 este stack es el servicio diario y se mantiene levantado.
+Ollama permanece instalado y detenido; puede restaurarse después de detener
+Strata con `docker start octofan-ollama`. No iniciar ambos modelos en las
+mismas GPU.
 Comprobar watchdog, ventiladores en automático, temperatura y memoria tras
 cualquier cambio de servicio.
 
