@@ -20,11 +20,13 @@ from .control import (
 )
 from .display import render_display, resolve_display_title
 from .docker import DockerApiClient
+from .flux import FluxClient, FluxStatus
 from .llamacpp import LlamaCppClient, LlamaCppStatus
 from .metrics import metrics_payload, update_metrics, watchdog_metric
 from .nvidia import NvidiaSmi, NvidiaStatus
 from .ollama import OllamaClient, OllamaStatus
 from .parser import ControllerStatus
+from .strata import StrataClient, StrataStatus
 from .watchdog import WatchdogResult, gpu_watchdog_errors, run_watchdog_checks
 
 
@@ -52,6 +54,8 @@ app = FastAPI(title="Octofan AI Controller", version="0.1.0", lifespan=lifespan)
 cli = OctofanCli(BIN_PATH)
 llamacpp_client = LlamaCppClient()
 ollama_client = OllamaClient()
+strata_client = StrataClient()
+flux_client = FluxClient()
 nvidia_smi = NvidiaSmi()
 docker_client = DockerApiClient()
 critical_temperature_guard = CriticalTemperatureGuard()
@@ -60,6 +64,8 @@ state: dict[str, Any] = {
     "status": ControllerStatus(ok=False, error="not polled yet"),
     "llamacpp": LlamaCppStatus(),
     "ollama": OllamaStatus(),
+    "strata": StrataStatus(),
+    "flux": FluxStatus(),
     "nvidia": NvidiaStatus(ok=False, gpus=[], error="not polled yet"),
     "nvidia_ready": False,
     "target_fan": None,
@@ -73,6 +79,10 @@ state: dict[str, Any] = {
     "events": [],
     "watchdog": None,
     "watchdog_maintenance_until": None,
+    "ai_watchdog_down": None,
+    "ai_recovery_failures": 0,
+    "ai_recovery_cooldown_until": None,
+    "ai_recovery_restarts": 0,
 }
 
 
@@ -90,6 +100,8 @@ async def poll_loop() -> None:
         status = cli.status()
         llamacpp = await llamacpp_client.status(cfg.llamacpp)
         ollama = await ollama_client.status(cfg.ollama.base_url, cfg.ollama.enabled, cfg.ollama.timeout_seconds)
+        strata = await strata_client.status(cfg.strata.base_url, cfg.strata.enabled, cfg.strata.timeout_seconds)
+        flux = await flux_client.status(cfg.flux.base_url, cfg.flux.enabled, cfg.flux.timeout_seconds)
         nvidia = nvidia_smi.status()
         ai_generating = llamacpp.generating or (ollama.enabled and ollama.generating)
         gpu_idle_stop_active = _gpu_idle_stop_active(cfg, status, nvidia, ai_generating)
@@ -121,13 +133,15 @@ async def poll_loop() -> None:
             status=status,
             llamacpp=llamacpp,
             ollama=ollama,
+            strata=strata,
+            flux=flux,
             nvidia=nvidia,
             nvidia_ready=True,
             target_fan=target,
             fan_control=fan_control,
             gpu_idle_stop_active=gpu_idle_stop_active,
         )
-        update_metrics(status, llamacpp, target, nvidia, fan_control)
+        update_metrics(status, llamacpp, target, nvidia, fan_control, strata=strata, ollama=ollama, flux=flux)
         await asyncio.sleep(cfg.fans.poll_interval_seconds)
 
 
@@ -157,13 +171,16 @@ async def watchdog_loop() -> None:
             )
             if run_recovery:
                 _event(f"GPU watchdog: {gpu_errors[0]}; restarting {cfg.watchdog.gpu_recovery_restart_containers or 'nothing configured'} before escalating to firmware reset")
-                asyncio.create_task(_run_gpu_recovery(cfg.watchdog.gpu_recovery_restart_containers))
+                asyncio.create_task(_restart_containers(cfg.watchdog.gpu_recovery_restart_containers, "GPU watchdog"))
             errors = list(base.errors)
             if gpu_errors:
                 if blocking:
                     errors.extend(gpu_errors)
                 elif gpu_note:
                     errors.append(gpu_note)
+            ai_note = await _observe_ai_watchdog(cfg, time.monotonic())
+            if ai_note:
+                errors.append(ai_note)
             result = WatchdogResult(healthy=not base.errors and not blocking, checked=base.checked + (1 if gpu_errors else 0), errors=errors)
             state["watchdog"] = result
             if maintenance_left:
@@ -198,6 +215,9 @@ async def watchdog_loop() -> None:
             unhealthy_failures = 0
             gpu_recovery_deadline = None
             state["watchdog"] = None
+            state["ai_watchdog_down"] = None
+            state["ai_recovery_failures"] = 0
+            state["ai_recovery_cooldown_until"] = None
             if cfg.watchdog.keepalive_when_disabled:
                 try:
                     cli.feed_watchdog()
@@ -242,10 +262,101 @@ def _watchdog_maintenance_seconds_left() -> int:
     return int(left)
 
 
-async def _run_gpu_recovery(container_names: list[str]) -> None:
+def _ai_recovery_cooldown_seconds_left() -> int:
+    until = state.get("ai_recovery_cooldown_until")
+    if until is None:
+        return 0
+    left = until - time.monotonic()
+    if left <= 0:
+        return 0
+    return int(left)
+
+
+def _ai_watchdog_down(cfg: AppConfig, ollama: OllamaStatus, strata: StrataStatus) -> str | None:
+    """Name of the enabled inference backend that is currently failing health."""
+    if cfg.strata.enabled and not strata.up:
+        return "strata"
+    if cfg.ollama.enabled and not ollama.up:
+        return "ollama"
+    return None
+
+
+def _ai_recovery_decision(
+    down: str | None,
+    starting: bool,
+    failures: int,
+    cooldown_until: float | None,
+    now: float,
+    cfg: WatchdogConfig,
+) -> tuple[int, float | None, bool, str | None]:
+    """Return (failures, cooldown_until, run_restart, note) for the AI health check.
+
+    Unlike GPU recovery this never blocks the firmware feed: restarting the model
+    server is the whole recovery, and GGUF load times exceed any sane reset timeout.
+    """
+    if down is None or starting:
+        return 0, cooldown_until, False, None
+    if cooldown_until is not None and now < cooldown_until:
+        return 0, cooldown_until, False, f"AI recovery cooldown: {down} still down after restart"
+    if not cfg.ai_recovery_enabled or not cfg.ai_recovery_restart_containers:
+        return failures + 1, cooldown_until, False, f"AI down: {down}"
+    failures += 1
+    if failures < cfg.ai_recovery_min_failures:
+        return failures, cooldown_until, False, f"AI down: {down} ({failures}/{cfg.ai_recovery_min_failures})"
+    containers = ", ".join(cfg.ai_recovery_restart_containers)
+    return 0, now + cfg.ai_recovery_cooldown_seconds, True, f"AI recovery: restarting {containers}"
+
+
+def _any_container_starting(container_names: list[str]) -> bool:
+    """True while any listed container is inside its healthcheck start period.
+
+    That is the model-load window (Strata declares 600 s); restarting during it
+    would only restart the load.
+    """
+    return any(docker_client.container_health(name) == "starting" for name in container_names)
+
+
+async def _observe_ai_watchdog(cfg: AppConfig, now: float) -> str | None:
+    """Track inference-backend health for the watchdog and restart on persistent failure.
+
+    Returns an informational note for the watchdog status. It never affects the
+    healthy/unhealthy result that gates the firmware feed.
+    """
+    down = _ai_watchdog_down(cfg, state["ollama"], state["strata"])
+    state["ai_watchdog_down"] = down
+    starting = (
+        down is not None
+        and cfg.watchdog.ai_recovery_enabled
+        and bool(cfg.watchdog.ai_recovery_restart_containers)
+        and await asyncio.to_thread(_any_container_starting, cfg.watchdog.ai_recovery_restart_containers)
+    )
+    failures, cooldown_until, run_restart, note = _ai_recovery_decision(
+        down,
+        starting,
+        state["ai_recovery_failures"],
+        state["ai_recovery_cooldown_until"],
+        now,
+        cfg.watchdog,
+    )
+    state["ai_recovery_failures"] = failures
+    state["ai_recovery_cooldown_until"] = cooldown_until
+    if starting:
+        return f"AI recovery: {down} model load in progress (docker health starting)"
+    if run_restart:
+        state["ai_recovery_restarts"] += 1
+        watchdog_metric.labels("ai_recovery_restarts").set(state["ai_recovery_restarts"])
+        _event(f"AI watchdog: {down} health failing; restarting {', '.join(cfg.watchdog.ai_recovery_restart_containers)}")
+        asyncio.create_task(_restart_containers(cfg.watchdog.ai_recovery_restart_containers, "AI watchdog"))
+        return note
+    if down and failures == 1:
+        _event(f"AI watchdog: {down} health check failed")
+    return note
+
+
+async def _restart_containers(container_names: list[str], reason: str) -> None:
     for name in container_names:
         ok = await asyncio.to_thread(docker_client.restart_container, name)
-        _event(f"GPU watchdog: container {name} restart {'ok' if ok else 'FAILED'}")
+        _event(f"{reason}: container {name} restart {'ok' if ok else 'FAILED'}")
 
 
 def _watchdog_needs_rearm(configured: bool, status: ControllerStatus) -> bool:
@@ -267,7 +378,9 @@ async def led_loop() -> None:
         cfg: AppConfig = state["config"]
         try:
             if cfg.leds.enabled:
-                desired = _desired_led_modes(cfg, state["status"], state["llamacpp"], state["ollama"], state["nvidia"])
+                desired = _desired_led_modes(
+                    cfg, state["status"], state["llamacpp"], state["ollama"], state["strata"], state["nvidia"]
+                )
                 _apply_led_modes(desired)
         except Exception as exc:
             _event(f"failed to update leds: {exc}")
@@ -386,6 +499,7 @@ async def _write_display(profile: str | None, force_eeprom: bool = False) -> lis
         state["llamacpp"],
         state["nvidia"],
         state["ollama"],
+        state["strata"],
     )
     try:
         signature = (resolve_display_title(display_cfg), display_cfg.profile)
@@ -437,6 +551,14 @@ def serialize_status() -> dict[str, Any]:
         "watchdog_maintenance_seconds_left": _watchdog_maintenance_seconds_left(),
         "llamacpp": state["llamacpp"].to_dict(),
         "ollama": state["ollama"].to_dict(),
+        "strata": state["strata"].to_dict(),
+        "flux": state["flux"].to_dict(),
+        "ai_recovery": {
+            "down": state.get("ai_watchdog_down"),
+            "consecutive_failures": state.get("ai_recovery_failures", 0),
+            "cooldown_seconds_left": _ai_recovery_cooldown_seconds_left(),
+            "restarts": state.get("ai_recovery_restarts", 0),
+        },
         "nvidia": state["nvidia"].to_dict(),
         "leds": {
             "enabled": state["config"].leds.enabled,
@@ -460,6 +582,7 @@ def _desired_led_modes(
     status: ControllerStatus,
     llamacpp: LlamaCppStatus,
     ollama: OllamaStatus,
+    strata: StrataStatus,
     nvidia: NvidiaStatus,
 ) -> dict[int, int]:
     leds = cfg.leds
@@ -468,6 +591,7 @@ def _desired_led_modes(
     ai_health_ok = (
         (not cfg.llamacpp.enabled or llamacpp.ok)
         and (not cfg.ollama.enabled or ollama.up)
+        and (not cfg.strata.enabled or strata.up)
     )
     if status.ok and ai_health_ok:
         desired[leds.online_led_id] = leds.on_mode
@@ -640,6 +764,9 @@ async function refresh(){
     ['Fan policy', st.fan_control ? st.fan_control.reason+' ('+st.fan_control.raw_target_percent+' % demand)' : '--'],
     ['Power', st.controller.power_ac_total_w+' W'],
     ['llama.cpp', st.llamacpp.available_models+' available / '+st.llamacpp.running_models+' generating'],
+    ['Strata', st.strata.enabled ? (st.strata.up ? st.strata.loaded_models+'/'+st.strata.total_models+' loaded' : 'DOWN') : 'disabled'],
+    ['Flux', st.flux.enabled ? (st.flux.up ? 'up' : 'DOWN') : 'disabled'],
+    ['AI recovery', st.ai_recovery.down ? ('down: '+st.ai_recovery.down+' ('+st.ai_recovery.consecutive_failures+' fails, '+st.ai_recovery.restarts+' restarts)') : 'ok'],
     ['AI activity', (st.nvidia.gpus||[]).some(g=>g.utilization_gpu_percent>=cfg.leds.gpu_activity_utilization_percent || g.power_draw_watts>=cfg.leds.gpu_activity_power_watts) ? 'GPU active' : 'idle'],
     ['LEDs', st.leds.enabled ? JSON.stringify(st.leds.modes) : 'disabled'],
     ['GPUs', (st.nvidia.gpus||[]).length],

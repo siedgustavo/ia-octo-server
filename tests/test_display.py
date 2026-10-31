@@ -3,7 +3,9 @@ from octofan_controller.config import DisplayConfig
 from octofan_controller.display import render_display, resolve_display_title, resolve_host_ip
 from octofan_controller.llamacpp import LlamaCppStatus
 from octofan_controller.nvidia import GpuStatus, NvidiaStatus
+from octofan_controller.ollama import OllamaStatus
 from octofan_controller.parser import parse_controller_output
+from octofan_controller.strata import StrataStatus
 
 
 def test_display_is_20_by_8():
@@ -42,6 +44,45 @@ def test_display_does_not_report_degraded_ai_when_legacy_monitor_is_disabled():
     )
 
     assert lines[3].strip() == "AI monitor off"
+
+
+def test_display_ai_line_prefers_strata_and_shows_loaded_models():
+    lines = render_display(
+        parse_controller_output(MOCK_OUTPUT),
+        DisplayConfig(profile="ai"),
+        10,
+        LlamaCppStatus(),
+        ollama=OllamaStatus(enabled=True, up=False),
+        strata=StrataStatus(enabled=True, up=True, total_models=1, loaded_models=1),
+    )
+
+    assert lines[3].strip() == "Strata 1/1 loaded"
+
+
+def test_display_ai_line_reports_strata_down_over_stopped_ollama():
+    lines = render_display(
+        parse_controller_output(MOCK_OUTPUT),
+        DisplayConfig(profile="ai"),
+        10,
+        LlamaCppStatus(),
+        ollama=OllamaStatus(),
+        strata=StrataStatus(enabled=True, up=False),
+    )
+
+    assert lines[3].strip() == "Strata DOWN"
+
+
+def test_display_ai_line_falls_back_to_ollama_when_strata_is_disabled():
+    lines = render_display(
+        parse_controller_output(MOCK_OUTPUT),
+        DisplayConfig(profile="ai"),
+        10,
+        LlamaCppStatus(),
+        ollama=OllamaStatus(enabled=True, up=True, running_models=2),
+        strata=StrataStatus(),
+    )
+
+    assert lines[3].strip() == "Ollama 2 loaded"
 
 
 def test_display_title_uses_main_hostname_uppercase(monkeypatch):

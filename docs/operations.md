@@ -7,12 +7,12 @@ GPU inference services share the four RTX 3090 and run **one at a time**:
 | Service | Compose file | Port | State in production |
 | --- | --- | --- | --- |
 | `strata-qwen` (Strata, Huihui Qwen3.8-Flash-Next abliterated V2) | `docker-compose.strata-qwen.yml` | `18080` | **Running: daily service** (see [strata-qwen.md](strata-qwen.md)) |
-| `ollama` (custom Ollama 0.35.1-b11381) | `docker-compose.yml` | `11434` | Stopped by hand (`Exited`), kept as fallback with its models registered |
+| `ollama` (custom Ollama 0.35.1-b11381) | `docker-compose.yml` (profile `ollama`) | `11434` | Stopped by hand (`Exited`), kept as fallback with its models registered |
 | `qwen38flash` / `glm53flash` (dedicated llama.cpp) | `docker-compose.qwen38flash.yml` / `docker-compose.glm53flash.yml` | `8091` / `8090` | No containers; kept to reproduce benchmarks |
 | `flux` (CPU FLUX.1-schnell) | `docker-compose.flux.yml` (own project `octofan-flux`) | `7860` | Running; uses no GPU |
 
-Because `ollama` belongs to the main Compose file, **a bare `docker compose up -d` would start
-it next to Strata**. Always name the services you want to (re)start:
+`ollama` lives behind the Compose profile `ollama`, so a bare `docker compose up -d` skips it
+and cannot start it next to Strata. Deploys still name their services explicitly:
 
 ```bash
 docker compose up --build -d octofan-controller prometheus node-exporter grafana
@@ -22,17 +22,18 @@ Switching back to the Ollama fallback:
 
 ```bash
 docker compose -f docker-compose.strata-qwen.yml stop
-docker start octofan-ollama
+docker compose --profile ollama up -d ollama   # or: docker start octofan-ollama
 ```
 
-While Strata is up and Ollama is stopped, the controller still polls Ollama
-(`ollama.enabled: true`, `http://ollama:11434`), so `/api/status` reports
-`ollama.up: false`, the OLED `ai` profile shows `Ollama DOWN`, the blue online LED stays off
-and the orange warning LED blinks slowly. That is expected behaviour, not a fault. Set
-`ollama.enabled: false` if you prefer `AI monitor off` and normal LEDs. Also note that
-`watchdog.gpu_recovery_restart_containers` still lists `octofan-ollama`: a GPU-condition
-failure would `docker restart` (that is, start) the stopped Ollama container next to Strata.
-Point it at `strata-qwen` while Strata is the daily service.
+The controller monitors the inference and image services directly: `strata.enabled: true`
+makes it poll `http://host.docker.internal:18080/v1/models` (the OLED `ai` profile shows
+`Strata 1/1 loaded` / `Strata DOWN`, and the online/warning LEDs follow it), and
+`flux.enabled: true` polls sd-server on `7860` for `/api/status` and `octofan_flux_up`.
+`ollama.enabled` stays `false` while Ollama is down, so its absence is not reported as a
+fault; flip `strata.enabled`/`ollama.enabled` when the fallback takes over. Both recovery
+lists point at `strata-qwen`: `watchdog.gpu_recovery_restart_containers` (GPU-condition
+failure → `docker restart`) and `watchdog.ai_recovery_restart_containers` (persistent
+`/v1/models` failure → `docker restart`, see the watchdog section below).
 
 ## Start With Hardware
 
@@ -331,7 +332,11 @@ docker compose -f docker-compose.flux.yml up --build -d
 ```
 
 The image builds from a pinned upstream commit (`SDCPP_REF`). Models stay loaded
-in RAM (~23 GB). Web UI at `http://octoserver.core.sied.ar:7860/`.
+in RAM (~23 GB). Web UI at `http://octoserver.core.sied.ar:7860/`. The controller
+polls that URL when `flux.enabled: true`; health shows up in `/api/status` as
+`flux` and in Prometheus as `octofan_flux_up{source="flux"}` (alert
+`OctofanFluxDown`). Flux is not on the OLED and its failure does not blink the
+warning LED: it is CPU-only and independent from inference.
 
 OpenAI-compatible API (synchronous, returns base64):
 
@@ -400,7 +405,12 @@ watchdog:
   gpu_recovery_enabled: true
   gpu_recovery_grace_seconds: 300
   gpu_recovery_restart_containers:
-    - octofan-ollama
+    - strata-qwen
+  ai_recovery_enabled: true
+  ai_recovery_min_failures: 3
+  ai_recovery_cooldown_seconds: 900
+  ai_recovery_restart_containers:
+    - strata-qwen
   checks:
     - type: ssh
       target: host.docker.internal:22
@@ -410,6 +420,17 @@ watchdog:
 If `enabled` is true and any check fails for `unhealthy_failures_before_reset` consecutive watchdog cycles, the daemon does not feed the hardware watchdog. Short transient check failures are tolerated so one missed probe does not trigger a board reset (production logs occasional `watchdog unhealthy (1/3): ssh:... failed` events that clear on the next cycle). Failures during the first 120 s after daemon startup are also ignored, which covers bridge-network flaps when containers are recreated. If `enabled` is false and `keepalive_when_disabled` is true, the daemon feeds the hardware watchdog without using it as a reset policy.
 
 With `gpus_expected > 0`, an `nvidia-smi` failure, a GPU count mismatch or phantom entries without UUID mark the watchdog unhealthy. With `gpu_recovery_enabled`, the first failure restarts the containers listed in `gpu_recovery_restart_containers` through the mounted Docker socket and keeps feeding for `gpu_recovery_grace_seconds`; only if the condition persists does the daemon stop feeding. `docker restart` also starts a stopped container, so keep that list pointed at the service that actually owns the GPUs (`strata-qwen` while Strata is the daily service, `octofan-ollama` when Ollama is).
+
+With `ai_recovery_enabled`, the watchdog also tracks the enabled inference backend (Strata
+when `strata.enabled`, otherwise Ollama when `ollama.enabled`). After
+`ai_recovery_min_failures` consecutive 30 s cycles with the backend's health check failing,
+the daemon restarts `ai_recovery_restart_containers` and then waits
+`ai_recovery_cooldown_seconds` before restarting again (a model reload can take ~10 minutes,
+and restarts are suppressed entirely while Docker reports the container as `starting`).
+Unlike the GPU condition, AI failures never stop the firmware feed: the reset policy stays
+reserved for host hangs, and the restart plus the `OctofanStrataDown` Prometheus alert are
+the recovery/notification path. Progress is visible in `/api/status` (`ai_recovery`) and as
+`octofan_watchdog{metric="ai_recovery_restarts"}`.
 
 `POST /api/watchdog/maintenance` with `{"minutes": N}` (max 240) feeds the firmware regardless of check results. Use it before restarting sshd or disturbing the host network. The state lives in daemon memory and does not survive a controller recreate; the startup grace covers that case.
 

@@ -42,7 +42,22 @@ def test_retired_llamacpp_health_check_is_disabled_but_host_watchdog_stays_enabl
     ]
     assert config["watchdog"]["gpus_expected"] == 4
     assert config["watchdog"]["gpu_recovery_enabled"] is True
-    assert config["watchdog"]["gpu_recovery_restart_containers"] == ["octofan-ollama"]
+    assert config["watchdog"]["gpu_recovery_restart_containers"] == ["strata-qwen"]
+    assert config["watchdog"]["ai_recovery_enabled"] is True
+    assert config["watchdog"]["ai_recovery_min_failures"] == 3
+    assert config["watchdog"]["ai_recovery_cooldown_seconds"] == 900
+    assert config["watchdog"]["ai_recovery_restart_containers"] == ["strata-qwen"]
+    assert config["ollama"]["enabled"] is False
+    assert config["strata"]["enabled"] is True
+    assert config["strata"]["base_url"] == "http://host.docker.internal:18080"
+    assert config["flux"]["enabled"] is True
+    assert config["flux"]["base_url"] == "http://host.docker.internal:7860"
+
+
+def test_ollama_is_a_compose_profile_so_bare_up_leaves_it_down():
+    ollama = load_compose()["services"]["ollama"]
+
+    assert ollama["profiles"] == ["ollama"]
 
 
 def test_ollama_keeps_models_loaded_until_vram_pressure():

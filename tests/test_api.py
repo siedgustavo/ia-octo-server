@@ -7,6 +7,8 @@ os.environ["OCTOFAN_MOCK"] = "1"
 from octofan_controller.app import (
     ManualFanRequest,
     WatchdogMaintenanceRequest,
+    _ai_recovery_decision,
+    _ai_watchdog_down,
     _desired_led_modes,
     _gpu_idle_stop_candidate,
     _gpu_recovery_state,
@@ -21,16 +23,21 @@ from octofan_controller.app import (
 )
 from octofan_controller.config import AppConfig, WatchdogConfig, load_config
 from octofan_controller.control import FanControlDecision
+from octofan_controller.flux import FluxStatus
 from octofan_controller.llamacpp import LlamaCppServerStatus, LlamaCppStatus
 from octofan_controller.ollama import OllamaStatus
 from octofan_controller.metrics import metrics_payload, update_metrics
 from octofan_controller.nvidia import GpuStatus, NvidiaStatus
 from octofan_controller.parser import BmeStatus, ControllerStatus
+from octofan_controller.strata import StrataStatus
 
 
 def test_status_and_metrics():
     status = serialize_status()
     assert "controller" in status
+    assert "strata" in status
+    assert "flux" in status
+    assert "ai_recovery" in status
     metrics = metrics_payload().decode()
     assert "octofan_controller_up" in metrics
     assert "octofan_nvidia_smi_up" in metrics
@@ -129,7 +136,7 @@ def test_led_modes_show_online_and_gpu_activity():
         ],
     )
 
-    modes = _desired_led_modes(cfg, status, LlamaCppStatus(ok=True), OllamaStatus(), nvidia)
+    modes = _desired_led_modes(cfg, status, LlamaCppStatus(ok=True), OllamaStatus(), StrataStatus(), nvidia)
 
     assert modes == {
         cfg.leds.warning_led_id: cfg.leds.off_mode,
@@ -145,7 +152,7 @@ def test_led_modes_warn_when_llamacpp_is_down():
     status = ControllerStatus()
     nvidia = NvidiaStatus(ok=True, gpus=[])
 
-    modes = _desired_led_modes(cfg, status, LlamaCppStatus(ok=False), OllamaStatus(), nvidia)
+    modes = _desired_led_modes(cfg, status, LlamaCppStatus(ok=False), OllamaStatus(), StrataStatus(), nvidia)
 
     assert modes[cfg.leds.warning_led_id] == cfg.leds.slow_blink_mode
     assert modes[cfg.leds.online_led_id] == cfg.leds.off_mode
@@ -162,12 +169,81 @@ def test_led_modes_show_controller_online_when_llamacpp_is_disabled():
         ControllerStatus(ok=True),
         LlamaCppStatus(ok=False),
         OllamaStatus(),
+        StrataStatus(),
         NvidiaStatus(ok=True, gpus=[]),
     )
 
     assert modes[cfg.leds.warning_led_id] == cfg.leds.off_mode
     assert modes[cfg.leds.online_led_id] == cfg.leds.on_mode
     assert modes[cfg.leds.activity_led_id] == cfg.leds.off_mode
+
+
+def test_led_modes_warn_when_strata_is_down():
+    cfg = AppConfig()
+    cfg.leds.enabled = True
+    cfg.strata.enabled = True
+
+    modes = _desired_led_modes(
+        cfg,
+        ControllerStatus(ok=True),
+        LlamaCppStatus(),
+        OllamaStatus(),
+        StrataStatus(enabled=True, up=False),
+        NvidiaStatus(ok=True, gpus=[]),
+    )
+
+    assert modes[cfg.leds.warning_led_id] == cfg.leds.slow_blink_mode
+    assert modes[cfg.leds.online_led_id] == cfg.leds.off_mode
+
+
+def test_ai_watchdog_down_names_enabled_failing_backend():
+    cfg = AppConfig()
+    cfg.strata.enabled = True
+
+    assert _ai_watchdog_down(cfg, OllamaStatus(), StrataStatus(enabled=True, up=True)) is None
+    assert _ai_watchdog_down(cfg, OllamaStatus(), StrataStatus(enabled=True, up=False)) == "strata"
+    cfg.strata.enabled = False
+    cfg.ollama.enabled = True
+    assert _ai_watchdog_down(cfg, OllamaStatus(enabled=True, up=False), StrataStatus()) == "ollama"
+    assert _ai_watchdog_down(cfg, OllamaStatus(enabled=True, up=True), StrataStatus()) is None
+
+
+def test_ai_recovery_decision_restarts_after_threshold_and_cooldowns():
+    cfg = WatchdogConfig(
+        ai_recovery_enabled=True,
+        ai_recovery_min_failures=3,
+        ai_recovery_cooldown_seconds=900,
+        ai_recovery_restart_containers=["strata-qwen"],
+    )
+
+    failures, cooldown, restart, note = _ai_recovery_decision("strata", False, 0, None, now=1000.0, cfg=cfg)
+    assert failures == 1 and cooldown is None and not restart and "1/3" in note
+
+    failures, cooldown, restart, note = _ai_recovery_decision("strata", False, failures, cooldown, now=1030.0, cfg=cfg)
+    assert failures == 2 and not restart
+
+    failures, cooldown, restart, note = _ai_recovery_decision("strata", False, failures, cooldown, now=1060.0, cfg=cfg)
+    assert failures == 0 and cooldown == 1960.0 and restart and "strata-qwen" in note
+
+    failures, cooldown, restart, note = _ai_recovery_decision("strata", False, 0, cooldown, now=1200.0, cfg=cfg)
+    assert failures == 0 and not restart and "cooldown" in note
+
+    failures, cooldown, restart, note = _ai_recovery_decision(None, False, 2, cooldown, now=1230.0, cfg=cfg)
+    assert failures == 0 and cooldown == 1960.0 and not restart and note is None
+
+
+def test_ai_recovery_decision_waits_while_docker_health_is_starting():
+    cfg = WatchdogConfig(ai_recovery_enabled=True, ai_recovery_min_failures=1, ai_recovery_restart_containers=["strata-qwen"])
+
+    failures, cooldown, restart, note = _ai_recovery_decision("strata", True, 2, None, now=1000.0, cfg=cfg)
+    assert failures == 0 and not restart and note is None
+
+
+def test_ai_recovery_decision_without_config_only_reports():
+    cfg = WatchdogConfig(ai_recovery_enabled=False, ai_recovery_restart_containers=[])
+
+    failures, cooldown, restart, note = _ai_recovery_decision("strata", False, 1, None, now=1000.0, cfg=cfg)
+    assert failures == 2 and not restart and note == "AI down: strata"
 
 
 def test_watchdog_tolerates_transient_unhealthy_checks():
@@ -260,3 +336,37 @@ def test_metrics_exports_llamacpp_server_status():
     assert 'octofan_fan_control_target_percent{source="gpu"} 64.0' in metrics
     assert 'octofan_fan_control_target_percent{source="combined"} 64.0' in metrics
     assert "octofan_temperature_delta_celsius 5.0" in metrics
+
+
+def test_metrics_exports_strata_and_flux_health():
+    update_metrics(
+        ControllerStatus(),
+        LlamaCppStatus(),
+        10,
+        strata=StrataStatus(enabled=True, up=True, total_models=1, loaded_models=1),
+        ollama=OllamaStatus(),
+        flux=FluxStatus(enabled=True, up=False, error="HTTP 503"),
+    )
+
+    metrics = metrics_payload().decode()
+
+    assert 'octofan_ai_up{source="strata"} 1.0' in metrics
+    assert 'octofan_ai_available_models{source="strata"} 1.0' in metrics
+    assert 'octofan_ai_running_models{source="strata"} 1.0' in metrics
+    assert 'octofan_flux_up{source="flux"} 0.0' in metrics
+    assert 'source="ollama"' not in metrics
+
+
+def test_metrics_drop_sources_when_backends_are_disabled():
+    update_metrics(
+        ControllerStatus(),
+        LlamaCppStatus(),
+        10,
+        strata=StrataStatus(),
+        flux=FluxStatus(),
+    )
+
+    metrics = metrics_payload().decode()
+
+    assert 'source="strata"' not in metrics
+    assert 'source="flux"' not in metrics

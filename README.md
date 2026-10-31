@@ -109,15 +109,15 @@ Main `docker-compose.yml`:
 - `prometheus`: metrics storage and alert rules (`prometheus/rules/`).
 - `node-exporter`: host system and network metrics, running in the host network namespace.
 - `grafana`: dashboard at `http://localhost:3000` (`admin` / `octofan`).
-- `ollama`: Ollama API at `http://localhost:11434`, with every host GPU visible, built from `ollama-custom/Dockerfile`. **Stopped in production as a fallback** while Strata owns the GPUs.
+- `ollama`: Ollama API at `http://localhost:11434`, with every host GPU visible, built from `ollama-custom/Dockerfile`. **Stopped in production as a fallback** while Strata owns the GPUs; it lives behind the Compose profile `ollama` so a bare `docker compose up -d` never starts it.
 
 Dedicated Compose files (same Compose project, started with `-f`; see the
 `--remove-orphans` warning in `docs/operations.md`):
 
-- `strata-qwen`: Strata serving Huihui Qwen3.8-Flash-Next abliterated V2 on port `18080` (OpenAI-compatible, no API key), defined in `docker-compose.strata-qwen.yml`. **The daily inference service since 2026-10-31.** See `docs/strata-qwen.md`.
+- `strata-qwen`: Strata serving Huihui Qwen3.8-Flash-Next abliterated V2 on port `18080` (OpenAI-compatible, no API key), defined in `docker-compose.strata-qwen.yml`. **The daily inference service since 2026-10-31.** The controller polls its `/v1/models` for OLED/LED/status health and auto-restarts the container when it stops answering. See `docs/strata-qwen.md`.
 - `qwen38flash`: dedicated llama.cpp service on port `8091`, defined in `docker-compose.qwen38flash.yml`. Not deployed at the moment; kept to reproduce benchmarks.
 - `glm53flash`: dedicated llama.cpp service on port `8090`, defined in `docker-compose.glm53flash.yml`. Not deployed at the moment; kept to reproduce benchmarks.
-- `flux`: CPU-only FLUX.1-schnell image generation (stable-diffusion.cpp `sd-server`) on port `7860`, defined in `docker-compose.flux.yml` as its own Compose project (`octofan-flux`). See `docs/operations.md`.
+- `flux`: CPU-only FLUX.1-schnell image generation (stable-diffusion.cpp `sd-server`) on port `7860`, defined in `docker-compose.flux.yml` as its own Compose project (`octofan-flux`). Health-polled by the controller (`octofan_flux_up`). See `docs/operations.md`.
 
 The GPU inference services compete for the same GPU memory and must run one at
 a time. The benchmarks above ran them individually.
@@ -196,7 +196,9 @@ Important sections:
 - `display`: OLED profile and refresh interval.
 - `leds`: front-panel LED policy. By default LED `0` is orange warning, LED `1` is blue online and LED `2` is white activity.
 - `llamacpp`: optional legacy health polling; disabled when Ollama is the only inference service.
-- `ollama`: on-demand inference health polling (`enabled`, `base_url`, `timeout_seconds`). When enabled, the controller polls Ollama and reflects it in `/api/status`, the OLED `ai` profile and the online/warning LEDs.
+- `ollama`: on-demand inference health polling (`enabled`, `base_url`, `timeout_seconds`). Disabled in production while the fallback container is stopped.
+- `strata`: inference health polling for the daily service (`enabled`, `base_url` → `http://host.docker.internal:18080`, `timeout_seconds`). When enabled, the controller polls `/v1/models` and reflects it in `/api/status`, the OLED `ai` profile and the online/warning LEDs, and the watchdog's AI recovery restarts `strata-qwen` on persistent failure.
+- `flux`: image-generation health polling (`enabled`, `base_url` → `http://host.docker.internal:7860`, `timeout_seconds`). Reported in `/api/status` and `octofan_flux_up` only.
 
 Automatic fan control combines BME280 intake, exhaust, exhaust-minus-intake delta and a capped
 hottest-GPU assistance curve, then applies the highest demand. Chassis temperatures govern normal
@@ -206,7 +208,7 @@ override normal slew limits. The API, Prometheus and Cooling dashboard expose ea
 
 `fans.gpu_idle_stop_enabled` can hold the chassis fans at the lowest active configured speed while NVIDIA GPUs are idle and cool. Manual and automatic targets are clamped to `fans.min_percent..fans.max_percent`, and the idle policy falls back to the normal auto curve when GPU load, GPU temperature, intake temperature or telemetry health no longer matches the configured idle thresholds.
 
-The OLED `ai` profile shows the host IP, AI health (`Ollama N models loaded`, `Ollama DOWN`, `AI services OK` or `AI monitor off`), hottest-GPU temperature and load, intake temperature with the current fan percent, and total power. The host IP is auto-detected from the host hostname and `/etc/hosts` (both mounted read-only into the controller); set `OCTOFAN_DISPLAY_IP` in `.env` to pin a specific address.
+The OLED `ai` profile shows the host IP, AI health (`Strata N/N loaded`, `Strata DOWN`, `Ollama N loaded`, `Ollama DOWN`, `AI services OK` or `AI monitor off`, preferring Strata, then Ollama, then llama.cpp), hottest-GPU temperature and load, intake temperature with the current fan percent, and total power. The host IP is auto-detected from the host hostname and `/etc/hosts` (both mounted read-only into the controller); set `OCTOFAN_DISPLAY_IP` in `.env` to pin a specific address.
 
 ## API
 
@@ -224,8 +226,10 @@ The OLED `ai` profile shows the host IP, AI health (`Ollama N models loaded`, `O
 ## Ollama
 
 > In production Ollama is currently **stopped** (`docker stop octofan-ollama`) while Strata
-> serves the GPUs. Start it only after stopping `strata-qwen`, and never with a bare
-> `docker compose up -d`, which would start it alongside Strata. See `docs/strata-qwen.md`.
+> serves the GPUs. The service sits behind the Compose profile `ollama`: a bare
+> `docker compose up -d` ignores it, and a start requires
+> `docker compose --profile ollama up -d ollama` (or `docker start octofan-ollama`) after
+> stopping `strata-qwen`. See `docs/strata-qwen.md`.
 
 The stack includes one custom Ollama instance with every NVIDIA GPU on the host visible. It processes one request
 per model in parallel, packs a model into one GPU whenever it fits, uses an 8-bit KV cache to

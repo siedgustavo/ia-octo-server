@@ -43,7 +43,12 @@ watchdog:
   gpu_recovery_enabled: true
   gpu_recovery_grace_seconds: 300
   gpu_recovery_restart_containers:
-  - octofan-ollama
+  - strata-qwen
+  ai_recovery_enabled: true
+  ai_recovery_min_failures: 3
+  ai_recovery_cooldown_seconds: 900
+  ai_recovery_restart_containers:
+  - strata-qwen
   checks:
   - type: ssh
     target: host.docker.internal:22
@@ -71,6 +76,14 @@ llamacpp:
   timeout_seconds: 2.0
   servers: []
 ollama:
-  enabled: true
+  enabled: false
   base_url: http://ollama:11434
   timeout_seconds: 8.0
+strata:
+  enabled: true
+  base_url: http://host.docker.internal:18080
+  timeout_seconds: 5.0
+flux:
+  enabled: true
+  base_url: http://host.docker.internal:7860
+  timeout_seconds: 5.0

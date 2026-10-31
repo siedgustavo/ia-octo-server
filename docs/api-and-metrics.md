@@ -15,8 +15,19 @@ The response also includes current LED control state under `leds`.
 The `ollama` object reports `enabled`, `up`, `running_models`, `available_models`, `vram_total_mib`,
 `vram_used_mib`, the `loaded` and `models` inventories and any polling `error`. When Ollama is
 enabled and generating, its activity also feeds the fan `ai_load_assist` boost and the GPU idle-stop
-guard. While the Ollama container is stopped (Strata era) the object reports `up: false` with a
-DNS error; that also drives the OLED `Ollama DOWN` line and the warning LED.
+guard. While Ollama is the stopped fallback, `ollama.enabled` is `false` and the object reports
+`up: false` with `enabled: false`.
+
+The `strata` object reports `enabled`, `up`, `total_models`, `loaded_models`, the `models`
+inventory (id, loaded flag, context) and any polling `error`; the controller polls the OpenAI-compatible
+`/v1/models`. The `flux` object reports the same minimal `enabled`/`up`/`error` shape for the sd-server
+image API. When Strata is enabled, the OLED `ai` profile and the online/warning LEDs follow Strata
+(`Strata 1/1 loaded` / `Strata DOWN`); with Strata disabled they fall back to Ollama and then to
+llama.cpp. Flux health is not on the OLED or the LEDs.
+
+The `ai_recovery` object reports the watchdog's inference-health state: `down` (the failing backend
+name or null), `consecutive_failures`, `cooldown_seconds_left` and the total `restarts` of the
+recovery containers (see `watchdog.ai_recovery_*`).
 
 The response includes `watchdog_maintenance_seconds_left` (see `POST /api/watchdog/maintenance`).
 
@@ -118,7 +129,8 @@ Watchdog:
 
 - `octofan_watchdog{metric}` with `metric` values: `mode` (firmware arming state read back
   from the controller; the daemon re-arms automatically if it reports disarmed), `resets`
-  (firmware autonomous reset counter) and `maintenance` (1 while maintenance mode is on).
+  (firmware autonomous reset counter), `maintenance` (1 while maintenance mode is on) and
+  `ai_recovery_restarts` (total inference-container restarts performed by AI recovery).
 
 Watchdog policy (config `watchdog.*`):
 
@@ -131,11 +143,15 @@ Watchdog policy (config `watchdog.*`):
   on the first GPU-condition failure the daemon restarts the listed containers through the
   mounted Docker socket and keeps feeding during the grace window; only if the condition
   persists does it stop feeding and let the firmware act.
+- `ai_recovery_enabled` / `ai_recovery_min_failures` / `ai_recovery_cooldown_seconds` /
+  `ai_recovery_restart_containers`: health of the enabled inference backend (Strata, else
+  Ollama). Persistent failures restart the listed containers (suppressed while Docker health
+  reports `starting`, i.e. model load) without ever stopping the firmware feed.
 - The unhealthy counter ignores failures during the first 120 s after daemon startup
   (bridge-network flaps on container recreates).
 - Prometheus alerting rules live in `prometheus/rules/octofan-alerts.yml` (GPU count
   mismatch, frozen GPU readings under load, `nvidia-smi` collector down, GPU > 85C,
-  controller unreachable).
+  controller unreachable, `OctofanStrataDown`, `OctofanFluxDown`).
 
 NVIDIA:
 
@@ -147,10 +163,12 @@ Common NVIDIA metric values include `temperature_gpu_c`, `temperature_memory_c`,
 
 AI:
 
+- `octofan_ai_up{source="strata|ollama"}` — backend health; exported only while that backend is enabled
+- `octofan_flux_up{source="flux"}` — sd-server health; exported only while `flux.enabled`
 - `octofan_ai_tokens_per_second{source="llamacpp"}`
 - `octofan_ai_tokens_per_second_available{source="llamacpp"}`
-- `octofan_ai_available_models{source="llamacpp"}`
-- `octofan_ai_running_models{source="llamacpp"}`
+- `octofan_ai_available_models{source="llamacpp|strata|ollama"}`
+- `octofan_ai_running_models{source="llamacpp|strata|ollama"}` — for Strata this is the number of models with status `loaded`
 - `octofan_llamacpp_up{name,gpu,model}`
 - `octofan_llamacpp_slots{name,gpu,state="total|processing"}`
 

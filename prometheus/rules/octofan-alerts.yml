@@ -54,3 +54,26 @@ groups:
         annotations:
           summary: "octofan-controller unreachable"
           description: "The controller daemon stopped reporting. If the host hangs with it, the firmware watchdog is the only thing left."
+
+  - name: octofan-inference
+    rules:
+      - alert: OctofanStrataDown
+        expr: octofan_ai_up{source="strata"} == 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Strata inference service is down"
+          description: >-
+            The controller cannot reach Strata's /v1/models for 15 minutes. The AI watchdog
+            already tried docker restart (octofan_ai_up stays 0 while the model reloads, which
+            can take ~10 minutes); check /api/status events and `docker logs strata-qwen`.
+
+      - alert: OctofanFluxDown
+        expr: octofan_flux_up{source="flux"} == 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "FLUX image generation service is down"
+          description: "The controller cannot reach sd-server (port 7860). CPU-only stack; check `docker compose -f docker-compose.flux.yml ps`."

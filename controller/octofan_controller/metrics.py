@@ -4,9 +4,12 @@ from prometheus_client import Gauge, generate_latest
 from prometheus_client.core import REGISTRY
 
 from .control import FanControlDecision
+from .flux import FluxStatus
 from .llamacpp import LlamaCppStatus
 from .nvidia import NvidiaStatus
+from .ollama import OllamaStatus
 from .parser import ControllerStatus
+from .strata import StrataStatus
 
 
 controller_up = Gauge("octofan_controller_up", "Controller read success")
@@ -31,6 +34,8 @@ ai_tps = Gauge("octofan_ai_tokens_per_second", "AI tokens per second", ["source"
 ai_tps_available = Gauge("octofan_ai_tokens_per_second_available", "Whether AI tokens per second is available", ["source"])
 ai_available_models = Gauge("octofan_ai_available_models", "AI models available locally", ["source"])
 ai_models = Gauge("octofan_ai_running_models", "AI running models", ["source"])
+ai_up = Gauge("octofan_ai_up", "AI backend health (only exported while the backend is enabled)", ["source"])
+flux_up = Gauge("octofan_flux_up", "FLUX sd-server health (only exported while flux monitoring is enabled)", ["source"])
 llamacpp_up = Gauge("octofan_llamacpp_up", "llama.cpp server health", ["name", "gpu", "model"])
 llamacpp_slots = Gauge("octofan_llamacpp_slots", "llama.cpp server slots", ["name", "gpu", "state"])
 target_fan = Gauge("octofan_target_fan_percent", "Last target case fan percent")
@@ -50,6 +55,9 @@ def update_metrics(
     current_target_fan: int | None,
     nvidia: NvidiaStatus | None = None,
     fan_control: FanControlDecision | None = None,
+    strata: StrataStatus | None = None,
+    ollama: OllamaStatus | None = None,
+    flux: FluxStatus | None = None,
 ) -> None:
     controller_up.set(1 if status.ok else 0)
     if current_target_fan is not None:
@@ -132,6 +140,16 @@ def update_metrics(
         llamacpp_up.labels(server.name, server.gpu, model).set(1 if server.ok else 0)
         llamacpp_slots.labels(server.name, server.gpu, "total").set(server.total_slots)
         llamacpp_slots.labels(server.name, server.gpu, "processing").set(server.processing_slots)
+    if strata is not None:
+        _set_or_remove_source(ai_up, "strata", strata.enabled, 1 if strata.up else 0)
+        _set_or_remove_source(ai_available_models, "strata", strata.enabled, strata.total_models)
+        _set_or_remove_source(ai_models, "strata", strata.enabled, strata.loaded_models)
+    if ollama is not None:
+        _set_or_remove_source(ai_up, "ollama", ollama.enabled, 1 if ollama.up else 0)
+        _set_or_remove_source(ai_available_models, "ollama", ollama.enabled, ollama.available_models)
+        _set_or_remove_source(ai_models, "ollama", ollama.enabled, ollama.running_models)
+    if flux is not None:
+        _set_or_remove_source(flux_up, "flux", flux.enabled, 1 if flux.up else 0)
     if nvidia is not None:
         nvidia_up.set(1 if nvidia.ok else 0)
         for gpu in nvidia.gpus:
@@ -162,6 +180,16 @@ def update_metrics(
                 value = getattr(gpu, metric_name)
                 if value is not None:
                     nvidia_metric.labels(*labels, metric_name).set(value)
+
+
+def _set_or_remove_source(gauge: Gauge, source: str, active: bool, value: float) -> None:
+    if active:
+        gauge.labels(source).set(value)
+        return
+    try:
+        gauge.remove(source)
+    except KeyError:
+        pass
 
 
 def metrics_payload() -> bytes:

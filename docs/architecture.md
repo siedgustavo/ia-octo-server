@@ -12,7 +12,7 @@ Main `docker-compose.yml`:
 - `prometheus`: scrapes `octofan-controller:8000/metrics` and the node exporter at `host.docker.internal:9100`; evaluates the alert rules in `prometheus/rules/`.
 - `node-exporter`: exposes host CPU, memory, disk, filesystem and network metrics. It runs with `network_mode: host` so network counters come from the host namespace instead of the exporter container.
 - `grafana`: loads the Prometheus datasource and the Octofan dashboard set.
-- `ollama`: model server built from `ollama-custom/Dockerfile` with every host NVIDIA GPU visible and persistent model storage under `/opt/ollama`. In production it is currently stopped as a fallback while Strata owns the GPUs.
+- `ollama`: model server built from `ollama-custom/Dockerfile` with every host NVIDIA GPU visible and persistent model storage under `/opt/ollama`. In production it is currently stopped as a fallback while Strata owns the GPUs. It lives behind the Compose profile `ollama`, so a bare `docker compose up -d` never starts it.
 
 Dedicated Compose files (same project namespace, started with `-f`):
 
@@ -20,7 +20,7 @@ Dedicated Compose files (same project namespace, started with `-f`):
 - `qwen38flash` / `glm53flash` (`docker-compose.qwen38flash.yml`, `docker-compose.glm53flash.yml`): dedicated llama.cpp servers with disk-persisted KV slots, used for the benchmarks in `docs/`. Not deployed at the moment.
 - `flux` (`docker-compose.flux.yml`, own project `octofan-flux`): CPU-only image generation; independent of the GPU services.
 
-The controller only monitors llama.cpp (`llamacpp.servers`) and Ollama (`ollama.base_url`). Strata is not polled, so AI health on the OLED/LEDs reflects Ollama while that backend is enabled.
+The controller polls llama.cpp (`llamacpp.servers`), Ollama (`ollama.base_url`), Strata (`strata.base_url`, via the OpenAI-compatible `/v1/models`) and Flux (`flux.base_url`). The OLED/LED AI health line follows the first enabled backend in the order Strata → Ollama → llama.cpp; Flux is reported only through `/api/status` and `octofan_flux_up`. While an enabled inference backend fails its health check, the watchdog's AI recovery restarts the containers in `watchdog.ai_recovery_restart_containers` (suppressing restarts while Docker health reports `starting`, i.e. model load) and restarts are rate-limited by `ai_recovery_cooldown_seconds`; unlike the GPU condition, AI failures never stop the firmware feed.
 
 ## Data Flow
 
@@ -54,4 +54,4 @@ Supported controller surfaces include:
 
 ## Network Model
 
-The compose stack uses the Docker network `octofan-ai` by default. Ollama is reachable within the network at `http://ollama:11434`; the controller does not depend on the inference service for hardware watchdog health. `strata-qwen` uses its own network (`strata-qwen`) and publishes port 18080 on the host; `flux` publishes 7860. The controller reaches the host sshd for the watchdog check, and Prometheus reaches the node exporter, through `host.docker.internal` (`extra_hosts: host-gateway`).
+The compose stack uses the Docker network `octofan-ai` by default. Ollama is reachable within the network at `http://ollama:11434`; the controller does not depend on the inference service for hardware watchdog health. `strata-qwen` uses its own network (`strata-qwen`) and publishes port 18080 on the host; `flux` publishes 7860. The controller monitors both through `host.docker.internal` (`strata.base_url` / `flux.base_url`). The controller reaches the host sshd for the watchdog check, and Prometheus reaches the node exporter, through `host.docker.internal` (`extra_hosts: host-gateway`).

@@ -21,3 +21,18 @@ class DockerApiClient:
             return resp.status_code in (204, 304)
         except Exception:
             return False
+
+    def container_health(self, name: str, timeout_seconds: float = 5.0) -> str | None:
+        """Return State.Health.Status ("starting", "healthy", "unhealthy") or None."""
+        try:
+            transport = self._transport or httpx.HTTPTransport(uds=self.socket_path)
+            with httpx.Client(transport=transport, timeout=timeout_seconds) as client:
+                resp = client.get(f"http://docker/containers/{name}/json")
+                if resp.status_code != 200:
+                    return None
+                state = resp.json().get("State") or {}
+                health = state.get("Health") or {}
+            value = health.get("status")
+            return value if isinstance(value, str) else None
+        except Exception:
+            return None

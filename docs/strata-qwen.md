@@ -165,15 +165,16 @@ cualquier cambio de servicio.
   dice `Ollama DOWN`, el LED azul (online) queda apagado y el naranja (warning)
   parpadea lento. No es una falla; si molesta, poner `ollama.enabled: false`
   en la config de prod (el OLED pasa a `AI monitor off`).
-- `watchdog.gpu_recovery_restart_containers` en prod sigue siendo
-  `[octofan-ollama]`. Ante una falla de la condición GPU el daemon haría
-  `docker restart octofan-ollama`, que **arranca** el contenedor parado junto
-  a Strata. Mientras Strata sea el servicio diario conviene apuntarlo a
-  `strata-qwen`.
-- Strata no es monitoreado por el controller: sin telemetría de modelos en
-  `/api/status`, OLED ni Prometheus (`octofan_ai_*` solo cubre llama.cpp). Las
-  GPU sí se ven por `nvidia-smi`, así que ventiladores, LED de actividad y
-  alertas de GPU funcionan igual.
+- `watchdog.gpu_recovery_restart_containers` apunta a `[strata-qwen]` (repo y prod).
+  Ante una falla de la condición GPU el daemon hace `docker restart strata-qwen`.
+- Desde 2026-10-31 el controller monitorea Strata: `strata.enabled: true` hace que
+  sondee `http://host.docker.internal:18080/v1/models` y lo refleje en `/api/status`,
+  el OLED (`Strata 1/1 loaded` / `Strata DOWN`), los LEDs y Prometheus
+  (`octofan_ai_up{source="strata"}`, `octofan_ai_running_models`). Además el
+  watchdog de IA (`watchdog.ai_recovery_*`) reinicia `strata-qwen` tras tres ciclos
+  seguidos de health check fallando, con cooldown de 900 s y sin reiniciar mientras
+  Docker reporta el contenedor `starting` (ventana de carga del modelo). AI recovery
+  nunca corta el alimento del firmware: el reset de placa queda solo para el host.
 
 Comprobaciones desde la red de confianza:
 
@@ -187,6 +188,6 @@ curl -fsS http://octoserver.core.sied.ar:18080/v1/chat/completions \
 En el OpenCode configurado para esta prueba, elegir en `/models` el modelo
 `strata/huihui-qwen3.8-flash-next-abliterated-v2-ud-q4_k_xl`. Ese proveedor
 es configuración local de OpenCode y no se distribuye automáticamente con este
-repositorio. El controller sigue configurado para consultar Ollama; la API de
-Strata no reemplaza transparentemente los endpoints nativos de Ollama ni su
-telemetría en el controller.
+repositorio. El controller consulta la API OpenAI-compatible de Strata
+(`/v1/models`) para salud; no emula los endpoints nativos de Ollama, que siguen
+existentes solo en el fallback.

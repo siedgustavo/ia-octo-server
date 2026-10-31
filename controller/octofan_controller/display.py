@@ -9,6 +9,7 @@ from .llamacpp import LlamaCppStatus
 from .nvidia import NvidiaStatus
 from .ollama import OllamaStatus
 from .parser import ControllerStatus
+from .strata import StrataStatus
 
 
 WIDTH = 20
@@ -29,6 +30,7 @@ def render_display(
     llamacpp: LlamaCppStatus,
     nvidia: NvidiaStatus | None = None,
     ollama: OllamaStatus | None = None,
+    strata: StrataStatus | None = None,
 ) -> list[str]:
     lines = [fit(resolve_display_title(cfg), BIG_WIDTH), fit("")]
     host = socket.gethostname()
@@ -41,10 +43,9 @@ def render_display(
     elif cfg.profile == "power":
         lines += [fit(f"Power {power}"), fit(f"PSUs {len(status.psus)}"), fit(f"FW {status.version_fw or '-'} HW {status.version_hw or '-'}")]
     elif cfg.profile == "ai":
-        if _ollama_ai_health(ollama, llamacpp) is None:
+        ai_health = _ai_health(ollama, llamacpp, strata)
+        if ai_health is None:
             ai_health = "AI monitor off"
-        else:
-            ai_health = _ollama_ai_health(ollama, llamacpp)
         lines += [
             fit(f"IP {resolve_host_ip()}"),
             fit(ai_health),
@@ -60,11 +61,19 @@ def render_display(
     return lines[:HEIGHT]
 
 
-def _ollama_ai_health(ollama: OllamaStatus | None, llamacpp: LlamaCppStatus) -> str | None:
+def _ai_health(
+    ollama: OllamaStatus | None,
+    llamacpp: LlamaCppStatus,
+    strata: StrataStatus | None = None,
+) -> str | None:
+    if strata is not None and strata.enabled:
+        if not strata.up:
+            return "Strata DOWN"
+        return f"Strata {strata.loaded_models}/{strata.total_models} loaded"
     if ollama is not None and ollama.enabled:
         if not ollama.up:
             return "Ollama DOWN"
-        return f"Ollama {ollama.running_models} model{'' if ollama.running_models == 1 else 's'} loaded"
+        return f"Ollama {ollama.running_models} loaded"
     if llamacpp.ok:
         return "AI services OK"
     if not llamacpp.servers and llamacpp.error is None:

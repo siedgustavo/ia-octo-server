@@ -7,7 +7,6 @@ from octofan_controller.docker import DockerApiClient
 from octofan_controller.nvidia import GpuStatus, NvidiaStatus
 from octofan_controller.watchdog import _run_check, gpu_watchdog_errors
 
-
 def _gpus(count: int, phantoms: int = 0) -> list[GpuStatus]:
     gpus = [GpuStatus(index=i, uuid=f"GPU-{i}", name="RTX", pci_bus_id=f"0{i}:00.0") for i in range(count)]
     gpus += [GpuStatus(index=count + i, uuid="", name="", pci_bus_id="") for i in range(phantoms)]
@@ -94,3 +93,20 @@ def test_docker_restart_container_reports_failure():
 
     client = DockerApiClient(transport=httpx.MockTransport(handler))
     assert not client.restart_container("nope")
+
+
+def test_docker_container_health_reads_state():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/containers/strata-qwen/json"
+        return httpx.Response(200, json={"State": {"Health": {"status": "starting"}}})
+
+    client = DockerApiClient(transport=httpx.MockTransport(handler))
+    assert client.container_health("strata-qwen") == "starting"
+
+
+def test_docker_container_health_missing_container_is_none():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(404)
+
+    client = DockerApiClient(transport=httpx.MockTransport(handler))
+    assert client.container_health("nope") is None

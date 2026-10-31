@@ -84,6 +84,10 @@ services:
       dockerfile: ollama-custom/Dockerfile
     image: ${OLLAMA_IMAGE:-octofan/ollama:0.35.1-b11381}
     container_name: octofan-ollama
+    # Fallback detenido: las GPU las ocupa strata-qwen. Un `docker compose up -d`
+    # a secas debe ignorarlo; arrancarlo con `--profile ollama up -d ollama`
+    # (o `docker start octofan-ollama`) tras parar el stack de Strata.
+    profiles: ["ollama"]
     dns:
       - ${OLLAMA_DNS:-172.16.1.1}
     gpus: all

@@ -76,6 +76,10 @@ class WatchdogConfig(BaseModel):
     gpu_recovery_enabled: bool = False
     gpu_recovery_grace_seconds: int = Field(default=240, ge=60, le=1800)
     gpu_recovery_restart_containers: list[str] = Field(default_factory=list)
+    ai_recovery_enabled: bool = False
+    ai_recovery_min_failures: int = Field(default=3, ge=1, le=100)
+    ai_recovery_cooldown_seconds: int = Field(default=900, ge=60, le=3600)
+    ai_recovery_restart_containers: list[str] = Field(default_factory=list)
     checks: list[WatchdogCheck] = Field(default_factory=list)
 
 
@@ -129,6 +133,18 @@ class OllamaConfig(BaseModel):
     timeout_seconds: float = Field(default=8.0, ge=0.2, le=60.0)
 
 
+class StrataConfig(BaseModel):
+    enabled: bool = False
+    base_url: str = "http://host.docker.internal:18080"
+    timeout_seconds: float = Field(default=5.0, ge=0.2, le=60.0)
+
+
+class FluxConfig(BaseModel):
+    enabled: bool = False
+    base_url: str = "http://host.docker.internal:7860"
+    timeout_seconds: float = Field(default=5.0, ge=0.2, le=60.0)
+
+
 class AppConfig(BaseModel):
     fans: FanConfig = Field(default_factory=FanConfig)
     watchdog: WatchdogConfig = Field(default_factory=WatchdogConfig)
@@ -136,6 +152,8 @@ class AppConfig(BaseModel):
     leds: LedConfig = Field(default_factory=LedConfig)
     llamacpp: LlamaCppConfig = Field(default_factory=LlamaCppConfig)
     ollama: OllamaConfig = Field(default_factory=OllamaConfig)
+    strata: StrataConfig = Field(default_factory=StrataConfig)
+    flux: FluxConfig = Field(default_factory=FluxConfig)
 
 
 def load_config(path: Path) -> AppConfig:
