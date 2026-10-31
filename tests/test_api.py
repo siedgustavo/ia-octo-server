@@ -201,10 +201,11 @@ def test_ai_watchdog_down_names_enabled_failing_backend():
     cfg.strata.enabled = True
 
     assert _ai_watchdog_down(cfg, OllamaStatus(), StrataStatus(enabled=True, up=True)) is None
-    assert _ai_watchdog_down(cfg, OllamaStatus(), StrataStatus(enabled=True, up=False)) == "strata"
+    assert _ai_watchdog_down(cfg, OllamaStatus(), StrataStatus(enabled=True, base_url="http://strata:8080", up=False)) == "strata"
+    assert _ai_watchdog_down(cfg, OllamaStatus(), StrataStatus(enabled=True, up=False)) is None
     cfg.strata.enabled = False
     cfg.ollama.enabled = True
-    assert _ai_watchdog_down(cfg, OllamaStatus(enabled=True, up=False), StrataStatus()) == "ollama"
+    assert _ai_watchdog_down(cfg, OllamaStatus(enabled=True, base_url="http://ollama:11434", up=False), StrataStatus()) == "ollama"
     assert _ai_watchdog_down(cfg, OllamaStatus(enabled=True, up=True), StrataStatus()) is None
 
 

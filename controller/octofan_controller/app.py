@@ -273,10 +273,14 @@ def _ai_recovery_cooldown_seconds_left() -> int:
 
 
 def _ai_watchdog_down(cfg: AppConfig, ollama: OllamaStatus, strata: StrataStatus) -> str | None:
-    """Name of the enabled inference backend that is currently failing health."""
-    if cfg.strata.enabled and not strata.up:
+    """Name of the enabled inference backend that is currently failing health.
+
+    A backend whose first poll has not landed yet (empty base_url) is not judged:
+    the daemon must not restart a healthy service during its own startup.
+    """
+    if cfg.strata.enabled and strata.base_url and not strata.up:
         return "strata"
-    if cfg.ollama.enabled and not ollama.up:
+    if cfg.ollama.enabled and ollama.base_url and not ollama.up:
         return "ollama"
     return None
 
