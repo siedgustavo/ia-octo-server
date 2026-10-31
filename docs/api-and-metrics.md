@@ -15,7 +15,10 @@ The response also includes current LED control state under `leds`.
 The `ollama` object reports `enabled`, `up`, `running_models`, `available_models`, `vram_total_mib`,
 `vram_used_mib`, the `loaded` and `models` inventories and any polling `error`. When Ollama is
 enabled and generating, its activity also feeds the fan `ai_load_assist` boost and the GPU idle-stop
-guard.
+guard. While the Ollama container is stopped (Strata era) the object reports `up: false` with a
+DNS error; that also drives the OLED `Ollama DOWN` line and the warning LED.
+
+The response includes `watchdog_maintenance_seconds_left` (see `POST /api/watchdog/maintenance`).
 
 ### `GET /api/config`
 
@@ -153,7 +156,7 @@ AI:
 
 Host and network:
 
-The stack includes `node_exporter`, scraped by Prometheus as `node-exporter:9100`. It provides standard `node_*` metrics for CPU, memory, filesystems, disks and network interfaces.
+The stack includes `node_exporter` in the host network namespace, scraped by Prometheus at `host.docker.internal:9100` (job `node-exporter`). It provides standard `node_*` metrics for CPU, memory, filesystems, disks and network interfaces.
 
 ## Dashboards
 

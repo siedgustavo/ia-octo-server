@@ -35,9 +35,10 @@ callback lee `ggml_nbytes` crudos e indexa con los strides reales (`nb`).
 
 ## Build (CPU-only, no toca GPUs)
 
-Se compila contra el mismo commit de llama.cpp que usa el servicio de produccion
-(`unslothai/llama.cpp @ glm5next/upstream`, commit
-`2e0e57f1008053bae4902a772da85e3eb99d4aff`).
+Se compila contra el mismo commit de llama.cpp que usaba el servicio `glm53flash`
+en el momento de la medicion (2026-09-07; `unslothai/llama.cpp @ glm5next/upstream`,
+commit `2e0e57f1008053bae4902a772da85e3eb99d4aff`). Ese servicio hoy no esta
+desplegado; el profiler sigue siendo util contra cualquier GGUF MoE.
 
 ```bash
 docker run -d --name kt-prof -v /opt/models-archive:/models:ro ubuntu:24.04 sleep infinity

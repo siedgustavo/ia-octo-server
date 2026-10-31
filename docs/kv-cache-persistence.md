@@ -6,6 +6,15 @@ Usa los endpoints nativos de llama.cpp `POST /slots/{id}?action=save` y
 `action=restore`, envueltos en un entrypoint que se dispara automaticamente
 al apagar y arrancar el contenedor.
 
+> **Estado al 2026-10-31.** Aplica solo a los stacks dedicados de llama.cpp
+> (`docker-compose.qwen38flash.yml`, `docker-compose.glm53flash.yml`), que hoy
+> no estan desplegados. El Ollama custom del compose principal no persiste
+> slots a disco: solo tiene el prompt cache en RAM (`OLLAMA_CACHE_RAM_MIB`,
+> equivalente al `--cache-ram` investigado mas abajo). Strata, el servicio
+> diario actual, maneja su propio cache de expertos y KV
+> (`docs/strata-qwen.md`). La investigacion sobre `--cache-ram` y `--parallel`
+> de este documento sigue siendo valida para cualquier llama-server.
+
 ## Motivacion
 
 Con `--parallel 1` cada servicio (`qwen38flash`, `glm53flash`) corre un unico

@@ -4,13 +4,23 @@ Octofan AI Server is a small container stack around the original Octominer USB c
 
 ## Components
 
-- `octofan-controller`: Python/FastAPI daemon. It owns hardware reads, fan decisions, OLED rendering, watchdog feeding and Prometheus metrics.
+Main `docker-compose.yml`:
+
+- `octofan-controller`: Python/FastAPI daemon. It owns hardware reads, fan decisions, OLED rendering, LED control, watchdog feeding (including the GPU inventory condition and container recovery through the mounted Docker socket) and Prometheus metrics.
 - `nvidia-smi`: queried by the controller container for GPU telemetry when NVIDIA Container Toolkit is available.
 - `fan_controller_cli`: original Octominer binary copied into the controller image from `reference/octofan-hiveos-originals/`.
-- `prometheus`: scrapes `octofan-controller:8000/metrics`.
+- `prometheus`: scrapes `octofan-controller:8000/metrics` and the node exporter at `host.docker.internal:9100`; evaluates the alert rules in `prometheus/rules/`.
 - `node-exporter`: exposes host CPU, memory, disk, filesystem and network metrics. It runs with `network_mode: host` so network counters come from the host namespace instead of the exporter container.
 - `grafana`: loads the Prometheus datasource and the Octofan dashboard set.
-- `ollama`: on-demand model server with every host NVIDIA GPU visible and persistent model storage under `/opt/ollama`.
+- `ollama`: model server built from `ollama-custom/Dockerfile` with every host NVIDIA GPU visible and persistent model storage under `/opt/ollama`. In production it is currently stopped as a fallback while Strata owns the GPUs.
+
+Dedicated Compose files (same project namespace, started with `-f`):
+
+- `strata-qwen` (`docker-compose.strata-qwen.yml`): Strata engine serving the daily Qwen model on port 18080 with an OpenAI-compatible API. Its config lives in `strata/strata-qwen.json`.
+- `qwen38flash` / `glm53flash` (`docker-compose.qwen38flash.yml`, `docker-compose.glm53flash.yml`): dedicated llama.cpp servers with disk-persisted KV slots, used for the benchmarks in `docs/`. Not deployed at the moment.
+- `flux` (`docker-compose.flux.yml`, own project `octofan-flux`): CPU-only image generation; independent of the GPU services.
+
+The controller only monitors llama.cpp (`llamacpp.servers`) and Ollama (`ollama.base_url`). Strata is not polled, so AI health on the OLED/LEDs reflects Ollama while that backend is enabled.
 
 ## Data Flow
 
@@ -23,8 +33,8 @@ Octofan AI Server is a small container stack around the original Octominer USB c
 7. Prometheus scrapes the controller and node exporter metrics.
 8. Grafana visualizes overview, PSU, environment, cooling, GPU and host/network dashboards.
 9. The OLED loop renders an 8-line, 20-character layout through `fan_controller_cli -o`.
-10. The LED loop maps controller health and NVIDIA activity to front-panel LEDs through `fan_controller_cli -l`.
-11. The watchdog loop runs configured checks and feeds the watchdog with `fan_controller_cli -s` only when healthy.
+10. The LED loop maps controller health, AI backend health and NVIDIA activity to front-panel LEDs through `fan_controller_cli -l`.
+11. The watchdog loop arms the firmware watchdog with `fan_controller_cli -w <short> -v <long>`, runs the configured checks plus the GPU inventory condition, and feeds it with `fan_controller_cli -s` only while healthy (or during startup grace, maintenance mode or a GPU recovery window). When feeding stops, the firmware pulses the motherboard RESET line after the short timeout (see `watchdog-power-cycle.md`).
 
 ## Hardware Interface
 
@@ -44,4 +54,4 @@ Supported controller surfaces include:
 
 ## Network Model
 
-The compose stack uses the Docker network `octofan-ai` by default. Ollama is reachable within the network at `http://ollama:11434`; the controller does not depend on the inference service for hardware watchdog health.
+The compose stack uses the Docker network `octofan-ai` by default. Ollama is reachable within the network at `http://ollama:11434`; the controller does not depend on the inference service for hardware watchdog health. `strata-qwen` uses its own network (`strata-qwen`) and publishes port 18080 on the host; `flux` publishes 7860. The controller reaches the host sshd for the watchdog check, and Prometheus reaches the node exporter, through `host.docker.internal` (`extra_hosts: host-gateway`).

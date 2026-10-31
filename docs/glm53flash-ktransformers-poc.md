@@ -10,6 +10,14 @@ GLM-5-Next exige el backend FP8 para el offload de expertos y prohibe
 explicitamente el backend GGUF/LLAMAFILE, que era justo el unico que encajaba
 con esta CPU y esta RAM.
 
+> **Nota de vigencia (2026-10-31).** Documento historico del 2026-09-07. Las
+> referencias a `glm53flash` (puerto 8090) y `qwen38flash` como servicios en
+> ejecucion describen ese momento; hoy ninguno tiene container en produccion y
+> el servicio diario es Strata (`docs/strata-qwen.md`). Strata trae un cache de
+> expertos con perfil de activacion y presupuesto de RAM (`--expert-cache auto`,
+> `--expert-profile`, `--resident-budget-gib`), cercano a la idea que motivaba
+> este POC, aunque para Qwen y no para GLM.
+
 ## Entorno
 
 - Fecha: 2026-09-07 (America/Argentina/Buenos_Aires)

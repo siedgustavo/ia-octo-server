@@ -33,15 +33,21 @@ Estado fisico actual del gabinete Octominer/Octofan tras la conversion a servido
 
 ## Impacto en el control por firmware
 
-- El relé/watchdog del firmware del Octofan **ya no puede cortar ni encender la fuente**.
-  En el diseno original del minero el firmware controlaba el arranque via `PS_ON`; con el
-  puente eso desaparecio.
-- El watchdog configurado (`watchdog.checks` TCP a `host.docker.internal:22`) hoy solo
-  provoca el **reset USB del controller** (desconecta/reconecta el controlador cada
-  ~504 s si no se alimenta). **No** es un power cycle real de la placa Xeon.
-- El ciclo de encendido/apagado de la placa pasa a ser responsabilidad del propio Xeon
-  (AC power, boton/reset de la placa, o `shutdown` del SO). No hay power cycling remoto
-  por hardware; para reinicios remotos usar `reboot`/`poweroff` por SSH.
+Estado vigente (2026-09-03, ver `docs/watchdog-power-cycle.md`):
+
+- El firmware del Octofan **ya no puede cortar ni encender la fuente**. En el diseno original
+  del minero controlaba el arranque via `PS_ON`; con el puente eso desaparecio y el Plan B
+  (relay sobre `PS_ON`) quedo abandonado.
+- El watchdog configurado (`watchdog.checks` con check `ssh` a `host.docker.internal:22` y
+  condicion de inventario GPU) **si resetea la placa**: la linea RST SW (PC3) del controller va
+  al `RESET_SW` del F_PANEL de la ZX-DU99D4. Si el daemon deja de alimentar, el timeout corto
+  del firmware pulsa RESET y el AVR se auto-resetea (re-enumera USB). Antes del cableado
+  (hasta 2026-09-03) el unico efecto visible era ese reset USB del controller cada ~504 s.
+- El timeout largo (PWR SW, PC4) queda sin conectar a proposito: no hay power cycle por
+  hardware desde el controller.
+- El apagado/encendido completo de la placa queda en el propio Xeon (`poweroff`/`reboot` por
+  SSH, boton de la placa) o en el corte de AC con el enchufe inteligente SmartLife/Tuya, con
+  power-recovery = ON y BIOS `Restore on AC Power Loss = Power On`.
 
 ## Presupuesto de energia
 

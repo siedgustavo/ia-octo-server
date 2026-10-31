@@ -1,6 +1,42 @@
 # Operations
 
+## Current Inference Layout (production, 2026-10-31)
+
+GPU inference services share the four RTX 3090 and run **one at a time**:
+
+| Service | Compose file | Port | State in production |
+| --- | --- | --- | --- |
+| `strata-qwen` (Strata, Huihui Qwen3.8-Flash-Next abliterated V2) | `docker-compose.strata-qwen.yml` | `18080` | **Running: daily service** (see [strata-qwen.md](strata-qwen.md)) |
+| `ollama` (custom Ollama 0.35.1-b11381) | `docker-compose.yml` | `11434` | Stopped by hand (`Exited`), kept as fallback with its models registered |
+| `qwen38flash` / `glm53flash` (dedicated llama.cpp) | `docker-compose.qwen38flash.yml` / `docker-compose.glm53flash.yml` | `8091` / `8090` | No containers; kept to reproduce benchmarks |
+| `flux` (CPU FLUX.1-schnell) | `docker-compose.flux.yml` (own project `octofan-flux`) | `7860` | Running; uses no GPU |
+
+Because `ollama` belongs to the main Compose file, **a bare `docker compose up -d` would start
+it next to Strata**. Always name the services you want to (re)start:
+
+```bash
+docker compose up --build -d octofan-controller prometheus node-exporter grafana
+```
+
+Switching back to the Ollama fallback:
+
+```bash
+docker compose -f docker-compose.strata-qwen.yml stop
+docker start octofan-ollama
+```
+
+While Strata is up and Ollama is stopped, the controller still polls Ollama
+(`ollama.enabled: true`, `http://ollama:11434`), so `/api/status` reports
+`ollama.up: false`, the OLED `ai` profile shows `Ollama DOWN`, the blue online LED stays off
+and the orange warning LED blinks slowly. That is expected behaviour, not a fault. Set
+`ollama.enabled: false` if you prefer `AI monitor off` and normal LEDs. Also note that
+`watchdog.gpu_recovery_restart_containers` still lists `octofan-ollama`: a GPU-condition
+failure would `docker restart` (that is, start) the stopped Ollama container next to Strata.
+Point it at `strata-qwen` while Strata is the daily service.
+
 ## Start With Hardware
+
+Fresh installation (no dedicated GPU stack running yet):
 
 ```bash
 docker compose up --build -d
@@ -66,45 +102,55 @@ Ollama sees every NVIDIA GPU through `gpus: all`. The service defaults to:
 
 ```env
 OLLAMA_KEEP_ALIVE=-1
-OLLAMA_KV_CACHE_TYPE=q4_0
+OLLAMA_KV_CACHE_TYPE=q8_0
 OLLAMA_NUM_PARALLEL=1
 OLLAMA_SCHED_SPREAD=false
+OLLAMA_CONTEXT_SHIFT=true
+OLLAMA_CACHE_RAM_MIB=32768
 ```
 
 This packs a model into one GPU whenever its weights, context and compute buffers fit within 80%
-of free VRAM, and only splits it across multiple GPUs when necessary. The 4-bit KV cache quarters
-KV-cache memory relative to `f16`, while `OLLAMA_KEEP_ALIVE=-1` keeps loaded models resident until
+of free VRAM, and only splits it across multiple GPUs when necessary. The 8-bit KV cache halves
+KV-cache memory relative to `f16` (Q4 was tested and not adopted, see the Qwen benchmark notes),
+while `OLLAMA_KEEP_ALIVE=-1` keeps loaded models resident until
 VRAM pressure requires eviction. Context is pinned in each model manifest to that model's native maximum; there is
 deliberately no container-wide context override. Operational context must never be lower than
-128k even when the larger context reduces throughput. The main Ollama service runs the reproducible
-custom `0.35.1-b11381` image, accepting its built-in scheduler headroom:
-the stock binary reserves 20% of free VRAM before admitting a model or picking a single GPU, and
-that threshold is not configurable. This repo previously built a patched binary from source to
-remove that reserve, but Ollama's internal GGUF-reading API changed enough between releases
-(the `ggml` package backing `PredictServerVRAM`'s `GraphSize` call was replaced by a new `fs/gguf`
-package with no equivalent) that re-porting the patch on every upgrade became fragile and risky to
-get subtly wrong. Models that need disk-persisted KV slot caching still run as dedicated `llama.cpp`
-containers instead — see `docker-compose.qwen38flash.yml` and `docker-compose.glm53flash.yml`.
+128k even when the larger context reduces throughput.
+
+The main Ollama service runs the reproducible custom `octofan/ollama:0.35.1-b11381` image built
+from source by `ollama-custom/Dockerfile`: Ollama 0.35.1 with llama.cpp pinned to `b11381` and
+three patches (a separate `num_ubatch` model parameter, `OLLAMA_CONTEXT_SHIFT` to pin context
+shift server-wide so mixed clients do not force runner reloads, and `OLLAMA_CACHE_RAM_MIB` to
+pass `--cache-ram` to llama-server). It does **not** patch the scheduler headroom: the stock
+binary reserves 20% of free VRAM before admitting a model or picking a single GPU, and that
+threshold is not configurable. This repo previously carried a patch to remove that reserve, but
+Ollama's internal GGUF-reading API changed enough between releases (the `ggml` package backing
+`PredictServerVRAM`'s `GraphSize` call was replaced by a new `fs/gguf` package with no
+equivalent) that re-porting it on every upgrade became fragile and risky to get subtly wrong.
+Disk-persisted KV slot caching is only available in the dedicated `llama.cpp` stacks
+(`docker-compose.qwen38flash.yml`, `docker-compose.glm53flash.yml`, see
+[kv-cache-persistence.md](kv-cache-persistence.md)); those stacks are currently not deployed.
 Qwen3.8-Flash-Next uses the main Ollama service with its asymmetric layer split and independent
 ubatch configured in its manifest. When another
 model truly needs memory, Ollama queues the request and unloads idle models as necessary. API
 callers can override the residency policy per request with `keep_alive`. A request-level value of
 zero can release a model immediately; a negative value intentionally requests indefinite residency.
 
+The DeepSeek manifest sets `num_batch=128` and `repeat_penalty=1.0`. The batch setting reduces GPU compute-buffer usage for its very large context window. The repetition penalty setting matches the former llama.cpp behavior and avoids a measured twofold generation slowdown on large-vocabulary models. The Qwen3.8-Flash-Next manifests use `num_batch=512`, `num_ubatch=256`, `num_gpu=999` and `tensor_split 0.9,1,1,1.1`; the other manifests only pin `num_ctx`.
 
-Both local model definitions set `num_batch=128` and `repeat_penalty=1.0`. The batch setting reduces GPU compute-buffer usage for their large context windows. The repetition penalty setting matches the former llama.cpp behavior and avoids a measured twofold generation slowdown on these models.
+> **Never use `docker compose up --remove-orphans` from the main `docker-compose.yml` while a
+> dedicated stack (`docker-compose.strata-qwen.yml`, `docker-compose.qwen38flash.yml`,
+> `docker-compose.glm53flash.yml`) is running.** Those containers live in the same Compose
+> project namespace (`docker compose ls` shows project `ia-octo-server` with both files) but are
+> started from separate compose files, so the main project considers them orphans and
+> `--remove-orphans` will stop and remove them. This has happened in production: recreating
+> `ollama` with `--remove-orphans` silently deleted the running `qwen38flash` container. Today
+> the casualty would be `strata-qwen`. If you need to recreate a single service, target it
+> explicitly without that flag (`docker compose up -d --force-recreate octofan-controller`), or
+> stop and restart the other stacks deliberately if cleanup is actually needed. `flux` is safe:
+> it is its own Compose project (`name: octofan-flux`).
 
-> **Never use `docker compose up --remove-orphans` from the main `docker-compose.yml` while the
-> dedicated Qwen/GLM `llama.cpp` stacks (`docker-compose.qwen38flash.yml`,
-> `docker-compose.glm53flash.yml`) are running.** Those containers live in the same Compose
-> project namespace but are started from separate compose files, so the main project considers
-> them orphans and `--remove-orphans` will stop and remove them. This has happened in production:
-> recreating `ollama` with `--remove-orphans` silently deleted the running `qwen38flash`
-> container. If you need to recreate a single service, target it explicitly without that flag
-> (`docker compose up -d --force-recreate ollama`), or stop and restart the other stacks
-> deliberately if cleanup is actually needed.
-
-Create local models from the read-only archive mount. Importing registers an active Ollama copy while preserving the cold GGUF in `/opt/models-archive`. DeepSeek V4 Flash below is the current example of this workflow.
+Create local models from the read-only archive mount. Importing registers an active Ollama copy while preserving the cold GGUF in `/opt/models-archive`. The Qwen3.8-Flash-Next manifests are the current examples of this workflow; the DeepSeek V4 Flash section below documents the planned import of a sharded GGUF.
 
 On an existing installation, rebuild temporary aliases from the registered models and then copy
 them back onto the stable names. This updates only manifests and reuses the stored blobs:
@@ -127,23 +173,33 @@ docker compose exec ollama ollama ps
 
 Add experimental models with `docker compose exec ollama ollama pull <model>`. Ollama can use every host GPU and unload idle models when another request needs their VRAM.
 
-Production model tags follow `name:parameter-count`:
+Production model tags follow `name:parameter-count` (registered manifests under
+`/opt/ollama/models/manifests`, verified 2026-10-31):
 
 ```bash
-deepseek-v4-flash:284b
+gpt-oss:120b
 mistral-medium-3.5:128b
 qwen3-coder-next:80b
 qwen3.8:27b-q8_0
+qwen3.8-uncensored:27b
 qwen3.8-flash-next:176b
 qwen3.8-flash-next-uncensored:176b
 ```
 
+`gpt-oss:120b` (used for the DGX Spark comparison) and `qwen3.8-uncensored:27b` were
+pulled/created directly and have no Modelfile under `ollama/`.
 
-DeepSeek V4 Flash uses the Unsloth 0731 `UD-Q8_K_XL` GGUF and its native
-1,048,576-token context. The approximately 162 GB model cannot fit entirely in
-the four RTX 3090 GPUs and therefore uses host RAM for partial CPU offload. Its
-five GGUF shards are staged in `/opt/models-archive/deepseek-v4-flash-0731`
-and imported by Ollama through the archive's read-only container mount.
+### DeepSeek V4 Flash (planned import, not installed)
+
+`deepseek-v4-flash:284b` is **not registered** in production and no shards are staged under
+`/opt/models-archive` (checked 2026-10-31). The manifest `ollama/deepseek-v4-flash-284b.Modelfile`
+pins the native 1,048,576-token context, `num_batch=128` and `repeat_penalty=1.0`, and
+`scripts/download-deepseek-v4-flash.sh` fetches three `UD-IQ2_M` shards into
+`${MODELS_DIR:-/opt/llamacpp/models}/deepseek-v4-flash-0731`. The original plan described here
+used the larger Unsloth 0731 `UD-Q8_K_XL` GGUF (~162 GB, five shards) staged in
+`/opt/models-archive/deepseek-v4-flash-0731`. Decide the quantization and staging path first,
+then adjust the script, the paths below and the import command accordingly. Any variant exceeds
+the 96 GiB of VRAM and relies on host RAM for partial CPU offload.
 
 Because Ollama's registry pull does not support sharded GGUF repositories, import
 the directory first, then apply the configured manifest. Keep the imported tag
@@ -156,13 +212,13 @@ docker compose exec ollama ollama create deepseek-v4-flash:284b \
   -f /model-definitions/deepseek-v4-flash-284b.Modelfile
 ```
 
-This 51 GB quantization may require multi-GPU placement or partial CPU offload. Check
-`ollama ps`, `nvidia-smi` and `free -h` during the first benchmark before exposing it through
-the router.
+Check `ollama ps`, `nvidia-smi` and `free -h` during the first benchmark before exposing it
+through the router; loading it evicts every other resident model.
 
-Each tag has a dedicated manifest. Interactive models pin their native context; the
+Each repo-managed tag has a dedicated manifest. Interactive models pin their native context; the
 `mistral-medium-3.5:128b` IQ2_S writing model uses 32k for sied-poster. Reapply a manifest
-through a temporary tag so the stable name remains available:
+through a temporary tag so the stable name remains available (the DeepSeek lines only apply once
+that model is imported):
 
 ```bash
 docker compose exec ollama ollama create mistral-medium-3.5:configured \
@@ -317,15 +373,20 @@ The white activity LED uses NVIDIA utilization or power as an external signal. T
 
 ## Watchdog
 
-The watchdog reset policy is disabled by default, but `keepalive_when_disabled` is enabled so an Octofan controller with an already-armed hardware watchdog does not periodically reset/re-enumerate its USB device.
+The code defaults leave the reset policy disabled (`enabled: false`) with
+`keepalive_when_disabled: true`, so an Octofan controller with an already-armed firmware watchdog
+keeps being fed and does not escalate. The repository `config/octofan.yaml` and production both
+**enable** the policy with the configuration below.
 
 To enable host-health watchdog resets:
 
 1. Set `watchdog.enabled: true`.
 2. Configure `short_timeout_seconds` and `long_timeout_seconds`.
-3. Add one or more checks.
+3. Add one or more checks (`tcp`, `http` or `ssh`; `ssh` also validates the `SSH-` banner so a
+   zombie sshd that only accepts TCP fails the check).
+4. Optionally set `gpus_expected` and the GPU recovery keys.
 
-Example TCP check for the host SSH service:
+Production configuration:
 
 ```yaml
 watchdog:
@@ -333,15 +394,24 @@ watchdog:
   keepalive_when_disabled: true
   short_timeout_seconds: 120
   long_timeout_seconds: 1500
-  feed_interval_seconds: 5.0
+  feed_interval_seconds: 30.0
   unhealthy_failures_before_reset: 3
+  gpus_expected: 4
+  gpu_recovery_enabled: true
+  gpu_recovery_grace_seconds: 300
+  gpu_recovery_restart_containers:
+    - octofan-ollama
   checks:
-    - type: tcp
+    - type: ssh
       target: host.docker.internal:22
       timeout_seconds: 1.0
 ```
 
-If `enabled` is true and any check fails for `unhealthy_failures_before_reset` consecutive watchdog cycles, the daemon does not feed the hardware watchdog. Short transient check failures are tolerated so the USB controller is not reset by one missed TCP or HTTP probe. If `enabled` is false and `keepalive_when_disabled` is true, the daemon feeds the hardware watchdog without using it as a reset policy.
+If `enabled` is true and any check fails for `unhealthy_failures_before_reset` consecutive watchdog cycles, the daemon does not feed the hardware watchdog. Short transient check failures are tolerated so one missed probe does not trigger a board reset (production logs occasional `watchdog unhealthy (1/3): ssh:... failed` events that clear on the next cycle). Failures during the first 120 s after daemon startup are also ignored, which covers bridge-network flaps when containers are recreated. If `enabled` is false and `keepalive_when_disabled` is true, the daemon feeds the hardware watchdog without using it as a reset policy.
+
+With `gpus_expected > 0`, an `nvidia-smi` failure, a GPU count mismatch or phantom entries without UUID mark the watchdog unhealthy. With `gpu_recovery_enabled`, the first failure restarts the containers listed in `gpu_recovery_restart_containers` through the mounted Docker socket and keeps feeding for `gpu_recovery_grace_seconds`; only if the condition persists does the daemon stop feeding. `docker restart` also starts a stopped container, so keep that list pointed at the service that actually owns the GPUs (`strata-qwen` while Strata is the daily service, `octofan-ollama` when Ollama is).
+
+`POST /api/watchdog/maintenance` with `{"minutes": N}` (max 240) feeds the firmware regardless of check results. Use it before restarting sshd or disturbing the host network. The state lives in daemon memory and does not survive a controller recreate; the startup grace covers that case.
 
 ### Hardware escalation (firmware-level)
 
@@ -426,7 +496,7 @@ fans:
   gpu_idle_max_intake_temp_c: 35.0
 ```
 
-The controller only enters idle mode when `nvidia-smi` is healthy, all GPUs are below the configured utilization, power and temperature thresholds, llama.cpp is not generating, and intake temperature is below the configured limit. Manual and automatic targets are clamped to `min_percent..max_percent`, so requests below the known active range do not produce misleading PWM targets. Any load, hotter temperature, missing GPU reading or controller read failure returns to the normal fan curve or fail-safe behavior.
+The controller only enters idle mode when `nvidia-smi` is healthy, all GPUs are below the configured utilization, power and temperature thresholds, no monitored AI backend (llama.cpp or Ollama) is generating, no GPU has encoder/decoder sessions, and intake temperature is below the configured limit. Manual and automatic targets are clamped to `min_percent..max_percent`, so requests below the known active range do not produce misleading PWM targets. Any load, hotter temperature, missing GPU reading or controller read failure returns to the normal fan curve or fail-safe behavior.
 
 ## OLED Display
 
@@ -462,7 +532,7 @@ The container must be able to access USB. The compose file uses:
 - `privileged: true`
 - `/dev/bus/usb:/dev/bus/usb`
 
-The controller and Ollama request `gpus: all`: the controller uses it for `nvidia-smi`, while Ollama can schedule models across every installed GPU without a maintained index list.
+The controller and Ollama request `gpus: all`: the controller uses it for `nvidia-smi`, while Ollama can schedule models across every installed GPU without a maintained index list. The controller also mounts `/var/run/docker.sock` so the watchdog GPU recovery can restart containers, and `/etc/hostname` plus `/etc/hosts` read-only for the OLED title and IP line.
 
 `node-exporter` runs in the host network namespace. Without this, Linux network metrics would show the exporter container interface instead of the host NIC.
 

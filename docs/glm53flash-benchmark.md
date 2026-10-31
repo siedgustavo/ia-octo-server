@@ -16,6 +16,14 @@ esta al final, en "Configuracion final desplegada".
 > "hallazgo contraintuitivo" de la conclusion 3 quedo **refutado**. Ver
 > "Cambio de topologia PCIe, 2026-09-11" al final; ante contradicciones, mandan
 > las secciones del 2026-09-11.
+>
+> **Estado al 2026-10-31.** Ni `glm53flash` ni `qwen38flash` tienen container en
+> produccion. Qwen3.8-Flash-Next paso al Ollama custom (2026-10-13) y desde el
+> 2026-10-30 el servicio diario en las cuatro GPU es Strata con Huihui Qwen3.8
+> abliterated V2 (`docs/strata-qwen.md`). Las referencias de este documento a
+> "produccion", al puerto 8090/8091 y al estado de `qwen38flash` describen el
+> momento de cada medicion. `docker-compose.glm53flash.yml` se conserva para
+> reproducir estos benchmarks.
 
 ## Entorno
 
@@ -403,7 +411,7 @@ cableado PCIe.
 Tampoco tiene sentido volver a probar `--n-cpu-moe` + `--tensor-split` manuales:
 quedo demostrado que desperdician VRAM por repartir segun cantidad de capas.
 
-## Estado posterior
+## Estado posterior (2026-09-11)
 
 - `glm53flash`: definido en `docker-compose.glm53flash.yml`, **detenido** al
   2026-09-11. Comparte VRAM con `qwen38flash`, son mutuamente excluyentes.

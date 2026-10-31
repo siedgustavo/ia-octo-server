@@ -9,6 +9,14 @@ build y carga en ambos modos.
 > Los risers se reemplazaron el 2026-09-11 y la comparacion se repitio: ver
 > "Re-test tras cambio de risers, 2026-09-11" al final. El veredicto vigente
 > sigue siendo `--split-mode layer`, pero por un motivo distinto al original.
+>
+> **Estado al 2026-10-31.** El servicio dedicado `qwen38flash` (llama.cpp,
+> puerto 8091) ya no tiene container en produccion: el modelo paso al Ollama
+> custom `octofan/ollama:0.35.1-b11381` el 2026-10-13 (secciones finales de
+> este documento) y desde el 2026-10-30 el servicio diario es Strata con Huihui
+> Qwen3.8 abliterated V2 (`docs/strata-qwen.md`), con Ollama detenido como
+> fallback. Las menciones a "produccion" describen el momento de cada medicion.
+> `docker-compose.qwen38flash.yml` se conserva para reproducir los benchmarks.
 
 ## Entorno
 

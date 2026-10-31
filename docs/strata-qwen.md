@@ -149,6 +149,32 @@ mismas GPU.
 Comprobar watchdog, ventiladores en automático, temperatura y memoria tras
 cualquier cambio de servicio.
 
+### Convivencia con el Compose principal
+
+- `docker compose ls` muestra un único proyecto `ia-octo-server` con
+  `docker-compose.yml` y `docker-compose.strata-qwen.yml`. Por eso
+  `--remove-orphans` desde el Compose principal **elimina `strata-qwen`**
+  (ya pasó con `qwen38flash` el 2026-10-04). Nunca usarlo con Strata arriba.
+- `ollama` es un servicio del Compose principal y está `Exited` a mano. Un
+  `docker compose up -d` sin lista de servicios lo arrancaría junto a Strata.
+  Para desplegar monitoreo/controller usar siempre
+  `docker compose up --build -d octofan-controller prometheus node-exporter grafana`.
+- El controller sigue con `ollama.enabled: true` apuntando a
+  `http://ollama:11434`, que no resuelve mientras el contenedor está parado.
+  Consecuencias esperadas: `/api/status` muestra `ollama.up: false`, el OLED
+  dice `Ollama DOWN`, el LED azul (online) queda apagado y el naranja (warning)
+  parpadea lento. No es una falla; si molesta, poner `ollama.enabled: false`
+  en la config de prod (el OLED pasa a `AI monitor off`).
+- `watchdog.gpu_recovery_restart_containers` en prod sigue siendo
+  `[octofan-ollama]`. Ante una falla de la condición GPU el daemon haría
+  `docker restart octofan-ollama`, que **arranca** el contenedor parado junto
+  a Strata. Mientras Strata sea el servicio diario conviene apuntarlo a
+  `strata-qwen`.
+- Strata no es monitoreado por el controller: sin telemetría de modelos en
+  `/api/status`, OLED ni Prometheus (`octofan_ai_*` solo cubre llama.cpp). Las
+  GPU sí se ven por `nvidia-smi`, así que ventiladores, LED de actividad y
+  alertas de GPU funcionan igual.
+
 Comprobaciones desde la red de confianza:
 
 ```sh
