@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import mmap
 import os
 import re
+import struct
 import subprocess
 from csv import reader
 from dataclasses import asdict, dataclass
@@ -40,7 +42,15 @@ GPU_QUERY_FIELDS = [
 ]
 
 
-MOCK_NVIDIA_SMI = """0, GPU-mock-0, NVIDIA GeForce RTX 3060, 00000000:02:00.0, 595.71.05, 94.06.25.00.01, 36, N/A, 0, 0, 0, 12288, 1, 12287, 6.10, 170.00, 210, 405, 1837, 7501, P8, Default, Disabled, 1, 4, 16, 16, 0, 0
+# GeForce Ampere cards report temperature.memory as N/A through NVML. On GA102 boards with
+# GDDR6X the memory junction temperature is mirrored in a BAR0 register (same offset and
+# decode as https://github.com/olealgoritme/gddr6): Celsius = (raw & 0xfff) / 32.
+GDDR6X_TEMP_OFFSET = 0xE2A8
+GDDR6X_TEMP_DEVICE_IDS = {0x2203, 0x2204, 0x2206, 0x2208, 0x2216}
+PCI_SYSFS_ROOT = "/sys/bus/pci/devices"
+
+
+MOCK_NVIDIA_SMI ="""0, GPU-mock-0, NVIDIA GeForce RTX 3060, 00000000:02:00.0, 595.71.05, 94.06.25.00.01, 36, N/A, 0, 0, 0, 12288, 1, 12287, 6.10, 170.00, 210, 405, 1837, 7501, P8, Default, Disabled, 1, 4, 16, 16, 0, 0
 1, GPU-mock-1, NVIDIA GeForce RTX 3060, 00000000:03:00.0, 595.71.05, 94.06.25.00.02, 38, N/A, 0, 0, 0, 12288, 1, 12287, 10.20, 170.00, 210, 405, 1837, 7501, P8, Default, Disabled, 1, 4, 16, 16, 0, 0"""
 
 
@@ -112,6 +122,7 @@ class NvidiaSmi:
                         timeout=self.timeout,
                     )
                     status = parse_nvidia_smi_csv(raw, fields)
+                    fill_vram_temperatures(status)
                     if dropped_fields:
                         skipped = ", ".join(dropped_fields)
                         status.error = f"Skipped unsupported nvidia-smi fields: {skipped}"
@@ -172,6 +183,58 @@ def parse_nvidia_smi_csv(raw: str, fields: list[str] | None = None) -> NvidiaSta
     except Exception as exc:
         return NvidiaStatus(ok=False, gpus=gpus, error=str(exc))
     return NvidiaStatus(ok=True, gpus=gpus)
+
+
+def fill_vram_temperatures(status: NvidiaStatus, sysfs_root: str = PCI_SYSFS_ROOT) -> None:
+    """Fill temperature_memory_c from BAR0 when nvidia-smi does not expose it."""
+    for gpu in status.gpus:
+        if gpu.temperature_memory_c is None:
+            gpu.temperature_memory_c = read_vram_temperature(gpu.pci_bus_id, sysfs_root)
+
+
+def read_vram_temperature(pci_bus_id: str, sysfs_root: str = PCI_SYSFS_ROOT) -> float | None:
+    address = _sysfs_pci_address(pci_bus_id)
+    if address is None:
+        return None
+    device_dir = os.path.join(sysfs_root, address)
+    try:
+        with open(os.path.join(device_dir, "device"), encoding="ascii") as handle:
+            device_id = int(handle.read().strip(), 16)
+        if device_id not in GDDR6X_TEMP_DEVICE_IDS:
+            return None
+        fd = os.open(os.path.join(device_dir, "resource0"), os.O_RDONLY | os.O_SYNC)
+        try:
+            page = mmap.PAGESIZE
+            base = GDDR6X_TEMP_OFFSET - (GDDR6X_TEMP_OFFSET % page)
+            mapped = mmap.mmap(fd, page, mmap.MAP_SHARED, mmap.PROT_READ, offset=base)
+            try:
+                raw = struct.unpack_from("<I", mapped, GDDR6X_TEMP_OFFSET - base)[0]
+            finally:
+                mapped.close()
+        finally:
+            os.close(fd)
+    except (OSError, ValueError):
+        return None
+    return decode_gddr6x_temperature(raw)
+
+
+def decode_gddr6x_temperature(raw: int) -> float | None:
+    # A GPU that fell off the bus reads back all ones; zero means the sensor is not populated.
+    if raw == 0xFFFFFFFF:
+        return None
+    celsius = (raw & 0xFFF) / 32
+    if celsius <= 0 or celsius >= 127:
+        return None
+    return celsius
+
+
+def _sysfs_pci_address(pci_bus_id: str) -> str | None:
+    # nvidia-smi reports "00000000:03:00.0"; sysfs uses "0000:03:00.0".
+    match = re.fullmatch(r"([0-9A-Fa-f]+):([0-9A-Fa-f]{2}):([0-9A-Fa-f]{2})\.([0-7])", pci_bus_id.strip())
+    if not match:
+        return None
+    domain, bus, slot, function = match.groups()
+    return f"{int(domain, 16):04x}:{bus.lower()}:{slot.lower()}.{function}"
 
 
 def _num(value: str) -> float | None:

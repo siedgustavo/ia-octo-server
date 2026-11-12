@@ -44,6 +44,15 @@ groups:
           summary: "GPU {{ $labels.uuid }} above 85C"
           description: "GPU at {{ $value }}C for 2 minutes."
 
+      - alert: OctofanGpuMemoryHot
+        expr: octofan_nvidia_gpu_metric{metric="temperature_memory_c"} > 100
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "GPU {{ $labels.uuid }} GDDR6X above 100C"
+          description: "VRAM junction at {{ $value }}C for 2 minutes (GDDR6X throttles around 110C). Read from BAR0, nvidia-smi reports N/A on GeForce."
+
   - name: octofan-watchdog
     rules:
       - alert: OctofanWatchdogUnhealthy
