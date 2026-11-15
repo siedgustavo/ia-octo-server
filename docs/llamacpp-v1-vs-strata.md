@@ -85,7 +85,7 @@ por API.
 
 Efecto observado: mientras `ai_recovery` está desactivado, `_ai_recovery_decision`
 sigue sumando fallas. Al reactivarlo ~5 s después de `docker compose start`,
-hubo un `docker restart strata-qwen` inmediato durante la carga: el chequeo de
-salud `starting` no lo frenó, y la causa queda por confirmar. Strata cargó bien
-igual. Para la próxima: restaurar la config **después** de que Strata esté
-`healthy`.
+hubo un `docker restart strata-qwen` inmediato durante la carga. Strata cargó
+bien igual. Causas, corregidas el 2026-11-15: el controller leía
+`State.Health.status` en vez de `Status`, así que nunca veía `starting`, y además
+acumulaba fallas con el recovery apagado.

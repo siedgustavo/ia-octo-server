@@ -134,8 +134,11 @@ Watchdog:
 
 Watchdog policy (config `watchdog.*`):
 
-- `checks`: list of `type: tcp|http|ssh` targets. `ssh` validates the SSH banner, so a
-  zombie `sshd` that only answers TCP fails the check.
+- `checks`: list of `type: tcp|http|ssh|disk` targets. `ssh` validates the SSH banner, so a
+  zombie `sshd` that only answers TCP fails the check. `disk` takes a file path inside the
+  controller (production: `/watchdog/heartbeat`, bind-mounted from the host root disk) and
+  writes + fsyncs it within `timeout_seconds`; a dead root device fails it even when sshd
+  still answers from memory.
 - `gpus_expected`: when > 0, the GPU inventory becomes a watchdog condition: `nvidia-smi`
   failures, a GPU count mismatch, or phantom entries without UUID mark the watchdog
   unhealthy.

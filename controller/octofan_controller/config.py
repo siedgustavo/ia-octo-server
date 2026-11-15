@@ -60,7 +60,10 @@ class FanConfig(BaseModel):
 
 
 class WatchdogCheck(BaseModel):
-    type: Literal["tcp", "http", "ssh"] = "tcp"
+    # disk: target is a file path on a host bind mount; the check writes and
+    # fsyncs it, so a dead or read-only root device fails it (ssh does not:
+    # sshd keeps answering from page cache).
+    type: Literal["tcp", "http", "ssh", "disk"] = "tcp"
     target: str = "host.docker.internal:22"
     timeout_seconds: float = Field(default=1.0, ge=0.1, le=30.0)
 

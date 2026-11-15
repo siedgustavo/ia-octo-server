@@ -32,7 +32,8 @@ class DockerApiClient:
                     return None
                 state = resp.json().get("State") or {}
                 health = state.get("Health") or {}
-            value = health.get("status")
+            # Docker Engine API spells it "Status"; keep the lowercase form for older fakes.
+            value = health.get("Status", health.get("status"))
             return value if isinstance(value, str) else None
         except Exception:
             return None

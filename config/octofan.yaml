@@ -53,6 +53,9 @@ watchdog:
   - type: ssh
     target: host.docker.internal:22
     timeout_seconds: 1.0
+  - type: disk
+    target: /watchdog/heartbeat
+    timeout_seconds: 10.0
 display:
   enabled: true
   profile: ai

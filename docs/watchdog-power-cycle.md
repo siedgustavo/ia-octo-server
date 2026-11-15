@@ -73,7 +73,8 @@ critica de auto-arranque de la Fase 3 original.
 ## Estados del watchdog de software (referencia)
 
 El daemon alimenta el watchdog del firmware cada `watchdog.feed_interval_seconds` mientras
-`watchdog.checks` (TCP/HTTP/**SSH con validacion de banner**) esten sanos y la condicion
+`watchdog.checks` (TCP/HTTP/**SSH con validacion de banner**/**disk**: write+fsync de un
+heartbeat en el NVMe raiz) esten sanos y la condicion
 GPU (`watchdog.gpus_expected`) se cumpla. Ante fallo GPU con `gpu_recovery_enabled`,
 primero reinicia los contenedores configurados
 (`gpu_recovery_restart_containers`, via socket docker montado en el controller) durante

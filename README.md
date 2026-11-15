@@ -98,7 +98,7 @@ The original HiveOS package files are preserved as reference material under
 - Ships Grafana dashboards for overview, PSUs, environment, cooling, GPUs and host/network, plus Prometheus alert rules for GPU inventory, frozen GPU readings, GPU temperature and controller availability.
 - Updates the controller OLED with host, thermal, power and AI status.
 - Drives the front-panel LEDs from controller health and GPU activity.
-- Feeds the hardware watchdog only when configured host checks (TCP, HTTP or SSH banner) and the GPU inventory condition pass; the firmware pulses the motherboard RESET line when feeding stops.
+- Feeds the hardware watchdog only when configured host checks (TCP, HTTP, SSH banner or a disk write+fsync heartbeat) and the GPU inventory condition pass; the firmware pulses the motherboard RESET line when feeding stops.
 - Serves LLM inference on all four GPUs: Strata for daily use, Ollama kept as a stopped fallback.
 
 ## Services

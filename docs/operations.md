@@ -387,8 +387,9 @@ To enable host-health watchdog resets:
 
 1. Set `watchdog.enabled: true`.
 2. Configure `short_timeout_seconds` and `long_timeout_seconds`.
-3. Add one or more checks (`tcp`, `http` or `ssh`; `ssh` also validates the `SSH-` banner so a
-   zombie sshd that only accepts TCP fails the check).
+3. Add one or more checks (`tcp`, `http`, `ssh` or `disk`; `ssh` also validates the `SSH-` banner
+   so a zombie sshd that only accepts TCP fails the check; `disk` writes and fsyncs a heartbeat
+   file on a host bind mount, see below).
 4. Optionally set `gpus_expected` and the GPU recovery keys.
 
 Production configuration:
@@ -415,9 +416,17 @@ watchdog:
     - type: ssh
       target: host.docker.internal:22
       timeout_seconds: 1.0
+    - type: disk
+      target: /watchdog/heartbeat   # host /var/lib/octofan-watchdog, on the root NVMe
+      timeout_seconds: 10.0
 ```
 
-If `enabled` is true and any check fails for `unhealthy_failures_before_reset` consecutive watchdog cycles, the daemon does not feed the hardware watchdog. Short transient check failures are tolerated so one missed probe does not trigger a board reset (production logs occasional `watchdog unhealthy (1/3): ssh:... failed` events that clear on the next cycle). Failures during the first 120 s after daemon startup are also ignored, which covers bridge-network flaps when containers are recreated. If `enabled` is false and `keepalive_when_disabled` is true, the daemon feeds the hardware watchdog without using it as a reset policy.
+Why both checks: on 2026-11-10 the root NVMe dropped off PCIe (SDES) and the host stayed broken
+for ~30 h without a reset, because sshd kept sending its banner from memory. The `disk` check
+catches that case: the write+fsync fails with EIO or hangs. A hung write is never retried in
+parallel; later cycles fail at once until it returns, so three cycles (~90 s) stop the feed.
+
+If `enabled` is true and any check fails for `unhealthy_failures_before_reset` consecutive watchdog cycles, the daemon does not feed the hardware watchdog. Short transient check failures are tolerated so one missed probe does not trigger a board reset. The frequent `watchdog unhealthy (1/3): ssh:... failed` events seen until 2026-11-15 were false positives: synchronous USB CLI and `nvidia-smi` calls froze the asyncio loop for seconds, so the 1 s banner timeout expired even though sshd answered in ~8 ms. Those calls now run in worker threads; check errors also name the failing step (`connect`/`banner` and the exception type). Failures during the first 120 s after daemon startup are also ignored, which covers bridge-network flaps when containers are recreated. If `enabled` is false and `keepalive_when_disabled` is true, the daemon feeds the hardware watchdog without using it as a reset policy.
 
 With `gpus_expected > 0`, an `nvidia-smi` failure, a GPU count mismatch or phantom entries without UUID mark the watchdog unhealthy. With `gpu_recovery_enabled`, the first failure restarts the containers listed in `gpu_recovery_restart_containers` through the mounted Docker socket and keeps feeding for `gpu_recovery_grace_seconds`; only if the condition persists does the daemon stop feeding. `docker restart` also starts a stopped container, so keep that list pointed at the service that actually owns the GPUs (`strata-qwen` while Strata is the daily service, `octofan-ollama` when Ollama is).
 
@@ -427,6 +436,9 @@ when `strata.enabled`, otherwise Ollama when `ollama.enabled`). After
 the daemon restarts `ai_recovery_restart_containers` and then waits
 `ai_recovery_cooldown_seconds` before restarting again (a model reload can take ~10 minutes,
 and restarts are suppressed entirely while Docker reports the container as `starting`).
+Before 2026-11-15 that suppression never worked: the controller read `State.Health.status`
+instead of Docker's `State.Health.Status` and always got `None`. While `ai_recovery_enabled` is
+false, failures are no longer banked, so turning it back on does not fire an immediate restart.
 Unlike the GPU condition, AI failures never stop the firmware feed: the reset policy stays
 reserved for host hangs, and the restart plus the `OctofanStrataDown` Prometheus alert are
 the recovery/notification path. Progress is visible in `/api/status` (`ai_recovery`) and as

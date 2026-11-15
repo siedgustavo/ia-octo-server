@@ -38,7 +38,12 @@ def test_retired_llamacpp_health_check_is_disabled_but_host_watchdog_stays_enabl
             "type": "ssh",
             "target": "host.docker.internal:22",
             "timeout_seconds": 1.0,
-        }
+        },
+        {
+            "type": "disk",
+            "target": "/watchdog/heartbeat",
+            "timeout_seconds": 10.0,
+        },
     ]
     assert config["watchdog"]["gpus_expected"] == 4
     assert config["watchdog"]["gpu_recovery_enabled"] is True

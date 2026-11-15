@@ -12,7 +12,7 @@ from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel
 
 from .cli import OctofanCli, percent_to_pwm
-from .config import AppConfig, WatchdogConfig, load_config, save_config
+from .config import AppConfig, DisplayConfig, WatchdogConfig, load_config, save_config
 from .control import (
     CriticalTemperatureGuard,
     calculate_fan_control_decision,
@@ -97,12 +97,12 @@ class DisplayRenderRequest(BaseModel):
 async def poll_loop() -> None:
     while True:
         cfg: AppConfig = state["config"]
-        status = cli.status()
+        status = await asyncio.to_thread(cli.status)
         llamacpp = await llamacpp_client.status(cfg.llamacpp)
         ollama = await ollama_client.status(cfg.ollama.base_url, cfg.ollama.enabled, cfg.ollama.timeout_seconds)
         strata = await strata_client.status(cfg.strata.base_url, cfg.strata.enabled, cfg.strata.timeout_seconds)
         flux = await flux_client.status(cfg.flux.base_url, cfg.flux.enabled, cfg.flux.timeout_seconds)
-        nvidia = nvidia_smi.status()
+        nvidia = await asyncio.to_thread(nvidia_smi.status)
         ai_generating = llamacpp.generating or (ollama.enabled and ollama.generating)
         gpu_idle_stop_active = _gpu_idle_stop_active(cfg, status, nvidia, ai_generating)
         critical_confirmed = critical_temperature_guard.observe(status, cfg.fans, nvidia)
@@ -124,7 +124,7 @@ async def poll_loop() -> None:
         )
         if target != state["applied_fan_target"] or fan_ids != state["applied_fan_ids"] or hardware_drifted:
             try:
-                cli.set_all_fans_percent(fan_ids, target)
+                await asyncio.to_thread(cli.set_all_fans_percent, fan_ids, target)
                 state["applied_fan_target"] = target
                 state["applied_fan_ids"] = fan_ids
             except Exception as exc:
@@ -158,7 +158,9 @@ async def watchdog_loop() -> None:
                 _event("watchdog disarmed in firmware, re-arming")
             if not configured:
                 try:
-                    cli.configure_watchdog(cfg.watchdog.short_timeout_seconds, cfg.watchdog.long_timeout_seconds)
+                    await asyncio.to_thread(
+                        cli.configure_watchdog, cfg.watchdog.short_timeout_seconds, cfg.watchdog.long_timeout_seconds
+                    )
                     configured = True
                 except Exception as exc:
                     _event(f"failed to configure watchdog: {exc}")
@@ -185,13 +187,13 @@ async def watchdog_loop() -> None:
             state["watchdog"] = result
             if maintenance_left:
                 try:
-                    cli.feed_watchdog()
+                    await asyncio.to_thread(cli.feed_watchdog)
                 except Exception as exc:
                     _event(f"failed to feed watchdog during maintenance: {exc}")
             elif result.healthy:
                 unhealthy_failures = 0
                 try:
-                    cli.feed_watchdog()
+                    await asyncio.to_thread(cli.feed_watchdog)
                 except Exception as exc:
                     _event(f"failed to feed watchdog: {exc}")
             else:
@@ -205,7 +207,7 @@ async def watchdog_loop() -> None:
                         f"{', startup grace' if startup_grace else ''}): {errors_text}"
                     )
                     try:
-                        cli.feed_watchdog()
+                        await asyncio.to_thread(cli.feed_watchdog)
                     except Exception as exc:
                         _event(f"failed to feed watchdog during unhealthy grace period: {exc}")
                 else:
@@ -220,7 +222,7 @@ async def watchdog_loop() -> None:
             state["ai_recovery_cooldown_until"] = None
             if cfg.watchdog.keepalive_when_disabled:
                 try:
-                    cli.feed_watchdog()
+                    await asyncio.to_thread(cli.feed_watchdog)
                 except Exception as exc:
                     _event(f"failed to keep watchdog alive: {exc}")
         await asyncio.sleep(cfg.watchdog.feed_interval_seconds)
@@ -303,7 +305,9 @@ def _ai_recovery_decision(
     if cooldown_until is not None and now < cooldown_until:
         return 0, cooldown_until, False, f"AI recovery cooldown: {down} still down after restart"
     if not cfg.ai_recovery_enabled or not cfg.ai_recovery_restart_containers:
-        return failures + 1, cooldown_until, False, f"AI down: {down}"
+        # Do not bank failures while recovery is off: re-enabling it must not
+        # fire an immediate restart for an outage that was intentional.
+        return 0, cooldown_until, False, f"AI down: {down}"
     failures += 1
     if failures < cfg.ai_recovery_min_failures:
         return failures, cooldown_until, False, f"AI down: {down} ({failures}/{cfg.ai_recovery_min_failures})"
@@ -385,7 +389,7 @@ async def led_loop() -> None:
                 desired = _desired_led_modes(
                     cfg, state["status"], state["llamacpp"], state["ollama"], state["strata"], state["nvidia"]
                 )
-                _apply_led_modes(desired)
+                await asyncio.to_thread(_apply_led_modes, desired)
         except Exception as exc:
             _event(f"failed to update leds: {exc}")
         await asyncio.sleep(cfg.leds.poll_interval_seconds)
@@ -432,7 +436,7 @@ async def api_fans_manual(req: ManualFanRequest) -> dict[str, Any]:
     try:
         status: ControllerStatus = state["status"]
         fan_ids = sorted(status.fans.keys()) if status.ok and status.fans else list(range(12))
-        cli.set_all_fans_percent(fan_ids, cfg.fans.manual_percent)
+        await asyncio.to_thread(cli.set_all_fans_percent, fan_ids, cfg.fans.manual_percent)
         state["applied_fan_target"] = cfg.fans.manual_percent
         state["applied_fan_ids"] = fan_ids
     except Exception as exc:
@@ -488,7 +492,7 @@ async def api_calibrate_fans() -> dict[str, Any]:
         raise HTTPException(503, "controller unavailable")
     for fan_id in sorted(status.fans.keys()):
         max_rpm = status.fans[fan_id].rpm or 0
-        cli.set_fan_max_rpm(fan_id, max_rpm)
+        await asyncio.to_thread(cli.set_fan_max_rpm, fan_id, max_rpm)
     _event("fan calibration saved from current RPM")
     return {"ok": True}
 
@@ -506,27 +510,33 @@ async def _write_display(profile: str | None, force_eeprom: bool = False) -> lis
         state["strata"],
     )
     try:
-        signature = (resolve_display_title(display_cfg), display_cfg.profile)
-        title_written = False
-        if display_cfg.persist_to_eeprom and (force_eeprom or state["eeprom_display_signature"] != signature):
-            cli.oled_text(0, 0, 4, "0")
-            cli.oled_text(0, 0, 3, lines[0])
-            title_written = True
-            for y, line in enumerate(lines[2:], start=2):
-                cli.oled_text(0, y, 2, line)
-            state["eeprom_display_signature"] = signature
-
-        for y, line in enumerate(lines):
-            if y == 0:
-                if not display_cfg.persist_to_eeprom and not title_written:
-                    cli.oled_text(0, 0, 3, line)
-            elif y == 1:
-                continue
-            else:
-                cli.oled_text(0, y, 0, line)
+        # Several USB CLI calls (~0.3-0.6 s each): run them off the event loop so
+        # the watchdog checks and the API keep their timing.
+        await asyncio.to_thread(_push_display_lines, display_cfg, lines, force_eeprom)
     except Exception as exc:
         _event(f"failed to update display: {exc}")
     return lines
+
+
+def _push_display_lines(display_cfg: DisplayConfig, lines: list[str], force_eeprom: bool) -> None:
+    signature = (resolve_display_title(display_cfg), display_cfg.profile)
+    title_written = False
+    if display_cfg.persist_to_eeprom and (force_eeprom or state["eeprom_display_signature"] != signature):
+        cli.oled_text(0, 0, 4, "0")
+        cli.oled_text(0, 0, 3, lines[0])
+        title_written = True
+        for y, line in enumerate(lines[2:], start=2):
+            cli.oled_text(0, y, 2, line)
+        state["eeprom_display_signature"] = signature
+
+    for y, line in enumerate(lines):
+        if y == 0:
+            if not display_cfg.persist_to_eeprom and not title_written:
+                cli.oled_text(0, 0, 3, line)
+        elif y == 1:
+            continue
+        else:
+            cli.oled_text(0, y, 0, line)
 
 
 def serialize_status() -> dict[str, Any]:

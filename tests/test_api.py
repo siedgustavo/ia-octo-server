@@ -244,7 +244,20 @@ def test_ai_recovery_decision_without_config_only_reports():
     cfg = WatchdogConfig(ai_recovery_enabled=False, ai_recovery_restart_containers=[])
 
     failures, cooldown, restart, note = _ai_recovery_decision("strata", False, 1, None, now=1000.0, cfg=cfg)
-    assert failures == 2 and not restart and note == "AI down: strata"
+    assert failures == 0 and not restart and note == "AI down: strata"
+
+
+def test_ai_recovery_reenabled_does_not_restart_immediately():
+    disabled = WatchdogConfig(ai_recovery_enabled=False, ai_recovery_restart_containers=["strata-qwen"])
+    enabled = WatchdogConfig(
+        ai_recovery_enabled=True, ai_recovery_min_failures=3, ai_recovery_restart_containers=["strata-qwen"]
+    )
+    failures = 0
+    for i in range(20):
+        failures, cooldown, restart, _ = _ai_recovery_decision("strata", False, failures, None, now=1000.0 + i, cfg=disabled)
+        assert not restart
+    failures, cooldown, restart, _ = _ai_recovery_decision("strata", False, failures, None, now=2000.0, cfg=enabled)
+    assert failures == 1 and not restart
 
 
 def test_watchdog_tolerates_transient_unhealthy_checks():

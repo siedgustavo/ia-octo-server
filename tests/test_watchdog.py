@@ -98,7 +98,8 @@ def test_docker_restart_container_reports_failure():
 def test_docker_container_health_reads_state():
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/containers/strata-qwen/json"
-        return httpx.Response(200, json={"State": {"Health": {"status": "starting"}}})
+        # Real Docker Engine payload shape (capitalized "Status").
+        return httpx.Response(200, json={"State": {"Health": {"Status": "starting", "FailingStreak": 0}}})
 
     client = DockerApiClient(transport=httpx.MockTransport(handler))
     assert client.container_health("strata-qwen") == "starting"
@@ -110,3 +111,61 @@ def test_docker_container_health_missing_container_is_none():
 
     client = DockerApiClient(transport=httpx.MockTransport(handler))
     assert client.container_health("nope") is None
+
+
+def test_disk_check_writes_and_fsyncs_heartbeat(tmp_path):
+    target = tmp_path / "heartbeat"
+    ok, error = asyncio.run(_run_check(WatchdogCheck(type="disk", target=str(target), timeout_seconds=5)))
+    assert ok and error is None
+    assert float(target.read_text())
+
+
+def test_disk_check_reports_io_error(tmp_path):
+    target = tmp_path / "missing-dir" / "heartbeat"
+    ok, error = asyncio.run(_run_check(WatchdogCheck(type="disk", target=str(target), timeout_seconds=5)))
+    assert not ok
+    assert "No such file" in error
+
+
+def test_disk_check_hung_write_fails_without_piling_threads(monkeypatch, tmp_path):
+    import threading
+
+    from octofan_controller import watchdog
+
+    release = threading.Event()
+    calls = []
+
+    def stuck(path):
+        calls.append(path)
+        release.wait(10)
+
+    monkeypatch.setattr(watchdog, "_write_heartbeat", stuck)
+    check = WatchdogCheck(type="disk", target=str(tmp_path / "hb"), timeout_seconds=0.2)
+
+    async def scenario():
+        first = await _run_check(check)
+        second = await _run_check(check)
+        release.set()
+        await asyncio.sleep(0.1)
+        third = await _run_check(check)
+        return first, second, third
+
+    try:
+        first, second, third = asyncio.run(scenario())
+    finally:
+        release.set()
+        watchdog._disk_probes.clear()
+    assert not first[0] and "exceeded" in first[1]
+    assert not second[0] and "still blocked" in second[1]
+    assert third == (True, None)
+    assert len(calls) == 2  # the second check did not spawn another writer
+
+
+def test_ssh_timeout_error_names_the_failure(monkeypatch):
+    async def never(host, port):
+        await asyncio.sleep(10)
+
+    monkeypatch.setattr("asyncio.open_connection", never)
+    ok, error = asyncio.run(_run_check(WatchdogCheck(type="ssh", target="host:22", timeout_seconds=0.1)))
+    assert not ok
+    assert error == "ssh:host:22 connect TimeoutError"

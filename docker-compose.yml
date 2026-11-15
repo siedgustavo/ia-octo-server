@@ -17,6 +17,9 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - /etc/hostname:/host/etc/hostname:ro
       - /etc/hosts:/host/etc/hosts:ro
+      # Heartbeat del chequeo "disk" del watchdog: debe vivir en el disco raiz
+      # del host (NVMe) para detectar que se cayo aunque sshd siga respondiendo.
+      - /var/lib/octofan-watchdog:/watchdog
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
