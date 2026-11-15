@@ -1,0 +1,75 @@
+# PRUEBA: llama.cpp v1.0.0 vs Strata con el mismo GGUF Huihui V2.
+# Proyecto Compose propio (no comparte namespace con ia-octo-server).
+# Nunca levantar junto a strata-qwen: comparten las cuatro GPU.
+name: llamacpp-v1-test
+# Uso (en octoserver, con strata-qwen parado y ai_recovery desactivado):
+#   docker build -f llamacpp/Dockerfile.llamacpp-v1-test -t octofan/llamacpp:v1.0.0-test llamacpp
+#   MTP_NMAX=4 docker compose -f docker-compose.llamacpp-v1-test.yml --profile mtp up -d mtp
+# Resultados en docs/llamacpp-v1-vs-strata.md.
+
+x-common: &common
+  image: octofan/llamacpp:v1.0.0-test
+  gpus: all
+  environment:
+    NVIDIA_VISIBLE_DEVICES: all
+    NVIDIA_DRIVER_CAPABILITIES: compute,utility
+  volumes:
+    - /opt/models-archive:/models:ro
+  ports:
+    - "8093:8080"
+  healthcheck:
+    test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
+    interval: 15s
+    timeout: 5s
+    retries: 80
+    start_period: 900s
+
+x-args: &args
+  - --model
+  - /models/Huihui-Qwen38-abliterated-v2-UD-Q4_K_XL/Qwen3.8-Flash-Next-UD-Q4_K_XL-00001-of-00004.gguf
+  - --alias
+  - huihui-v1test
+  - --host
+  - 0.0.0.0
+  - --port
+  - "8080"
+  - --split-mode
+  - layer
+  - --fit
+  - "on"
+  - --fit-target
+  - "1024"
+  - --ctx-size
+  - "262144"
+  - --parallel
+  - "1"
+  - --batch-size
+  - "512"
+  - --ubatch-size
+  - "256"
+  - --cache-type-k
+  - q8_0
+  - --cache-type-v
+  - q8_0
+  - --flash-attn
+  - "on"
+  - --jinja
+
+services:
+  nomtp:
+    <<: *common
+    container_name: llamacpp-v1-nomtp
+    profiles: [nomtp]
+    command: *args
+
+  mtp:
+    <<: *common
+    container_name: llamacpp-v1-mtp
+    profiles: [mtp]
+    entrypoint: ["/bin/sh", "-c", 'exec /opt/llama.cpp/bin/llama-server "$$@" --model-draft /models/MTP/$${MTP_DRAFT} --spec-type draft-mtp --spec-draft-n-max $${MTP_NMAX} --cache-type-k-draft q8_0 --cache-type-v-draft q8_0', "--"]
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+      MTP_DRAFT: ${MTP_DRAFT:-mtp-Qwen3.8-Flash-Next-ggml-org-Q4_0.gguf}
+      MTP_NMAX: ${MTP_NMAX:-3}
+    command: *args

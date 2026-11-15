@@ -1,0 +1,43 @@
+# Build de PRUEBA: llama.cpp v1.0.0 (tag del 2026-11-13) para comparar contra Strata.
+ARG CUDA_VERSION=12.8.1
+ARG UBUNTU_VERSION=24.04
+
+FROM nvidia/cuda:${CUDA_VERSION}-devel-ubuntu${UBUNTU_VERSION} AS build
+ARG LLAMACPP_REPO=https://github.com/ggml-org/llama.cpp
+ARG LLAMACPP_REF=v1.0.0
+ARG CUDA_ARCH=86
+ARG BUILD_JOBS=24
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        git cmake ninja-build build-essential libssl-dev ca-certificates pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+ENV CUDA_STUBS=/usr/local/cuda/lib64/stubs
+RUN ln -sf "${CUDA_STUBS}/libcuda.so" "${CUDA_STUBS}/libcuda.so.1"
+WORKDIR /src
+RUN git clone --depth 1 --branch "${LLAMACPP_REF}" "${LLAMACPP_REPO}" llama.cpp \
+    && cd llama.cpp && git rev-parse HEAD > /src/llama.cpp.commit
+WORKDIR /src/llama.cpp
+RUN cmake -B build -G Ninja \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DGGML_CUDA=ON \
+        -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH} \
+        -DGGML_NATIVE=OFF \
+        -DBUILD_SHARED_LIBS=OFF \
+        -DLLAMA_BUILD_TESTS=OFF \
+        -DLLAMA_BUILD_EXAMPLES=OFF \
+        -DLLAMA_BUILD_SERVER=ON \
+        -DCMAKE_EXE_LINKER_FLAGS="-L${CUDA_STUBS} -Wl,-rpath-link,${CUDA_STUBS}" \
+    && cmake --build build --config Release -j "${BUILD_JOBS}" \
+    && cmake --install build --prefix /opt/llama.cpp
+
+FROM nvidia/cuda:${CUDA_VERSION}-runtime-ubuntu${UBUNTU_VERSION}
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libssl3 libgomp1 ca-certificates curl \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=build /opt/llama.cpp /opt/llama.cpp
+COPY --from=build /src/llama.cpp.commit /opt/llama.cpp/COMMIT
+ENV PATH=/opt/llama.cpp/bin:${PATH}
+ENV LD_LIBRARY_PATH=/opt/llama.cpp/lib:${LD_LIBRARY_PATH}
+EXPOSE 8080
+ENTRYPOINT ["/opt/llama.cpp/bin/llama-server"]
