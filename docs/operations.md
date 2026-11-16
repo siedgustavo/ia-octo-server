@@ -419,6 +419,8 @@ watchdog:
     - type: disk
       target: /watchdog/heartbeat   # host /var/lib/octofan-watchdog, on the root NVMe
       timeout_seconds: 10.0
+  host_device: /dev/watchdog      # chipset iTCO (Wellsburg TCO v2), second reset path
+  host_timeout_seconds: 180
 ```
 
 Why both checks: on 2026-11-10 the root NVMe dropped off PCIe (SDES) and the host stayed broken
@@ -445,6 +447,32 @@ the recovery/notification path. Progress is visible in `/api/status` (`ai_recove
 `octofan_watchdog{metric="ai_recovery_restarts"}`.
 
 `POST /api/watchdog/maintenance` with `{"minutes": N}` (max 240) feeds the firmware regardless of check results. Use it before restarting sshd or disturbing the host network. The state lives in daemon memory and does not survive a controller recreate; the startup grace covers that case.
+
+### Host hardware watchdog (chipset iTCO, since 2026-11-16)
+
+`host_device` makes the daemon open the host's own watchdog (`/dev/watchdog`, driver
+`iTCO_wdt`; the controller is privileged so it sees it) with `host_timeout_seconds`, and feed it
+exactly when it feeds the Octofan firmware (healthy, startup grace, unhealthy grace, maintenance,
+keepalive). When the daemon stops feeding, the chipset resets the host on its own, without the
+USB AVR, its firmware or the RESET wire.
+
+Why: on 2026-11-16 the root NVMe dropped twice. At 00:23 PID 1 died with it and kdump rebooted
+the host (`/var/crash/127.0.0.1-2026-11-16-00:23:14`). At 00:26 the host stayed alive in RAM with
+every exec failing; the daemon could not feed, the firmware was armed (`mode 2`), and it still
+took **~3 h** to reset the board (Reset Counter 21 -> 22 at 03:29). The cause of that delay is
+inside the firmware and was not identified.
+
+Details:
+
+- Feeding is a write on an fd opened once, so it works with the root disk dead.
+- If the timeout cannot be set the daemon closes the device and does not arm it: the iTCO default
+  (30 s) equals the feed interval and would reset a healthy host.
+- A clean stop (compose recreate/stop) writes the magic `V` and disarms it. A crash leaves the
+  timer running; the next daemon reopens it within seconds (`restart: unless-stopped`).
+- `host_device: null` disables it. State in `/api/status.host_watchdog` and
+  `octofan_watchdog{metric="host_armed"|"host_timeout_seconds"}`.
+- Do not stop the controller with `docker kill`/SIGKILL for longer than the timeout: without the
+  magic close the chipset resets the host.
 
 ### Hardware escalation (firmware-level)
 

@@ -84,6 +84,10 @@ class WatchdogConfig(BaseModel):
     ai_recovery_cooldown_seconds: int = Field(default=900, ge=60, le=3600)
     ai_recovery_restart_containers: list[str] = Field(default_factory=list)
     checks: list[WatchdogCheck] = Field(default_factory=list)
+    # Second reset path: the host's own hardware watchdog (chipset iTCO), fed under the
+    # same health policy. None disables it. See hostwatchdog.py.
+    host_device: str | None = None
+    host_timeout_seconds: int = Field(default=180, ge=30, le=600)
 
 
 class DisplayConfig(BaseModel):

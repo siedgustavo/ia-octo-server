@@ -21,6 +21,7 @@ from .control import (
 from .display import render_display, resolve_display_title
 from .docker import DockerApiClient
 from .flux import FluxClient, FluxStatus
+from .hostwatchdog import HostWatchdog
 from .llamacpp import LlamaCppClient, LlamaCppStatus
 from .metrics import metrics_payload, update_metrics, watchdog_metric
 from .nvidia import NvidiaSmi, NvidiaStatus
@@ -48,6 +49,8 @@ async def lifespan(_app: FastAPI):
         for task in tasks:
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
+        # Intentional stop (compose recreate/stop): do not let the chipset timer reset the host.
+        _disarm_host_watchdog("controller shutdown")
 
 
 app = FastAPI(title="Octofan AI Controller", version="0.1.0", lifespan=lifespan)
@@ -79,6 +82,8 @@ state: dict[str, Any] = {
     "events": [],
     "watchdog": None,
     "watchdog_maintenance_until": None,
+    "host_watchdog": None,
+    "host_watchdog_error": None,
     "ai_watchdog_down": None,
     "ai_recovery_failures": 0,
     "ai_recovery_cooldown_until": None,
@@ -152,6 +157,7 @@ async def watchdog_loop() -> None:
     loop_started = time.monotonic()
     while True:
         cfg: AppConfig = state["config"]
+        _sync_host_watchdog(cfg.watchdog)
         if cfg.watchdog.enabled:
             if _watchdog_needs_rearm(configured, state["status"]):
                 configured = False
@@ -186,16 +192,10 @@ async def watchdog_loop() -> None:
             result = WatchdogResult(healthy=not base.errors and not blocking, checked=base.checked + (1 if gpu_errors else 0), errors=errors)
             state["watchdog"] = result
             if maintenance_left:
-                try:
-                    await asyncio.to_thread(cli.feed_watchdog)
-                except Exception as exc:
-                    _event(f"failed to feed watchdog during maintenance: {exc}")
+                await _feed_watchdogs("failed to feed watchdog during maintenance")
             elif result.healthy:
                 unhealthy_failures = 0
-                try:
-                    await asyncio.to_thread(cli.feed_watchdog)
-                except Exception as exc:
-                    _event(f"failed to feed watchdog: {exc}")
+                await _feed_watchdogs("failed to feed watchdog")
             else:
                 unhealthy_failures += 1
                 errors_text = ", ".join(result.errors)
@@ -206,10 +206,7 @@ async def watchdog_loop() -> None:
                         f"({unhealthy_failures}/{cfg.watchdog.unhealthy_failures_before_reset}"
                         f"{', startup grace' if startup_grace else ''}): {errors_text}"
                     )
-                    try:
-                        await asyncio.to_thread(cli.feed_watchdog)
-                    except Exception as exc:
-                        _event(f"failed to feed watchdog during unhealthy grace period: {exc}")
+                    await _feed_watchdogs("failed to feed watchdog during unhealthy grace period")
                 else:
                     _event(f"watchdog unhealthy: {errors_text}")
         else:
@@ -221,11 +218,63 @@ async def watchdog_loop() -> None:
             state["ai_recovery_failures"] = 0
             state["ai_recovery_cooldown_until"] = None
             if cfg.watchdog.keepalive_when_disabled:
-                try:
-                    await asyncio.to_thread(cli.feed_watchdog)
-                except Exception as exc:
-                    _event(f"failed to keep watchdog alive: {exc}")
+                await _feed_watchdogs("failed to keep watchdog alive")
         await asyncio.sleep(cfg.watchdog.feed_interval_seconds)
+
+
+async def _feed_watchdogs(failure_message: str) -> None:
+    """Feed the Octofan firmware and, independently, the host hardware watchdog."""
+    try:
+        await asyncio.to_thread(cli.feed_watchdog)
+    except Exception as exc:
+        _event(f"{failure_message}: {exc}")
+    host: HostWatchdog | None = state["host_watchdog"]
+    if host is not None and host.armed:
+        try:
+            host.feed()
+        except OSError as exc:
+            _event(f"failed to feed host watchdog {host.device}: {exc}")
+
+
+def _sync_host_watchdog(cfg: WatchdogConfig) -> None:
+    """Open, reconfigure or close the host watchdog to match the config.
+
+    It runs under the same policy as the firmware feed: armed while the reset policy
+    is enabled or kept alive, closed (magic 'V') when neither applies.
+    """
+    host: HostWatchdog | None = state["host_watchdog"]
+    wanted = cfg.host_device if (cfg.enabled or cfg.keepalive_when_disabled) else None
+    if host is not None and (wanted != host.device or cfg.host_timeout_seconds != host.requested_timeout):
+        _disarm_host_watchdog("config changed")
+        host = None
+    if wanted and host is None:
+        candidate = HostWatchdog(wanted, cfg.host_timeout_seconds)
+        try:
+            candidate.open()
+        except OSError as exc:
+            message = f"cannot arm host watchdog {wanted}: {exc}"
+            if state["host_watchdog_error"] != message:
+                _event(message)
+            state["host_watchdog_error"] = message
+        else:
+            state["host_watchdog"] = candidate
+            state["host_watchdog_error"] = None
+            _event(f"host watchdog {wanted} armed, timeout {candidate.timeout}s")
+    host = state["host_watchdog"]
+    watchdog_metric.labels("host_armed").set(1 if host is not None and host.armed else 0)
+    watchdog_metric.labels("host_timeout_seconds").set((host.timeout or 0) if host is not None else 0)
+
+
+def _disarm_host_watchdog(reason: str) -> None:
+    host: HostWatchdog | None = state["host_watchdog"]
+    state["host_watchdog"] = None
+    if host is None:
+        return
+    try:
+        host.disarm()
+        _event(f"host watchdog {host.device} disarmed ({reason})")
+    except OSError as exc:
+        _event(f"failed to disarm host watchdog {host.device} ({reason}): {exc}")
 
 
 def _watchdog_in_grace_period(unhealthy_failures: int, threshold: int) -> bool:
@@ -563,6 +612,7 @@ def serialize_status() -> dict[str, Any]:
         "bme280": {k: vars(v) for k, v in status.bme280.items()},
         "watchdog": None if watchdog is None else vars(watchdog),
         "watchdog_maintenance_seconds_left": _watchdog_maintenance_seconds_left(),
+        "host_watchdog": _host_watchdog_status(),
         "llamacpp": state["llamacpp"].to_dict(),
         "ollama": state["ollama"].to_dict(),
         "strata": state["strata"].to_dict(),
@@ -584,6 +634,14 @@ def serialize_status() -> dict[str, Any]:
         "gpu_idle_stop_active": state["gpu_idle_stop_active"],
         "events": state["events"][-50:],
     }
+
+
+def _host_watchdog_status() -> dict[str, Any] | None:
+    host: HostWatchdog | None = state["host_watchdog"]
+    if host is None:
+        error = state["host_watchdog_error"]
+        return None if error is None else {"armed": False, "error": error}
+    return {"armed": host.armed, "device": host.device, "timeout_seconds": host.timeout}
 
 
 def _event(message: str) -> None:

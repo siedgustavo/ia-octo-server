@@ -56,6 +56,8 @@ watchdog:
   - type: disk
     target: /watchdog/heartbeat
     timeout_seconds: 10.0
+  host_device: /dev/watchdog
+  host_timeout_seconds: 180
 display:
   enabled: true
   profile: ai
