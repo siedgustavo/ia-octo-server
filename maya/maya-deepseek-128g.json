@@ -1,0 +1,17 @@
+{
+ "exe": "/opt/maya/build/maya-ds4",
+ "args": [
+  "--pack", "/models/Mix-128G/maya-ds4",
+  "--max-context", "1048576",
+  "--tp", "2",
+  "--dspark", "none"
+ ],
+ "cwd": "/opt/maya",
+ "tokenizer": "/models/Mix-128G/maya-ds4/tokenizer",
+ "model_name": "deepseek-v4.1-flash-abliterated",
+ "gpu": [0, 1, 2, 3],
+ "sampling": {"temperature": 1.0, "top_p": 1.0},
+ "reasoning_effort": "high",
+ "lib_dirs": [],
+ "port": 8080
+}

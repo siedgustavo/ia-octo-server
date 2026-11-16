@@ -1,4 +1,6 @@
 import json
+
+import pytest
 from pathlib import Path
 
 import yaml
@@ -214,8 +216,12 @@ def test_maya_deepseek_stack_is_isolated_from_strata():
     assert maya["ports"][0].endswith(":${MAYA_PORT:-18090}:8080")
 
 
-def test_maya_deepseek_pins_native_context():
-    config = json.loads((ROOT / "maya/maya-deepseek.json").read_text(encoding="utf-8"))
+MAYA_CONFIGS = ("maya/maya-deepseek.json", "maya/maya-deepseek-128g.json")
+
+
+@pytest.mark.parametrize("path", MAYA_CONFIGS)
+def test_maya_deepseek_pins_native_context(path):
+    config = json.loads((ROOT / path).read_text(encoding="utf-8"))
     args = config["args"]
     # Maximo nativo de DeepSeek-V4.1-Flash (max_position_embeddings): 1M.
     assert int(args[args.index("--max-context") + 1]) == 1048576
@@ -223,7 +229,8 @@ def test_maya_deepseek_pins_native_context():
     assert config["model_name"] == "deepseek-v4.1-flash-abliterated"
 
 
-def test_maya_deepseek_keeps_vision_enabled():
-    config = json.loads((ROOT / "maya/maya-deepseek.json").read_text(encoding="utf-8"))
+@pytest.mark.parametrize("path", MAYA_CONFIGS)
+def test_maya_deepseek_keeps_vision_enabled(path):
+    config = json.loads((ROOT / path).read_text(encoding="utf-8"))
     # La torre de vision va en el pack (tools/ds4/vision_pack.py): no apagarla en la config.
     assert "--vision" not in config["args"]

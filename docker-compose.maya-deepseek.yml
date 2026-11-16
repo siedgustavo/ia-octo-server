@@ -40,7 +40,8 @@ services:
     volumes:
       # Escribible: el pack (maya-ds4/) vive dentro de la carpeta del modelo.
       - ${MAYA_MODELS_DIR:-/opt/models-archive/DeepSeek-V4.1-Flash-1017-abliterated-GGUF}:/models
-      - ./maya/maya-deepseek.json:/config/maya-deepseek.json:ro
+      # MAYA_CONFIG elige el pack: maya-deepseek.json (Mix-256G) o maya-deepseek-128g.json (Mix-128G).
+      - ./maya/${MAYA_CONFIG:-maya-deepseek.json}:/config/maya-deepseek.json:ro
     ports:
       - "${MAYA_BIND:-0.0.0.0}:${MAYA_PORT:-18090}:8080"
     healthcheck:
