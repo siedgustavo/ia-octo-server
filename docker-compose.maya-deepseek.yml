@@ -1,4 +1,4 @@
-# Project Maya (maya-ds4) con DeepSeek-V4.1-Flash-1017 abliterado de orcarouter (Mix-256G).
+# Project Maya (maya-ds4) con DeepSeek-V4.1-Flash-1017 abliterado de orcarouter (Mix-128G; Mix-256G opcional).
 # Proyecto Compose propio: el stack principal no lo ve como huerfano (--remove-orphans).
 # Ocupa las cuatro GPU y casi toda la RAM: nunca levantarlo junto a strata-qwen, ollama ni flux.
 # Imagen, descarga, pack y ventana de prueba: docs/maya-deepseek.md.
@@ -40,8 +40,9 @@ services:
     volumes:
       # Escribible: el pack (maya-ds4/) vive dentro de la carpeta del modelo.
       - ${MAYA_MODELS_DIR:-/opt/models-archive/DeepSeek-V4.1-Flash-1017-abliterated-GGUF}:/models
-      # MAYA_CONFIG elige el pack: maya-deepseek.json (Mix-256G) o maya-deepseek-128g.json (Mix-128G).
-      - ./maya/${MAYA_CONFIG:-maya-deepseek.json}:/config/maya-deepseek.json:ro
+      # MAYA_CONFIG elige el pack: maya-deepseek-128g.json (Mix-128G, default: entra entero en VRAM+RAM)
+      # o maya-deepseek.json (Mix-256G: lee expertos del SSD, ~4x mas lento).
+      - ./maya/${MAYA_CONFIG:-maya-deepseek-128g.json}:/config/maya-deepseek.json:ro
     ports:
       - "${MAYA_BIND:-0.0.0.0}:${MAYA_PORT:-18090}:8080"
     healthcheck:
