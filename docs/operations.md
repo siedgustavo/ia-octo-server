@@ -464,6 +464,10 @@ inside the firmware and was not identified.
 
 Details:
 
+- Tested 2026-11-16 08:48: with the controller releasing the device and the Octofan still fed,
+  opening `/dev/watchdog` and closing it without `V` reset the host after 177 s (timeout 180 s,
+  single countdown on this Wellsburg TCO); the Octofan Reset Counter stayed at 22, so the reset
+  came from the chipset. The host was back on ssh ~50 s later.
 - Feeding is a write on an fd opened once, so it works with the root disk dead.
 - If the timeout cannot be set the daemon closes the device and does not arm it: the iTCO default
   (30 s) equals the feed interval and would reset a healthy host.
