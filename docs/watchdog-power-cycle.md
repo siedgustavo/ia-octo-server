@@ -1,5 +1,13 @@
 # Power cycling del servidor: decision final (2026-09-03)
 
+> **Cambio 2026-11-16: el cable RST SW del Octofan -> RESET_SW de la ZX esta DESCONECTADO.**
+> El AVR queda con alimentacion aunque el host este apagado, en POST o sin disco, y sin nadie que
+> lo alimente pulsaba RESET en medio del arranque o de la BIOS (Reset Counter 22 -> 23 -> 24 durante
+> el mantenimiento del NVMe). El reset automatico del host queda a cargo del watchdog del chipset
+> (iTCO, `watchdog.host_device`, ver `operations.md`): Linux lo arma recien al arrancar el controller,
+> asi que nunca dispara en POST/BIOS. El daemon sigue armando y alimentando al Octofan por USB; sin
+> el cable es inofensivo. Si se vuelve a conectar, desarmar el firmware antes de apagar para mantenimiento.
+
 **Estado: Plan B (corte por PS_ON con relay) ABANDONADO.** El power cycling del servidor
 queda cubierto por dos caminos:
 
