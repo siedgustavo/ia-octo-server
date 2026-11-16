@@ -40,7 +40,7 @@ vision/          shard 1 + config.json -> vision.bin + vision.json
 
 ### Descarga
 
-Lo que funciono (2026-11-16): `aria2c -x 16 -s 16` (EPEL) un archivo a la vez, ~90 MB/s, con sha256 de
+Lo que funciono (2026-11-16): `scripts/download-maya-deepseek.sh` (`QUANT=Mix-128G`): `aria2c -x 16 -s 16` (EPEL) un archivo a la vez, ~90 MB/s, con sha256 de
 cada archivo contra `tools/ds4/download_gguf.json` (`.logs/fetch-128.sh`). Las primeras descargas tiraron
 el NVMe raiz del bus: no era la carga sino la **pico ATX gastada** (3,3 V a 3,0 V bajo I/O); con la pico
 nueva el rail queda >= 3,15 V y aguanta escritura sostenida a 2 GB/s.
@@ -113,6 +113,19 @@ hasta medir si el drafting conviene, sampling de DeepSeek (`temperature 1.0`, `t
 | short (256 tok, 3 reps) | 7,7-10,4 / 9,7 -> 25,0 | 60-87 / 38,7 -> 50,6 | |
 | code (1024 tok) | 13-15 / 17,5-23,0 | 97-137 / 44,4-46,7 | |
 | long8k (8,5k prompt) | **237** / 14,6 | **1008** / 43,5 | ~990 / ~105 |
+
+Corridas individuales (`case rep: prompt_n prompt_tps / gen_n gen_tps, draft aceptados/propuestos, pared`):
+
+```text
+Mix-256G  short 1: 42 7.7 / 256 9.7, 0/1, 31.8 s     Mix-128G  short 1: 43 60.5 / 256 38.7, 13/32, 7.4 s
+          short 2: 44 9.2 / 256 20.5, 0/0, 17.3 s              short 2: 45 68.5 / 256 47.8, 7/22, 6.0 s
+          short 3: 45 10.4 / 256 25.0, 0/0, 14.6 s             short 3: 44 86.8 / 256 50.6, 2/3, 5.6 s
+          code 1: 84 13.2 / 1024 17.5, 24/60, 64.7 s           code 1: 88 97.0 / 1024 44.4, 76/151, 24.0 s
+          code 2: 87 15.3 / 1024 23.0, 2/14, 50.3 s            code 2: 83 136.7 / 1024 46.7, 71/135, 22.6 s
+          long8k: 8495 237.1 / 512 14.6, 13/45, 71.1 s         long8k: 8497 1008.0 / 512 43.5, 89/157, 20.3 s
+```
+
+Primer pedido en frio con Mix-256G: 5,9 tok/s de prompt y 6,4 de generacion.
 
 - Mix-256G (236 GB) no entra en 96 GB VRAM + 125 GB RAM: lee expertos del SSD, arranca a ~6 tok/s en frio
   y no pasa de ~25. Mix-128G entra entero y da los numeros que publica Maya.

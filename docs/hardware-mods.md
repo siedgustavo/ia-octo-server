@@ -11,6 +11,12 @@ Estado fisico actual del gabinete Octominer/Octofan tras la conversion a servido
   - **Pico ATX de 120 W**: se alimenta desde el rail de 12 V del backplane de la fuente
     del Octominer y entrega al conector ATX principal de la placa solo logica, RAM, NVMe,
     USB y chipset. No alimenta los CPU.
+    **2026-11-16: la pico original estaba gastada** (3,3 V a ~3,0 V con el NVMe trabajando -> el NVMe
+    se caia del bus) y se reemplazo por otra pico de 120 W: 3,28 V en reposo, >= 3,15 V escribiendo a
+    fondo (margen justo). Pendiente: una fuente con mas corriente en 3,3 V (p. ej. AcBel PCA023, 19 A);
+    los risers de las GPU se alimentan por 6 pines desde la fuente del Octominer, asi que el 24 pines
+    solo carga ~50-70 W. El 3,3 V se monitorea con el NCT6779D (`node_hwmon_in_volts{sensor="in3"}`).
+    Ver `incidente-2026-11-16-nvme-pico-atx.md`.
   - **EPS 8 pines directo desde la fuente del Octominer**: alimenta los VRM de los dos
     Xeon. Los procesadores no pasan por la pico ATX.
 
