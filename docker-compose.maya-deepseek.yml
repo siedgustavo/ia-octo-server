@@ -1,0 +1,55 @@
+# Project Maya (maya-ds4) con DeepSeek-V4.1-Flash-1017 abliterado de orcarouter (Mix-256G).
+# Proyecto Compose propio: el stack principal no lo ve como huerfano (--remove-orphans).
+# Ocupa las cuatro GPU y casi toda la RAM: nunca levantarlo junto a strata-qwen, ollama ni flux.
+# Imagen, descarga, pack y ventana de prueba: docs/maya-deepseek.md.
+#
+#   docker compose -f docker-compose.maya-deepseek.yml up -d
+#
+# API OpenAI compatible (sin clave): http://<host>:18090/v1 (modelo deepseek-v4.1-flash-abliterated)
+
+name: octofan-maya
+
+services:
+  maya-deepseek:
+    # Construida en el host con la receta oficial de Maya (no hay imagen publicada):
+    #   cd /opt/project-maya && docker/build.sh --ref v1.1.65 --cuda 13 --archs "86" --jobs 6
+    image: ${MAYA_IMAGE:-project-maya:1.1.65-cuda13}
+    container_name: maya-deepseek
+    gpus: all
+    # Vuelve tras un reboot. Strata parado con `compose stop` no arranca (unless-stopped respeta el stop
+    # manual), asi que no se pisan las GPU. Para volver a Strata: `down` aca y `up -d` del otro stack.
+    restart: unless-stopped
+    shm_size: 2g
+    stop_grace_period: 120s
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    working_dir: /opt/maya
+    command:
+      - /opt/maya/.venv/bin/python
+      - /opt/maya/serve/server.py
+      - --engine
+      - maya
+      - --config
+      - /config/maya-deepseek.json
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"
+    volumes:
+      # Escribible: el pack (maya-ds4/) vive dentro de la carpeta del modelo.
+      - ${MAYA_MODELS_DIR:-/opt/models-archive/DeepSeek-V4.1-Flash-1017-abliterated-GGUF}:/models
+      - ./maya/maya-deepseek.json:/config/maya-deepseek.json:ro
+    ports:
+      - "${MAYA_BIND:-0.0.0.0}:${MAYA_PORT:-18090}:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/maya/.venv/bin/python -c 'import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:8080/v1/models\",timeout=5)'"]
+      interval: 30s
+      timeout: 10s
+      retries: 40
+      start_period: 900s
+
+networks:
+  default:
+    name: octofan-maya

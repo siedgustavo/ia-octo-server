@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import yaml
@@ -196,3 +197,33 @@ def test_flux_cpu_stack_is_isolated_and_gpu_free():
     assert command[command.index("--steps") + 1] == "4"
     assert command[command.index("--cfg-scale") + 1] == "1.0"
     assert command[command.index("--diffusion-model") + 1] == "/models/flux1-schnell-q8_0.gguf"
+
+
+def test_maya_deepseek_stack_is_isolated_from_strata():
+    compose = yaml.safe_load((ROOT / "docker-compose.maya-deepseek.yml").read_text(encoding="utf-8"))
+    strata = yaml.safe_load((ROOT / "docker-compose.strata-qwen.yml").read_text(encoding="utf-8"))
+    # Proyecto propio: --remove-orphans del principal no lo borra.
+    assert compose["name"] not in ("ia-octo-server", None)
+    maya = compose["services"]["maya-deepseek"]
+
+    assert maya["container_name"] != strata["services"]["strata-qwen"]["container_name"]
+    # Mismo criterio que strata-qwen: el que quedo parado a mano no vuelve tras un reboot.
+    assert maya["restart"] == "unless-stopped"
+    assert "mem_limit" not in maya
+    assert maya["ulimits"]["memlock"] == {"soft": -1, "hard": -1}
+    assert maya["ports"][0].endswith(":${MAYA_PORT:-18090}:8080")
+
+
+def test_maya_deepseek_pins_native_context():
+    config = json.loads((ROOT / "maya/maya-deepseek.json").read_text(encoding="utf-8"))
+    args = config["args"]
+    # Maximo nativo de DeepSeek-V4.1-Flash (max_position_embeddings): 1M.
+    assert int(args[args.index("--max-context") + 1]) == 1048576
+    assert args[args.index("--pack") + 1].startswith("/models/")
+    assert config["model_name"] == "deepseek-v4.1-flash-abliterated"
+
+
+def test_maya_deepseek_keeps_vision_enabled():
+    config = json.loads((ROOT / "maya/maya-deepseek.json").read_text(encoding="utf-8"))
+    # La torre de vision va en el pack (tools/ds4/vision_pack.py): no apagarla en la config.
+    assert "--vision" not in config["args"]
