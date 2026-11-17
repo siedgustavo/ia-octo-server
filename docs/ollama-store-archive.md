@@ -96,7 +96,9 @@ RAID1 SMR no alcanzan la velocidad que necesita llama.cpp.
 ## Fase pendiente
 
 La segunda fase ya ejecutada archiva los GLM en `/mnt/raid1hdd/archive/models-archive`
-(ver [GLM models archive](glm-models-archive.md)). Queda pendiente el resto de
-`/opt/models-archive` (`UD-Q4_K_XL`, `Qwen3.8-Flash-Next-Uncensored-Q4_K_S`, MTP)
-y `/opt/llamacpp/models`. No se tocó `DeepSeek-V4.1-Flash-1017-abliterated-GGUF` (Maya),
+(ver [GLM models archive](glm-models-archive.md)); la fase 3 archiva los coder legacy de
+`/opt/llamacpp/models` en `/mnt/raid1hdd/archive/llamacpp/models`
+(ver [llama.cpp models archive](llamacpp-models-archive.md)). Queda pendiente el resto de
+`/opt/models-archive` (`UD-Q4_K_XL`, `Qwen3.8-Flash-Next-Uncensored-Q4_K_S`, MTP).
+No se tocó `DeepSeek-V4.1-Flash-1017-abliterated-GGUF` (Maya),
 `Huihui-Qwen38-abliterated-v2-UD-Q4_K_XL` (Strata) ni `/opt/strata-test`.

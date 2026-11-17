@@ -54,4 +54,5 @@ Después se puede volver a usar `docker-compose.glm53flash.yml` (el compose mont
 Siguen calientes y sin mover: `DeepSeek-V4.1-Flash-1017-abliterated-GGUF` (Maya),
 `Huihui-Qwen38-abliterated-v2-UD-Q4_K_XL` (Strata) y `/opt/strata-test`.
 Pendiente para una próxima fase: el resto de `/opt/models-archive` (`UD-Q4_K_XL`,
-`Qwen3.8-Flash-Next-Uncensored-Q4_K_S`, `MTP`) y `/opt/llamacpp/models`.
+`Qwen3.8-Flash-Next-Uncensored-Q4_K_S`, `MTP`). Los coder legacy de `/opt/llamacpp/models`
+ya se movieron en la fase 3 (`docs/llamacpp-models-archive.md`).
