@@ -242,7 +242,7 @@ not require maintaining a list of GPU indices. The image is built from `ollama-c
 server-wide context-shift pin via `OLLAMA_CONTEXT_SHIFT`, and a host-RAM prompt cache via
 `OLLAMA_CACHE_RAM_MIB`).
 
-Ollama stores its active model inventory under `${OLLAMA_DATA_DIR:-/opt/ollama}`. Cold GGUF files live under `${MODELS_ARCHIVE_DIR:-/opt/models-archive}`, mounted read-only at `/models-archive`, and can be registered without downloading them again. **Since 2026-11-16/17 the active Ollama store (`/opt/ollama/models`) is archived cold on inference2's RAID1 at `/mnt/raid1hdd/archive/ollama/models`** to free 399 GiB on octoserver; only keys/history/cache remain locally. Restore it before starting `octofan-ollama` again. See [Ollama store archive](docs/ollama-store-archive.md) for the tags, verification and restore steps:
+Ollama stores its active model inventory under `${OLLAMA_DATA_DIR:-/opt/ollama}`. Cold GGUF files live under `${MODELS_ARCHIVE_DIR:-/opt/models-archive}`, mounted read-only at `/models-archive`, and can be registered without downloading them again. **Since 2026-11-16/17 the active Ollama store (`/opt/ollama/models`) is archived cold on inference2's RAID1 at `/mnt/raid1hdd/archive/ollama/models`** to free 399 GiB on octoserver; only keys/history/cache remain locally. Restore it before starting `octofan-ollama` again. See [Ollama store archive](docs/ollama-store-archive.md) for the tags, verification and restore steps. **GLM-5.3 models moved cold on 2026-11-17** under `/mnt/raid1hdd/archive/models-archive/` (IQ1_S, IQ1_S-upstream and Q2_K_XL); see [GLM models archive](docs/glm-models-archive.md).
 
 ```bash
 docker compose up -d ollama
