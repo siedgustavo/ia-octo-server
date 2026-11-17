@@ -12,7 +12,7 @@ Main `docker-compose.yml`:
 - `prometheus`: scrapes `octofan-controller:8000/metrics` and the node exporter at `host.docker.internal:9100`; evaluates the alert rules in `prometheus/rules/`.
 - `node-exporter`: exposes host CPU, memory, disk, filesystem and network metrics. It runs with `network_mode: host` so network counters come from the host namespace instead of the exporter container.
 - `grafana`: loads the Prometheus datasource and the Octofan dashboard set.
-- `ollama`: model server built from `ollama-custom/Dockerfile` with every host NVIDIA GPU visible and persistent model storage under `/opt/ollama`. In production it is currently stopped as a fallback while Strata owns the GPUs. It lives behind the Compose profile `ollama`, so a bare `docker compose up -d` never starts it.
+- `ollama`: model server built from `ollama-custom/Dockerfile` with every host NVIDIA GPU visible and persistent model storage under `/opt/ollama`. Since 2026-11-16/17 the model store (`/opt/ollama/models`) is archived cold on inference2 (`/mnt/raid1hdd/archive/ollama/models`); only keys/history/cache remain on the host. In production it is currently stopped as a fallback while Strata owns the GPUs. It lives behind the Compose profile `ollama`, so a bare `docker compose up -d` never starts it.
 
 Dedicated Compose files (same project namespace, started with `-f`):
 
