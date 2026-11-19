@@ -1,0 +1,40 @@
+# llama-swap (https://github.com/mostlygeek/llama-swap, v272) en el host del octoserver, puerto 18100.
+# Un solo modelo en las 4 GPU: segun el campo "model" del pedido arranca Strata o Maya y para el otro.
+# Lo usa solo OpenCode; Jaime, sied-poster y el chat van a los puertos directos (18080/18090) con su
+# cadena de respaldo y nunca provocan un cambio. Ver docs/model-swap.md.
+#
+# Cada cmd para primero el otro container: asi no se pisan aunque alguno se haya levantado por fuera
+# (a mano o por la recuperacion del controller). `compose up` sin -d queda en primer plano: es el
+# proceso que llama-swap vigila.
+healthCheckTimeout: 900
+logLevel: info
+# No inyectar mensajes de "cargando" en el canal de razonamiento: OpenCode los guardaria en la sesion.
+sendLoadingState: false
+globalTTL: 0
+
+models:
+  "huihui-qwen3.8-flash-next-abliterated-v2-ud-q4_k_xl":
+    name: "Qwen3.8 Flash Next (Strata)"
+    cmd: >-
+      /bin/bash -c "docker stop -t 120 maya-deepseek >/dev/null 2>&1;
+      exec docker compose -f /opt/ia-octo-server/docker-compose.strata-qwen.yml up --no-log-prefix strata-qwen"
+    cmdStop: docker compose -f /opt/ia-octo-server/docker-compose.strata-qwen.yml stop strata-qwen
+    proxy: http://127.0.0.1:18080
+    checkEndpoint: /v1/models
+    unloadTimeout: 150
+
+  "deepseek-v4.1-flash-abliterated":
+    name: "DeepSeek-V4.1-Flash abliterated (Maya)"
+    cmd: >-
+      /bin/bash -c "docker stop -t 60 strata-qwen >/dev/null 2>&1;
+      exec docker compose -f /opt/ia-octo-server/docker-compose.maya-deepseek.yml up --no-log-prefix maya-deepseek"
+    cmdStop: docker compose -f /opt/ia-octo-server/docker-compose.maya-deepseek.yml stop maya-deepseek
+    proxy: http://127.0.0.1:18090
+    checkEndpoint: /v1/models
+    unloadTimeout: 150
+
+hooks:
+  on_startup:
+    # Servicio diario: tras un reboot queda Maya.
+    preload:
+      - "deepseek-v4.1-flash-abliterated"

@@ -1,0 +1,14 @@
+[Unit]
+Description=llama-swap: un modelo a la vez en las GPU (Strata / Maya) para OpenCode
+After=docker.service network-online.target
+Requires=docker.service
+
+[Service]
+ExecStart=/opt/llama-swap/llama-swap --config /opt/ia-octo-server/llama-swap/config.yaml --listen 0.0.0.0:18100
+Restart=on-failure
+RestartSec=10
+# Al parar el servicio no se apaga el modelo: sigue sirviendo por su puerto directo.
+KillMode=process
+
+[Install]
+WantedBy=multi-user.target

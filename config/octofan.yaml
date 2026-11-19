@@ -44,11 +44,13 @@ watchdog:
   gpu_recovery_grace_seconds: 300
   gpu_recovery_restart_containers:
   - strata-qwen
+  - maya-deepseek
   ai_recovery_enabled: true
   ai_recovery_min_failures: 3
   ai_recovery_cooldown_seconds: 900
   ai_recovery_restart_containers:
   - strata-qwen
+  - maya-deepseek
   checks:
   - type: ssh
     target: host.docker.internal:22
@@ -87,6 +89,11 @@ ollama:
 strata:
   enabled: true
   base_url: http://host.docker.internal:18080
+  endpoints:
+  - name: Strata
+    base_url: http://host.docker.internal:18080
+  - name: Maya
+    base_url: http://host.docker.internal:18090
   timeout_seconds: 5.0
 flux:
   enabled: true

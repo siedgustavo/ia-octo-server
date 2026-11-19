@@ -105,7 +105,11 @@ async def poll_loop() -> None:
         status = await asyncio.to_thread(cli.status)
         llamacpp = await llamacpp_client.status(cfg.llamacpp)
         ollama = await ollama_client.status(cfg.ollama.base_url, cfg.ollama.enabled, cfg.ollama.timeout_seconds)
-        strata = await strata_client.status(cfg.strata.base_url, cfg.strata.enabled, cfg.strata.timeout_seconds)
+        strata = await strata_client.status_any(
+            [(e.name, e.base_url) for e in cfg.strata.resolved_endpoints()],
+            cfg.strata.enabled,
+            cfg.strata.timeout_seconds,
+        )
         flux = await flux_client.status(cfg.flux.base_url, cfg.flux.enabled, cfg.flux.timeout_seconds)
         nvidia = await asyncio.to_thread(nvidia_smi.status)
         ai_generating = llamacpp.generating or (ollama.enabled and ollama.generating)
@@ -411,9 +415,22 @@ async def _observe_ai_watchdog(cfg: AppConfig, now: float) -> str | None:
 
 
 async def _restart_containers(container_names: list[str], reason: str) -> None:
+    """Restart the listed containers that are running.
+
+    A stopped one is left alone: the model backends (Strata, Maya) share the GPUs
+    and llama-swap stops the one not in use; starting it would take the GPUs from
+    the other. If Docker cannot say, the container is restarted as before.
+    """
+    restarted = 0
     for name in container_names:
+        running = await asyncio.to_thread(docker_client.container_running, name)
+        if running is False:
+            continue
         ok = await asyncio.to_thread(docker_client.restart_container, name)
+        restarted += 1
         _event(f"{reason}: container {name} restart {'ok' if ok else 'FAILED'}")
+    if container_names and not restarted:
+        _event(f"{reason}: none of {', '.join(container_names)} is running; nothing restarted")
 
 
 def _watchdog_needs_rearm(configured: bool, status: ControllerStatus) -> bool:

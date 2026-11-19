@@ -22,6 +22,20 @@ class DockerApiClient:
         except Exception:
             return False
 
+    def container_running(self, name: str, timeout_seconds: float = 5.0) -> bool | None:
+        """State.Running of the container, or None if Docker could not be asked."""
+        try:
+            transport = self._transport or httpx.HTTPTransport(uds=self.socket_path)
+            with httpx.Client(transport=transport, timeout=timeout_seconds) as client:
+                resp = client.get(f"http://docker/containers/{name}/json")
+            if resp.status_code == 404:
+                return False
+            if resp.status_code != 200:
+                return None
+            return bool((resp.json().get("State") or {}).get("Running"))
+        except Exception:
+            return None
+
     def container_health(self, name: str, timeout_seconds: float = 5.0) -> str | None:
         """Return State.Health.Status ("starting", "healthy", "unhealthy") or None."""
         try:

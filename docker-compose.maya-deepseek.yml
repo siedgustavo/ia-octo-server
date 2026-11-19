@@ -16,9 +16,9 @@ services:
     image: ${MAYA_IMAGE:-project-maya:1.1.65-cuda13}
     container_name: maya-deepseek
     gpus: all
-    # Vuelve tras un reboot. Strata parado con `compose stop` no arranca (unless-stopped respeta el stop
-    # manual), asi que no se pisan las GPU. Para volver a Strata: `down` aca y `up -d` del otro stack.
-    restart: unless-stopped
+    # Lo prende y apaga llama-swap (docs/model-swap.md), que deja un solo modelo en las GPU: con
+    # restart "no" ni un reboot ni Docker lo levantan junto a Strata.
+    restart: "no"
     shm_size: 2g
     stop_grace_period: 120s
     ulimits:

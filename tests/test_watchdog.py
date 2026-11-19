@@ -169,3 +169,35 @@ def test_ssh_timeout_error_names_the_failure(monkeypatch):
     ok, error = asyncio.run(_run_check(WatchdogCheck(type="ssh", target="host:22", timeout_seconds=0.1)))
     assert not ok
     assert error == "ssh:host:22 connect TimeoutError"
+
+
+def test_docker_container_running_reads_state():
+    def handler(request: httpx.Request) -> httpx.Response:
+        name = request.url.path.split("/")[2]
+        if name == "gone":
+            return httpx.Response(404)
+        return httpx.Response(200, json={"State": {"Running": name == "strata-qwen"}})
+
+    client = DockerApiClient(transport=httpx.MockTransport(handler))
+    assert client.container_running("strata-qwen") is True
+    assert client.container_running("maya-deepseek") is False
+    assert client.container_running("gone") is False
+
+
+def test_restart_containers_skips_stopped_backends(monkeypatch):
+    from octofan_controller import app as app_module
+
+    restarted = []
+    monkeypatch.setattr(app_module.docker_client, "container_running", lambda name: name == "strata-qwen")
+    monkeypatch.setattr(app_module.docker_client, "restart_container", lambda name: restarted.append(name) or True)
+    events = []
+    monkeypatch.setattr(app_module, "_event", events.append)
+
+    asyncio.run(app_module._restart_containers(["strata-qwen", "maya-deepseek"], "AI watchdog"))
+    assert restarted == ["strata-qwen"]
+
+    restarted.clear()
+    monkeypatch.setattr(app_module.docker_client, "container_running", lambda name: False)
+    asyncio.run(app_module._restart_containers(["strata-qwen", "maya-deepseek"], "AI watchdog"))
+    assert restarted == []
+    assert "nothing restarted" in events[-1]

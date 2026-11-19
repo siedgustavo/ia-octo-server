@@ -15,6 +15,7 @@ class StrataModel:
 
 @dataclass
 class StrataStatus:
+    name: str = "Strata"
     base_url: str = ""
     enabled: bool = False
     up: bool = False
@@ -58,6 +59,34 @@ class StrataClient:
         status.total_models = len(status.models)
         status.loaded_models = sum(1 for model in status.models if model.loaded)
         return status
+
+
+    async def status_any(
+        self,
+        endpoints: list[tuple[str, str]],
+        enabled: bool,
+        timeout_seconds: float,
+    ) -> StrataStatus:
+        """First endpoint that answers, as (name, base_url) pairs in order.
+
+        Strata and Maya share the GPUs and take turns, so one of them being up is
+        healthy. With none up, the status keeps the first endpoint's base_url (so
+        the watchdog still judges it) and every endpoint's error.
+        """
+        if not endpoints:
+            return StrataStatus(enabled=enabled)
+        errors: list[str] = []
+        first: StrataStatus | None = None
+        for name, base_url in endpoints:
+            status = await self.status(base_url, enabled, timeout_seconds)
+            status.name = name
+            if status.up or not enabled:
+                return status
+            first = first or status
+            errors.append(f"{name}: {status.error}")
+        assert first is not None
+        first.error = "; ".join(errors)
+        return first
 
 
 def parse_strata_models(data: Any) -> list[StrataModel]:

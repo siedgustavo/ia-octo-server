@@ -68,8 +68,8 @@ def _ai_health(
 ) -> str | None:
     if strata is not None and strata.enabled:
         if not strata.up:
-            return "Strata DOWN"
-        return f"Strata {strata.loaded_models}/{strata.total_models} loaded"
+            return f"{strata.name} DOWN"
+        return f"{strata.name} {strata.loaded_models}/{strata.total_models} loaded"
     if ollama is not None and ollama.enabled:
         if not ollama.up:
             return "Ollama DOWN"

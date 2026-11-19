@@ -74,3 +74,45 @@ def test_strata_client_reports_connection_error():
 
     assert not status.up
     assert "connection refused" in status.error
+
+
+def test_status_any_returns_the_endpoint_that_answers():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.port == 18080:
+            raise httpx.ConnectError("refused", request=request)
+        return httpx.Response(200, json=MODELS_PAYLOAD)
+
+    status = asyncio.run(
+        strata_client(handler).status_any(
+            [("Strata", "http://h:18080"), ("Maya", "http://h:18090")], True, 1.0
+        )
+    )
+
+    assert status.up
+    assert status.name == "Maya"
+    assert status.base_url == "http://h:18090"
+
+
+def test_status_any_all_down_keeps_first_url_and_all_errors():
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("refused", request=request)
+
+    status = asyncio.run(
+        strata_client(handler).status_any(
+            [("Strata", "http://h:18080"), ("Maya", "http://h:18090")], True, 1.0
+        )
+    )
+
+    assert not status.up
+    assert status.name == "Strata"
+    assert status.base_url == "http://h:18080"
+    assert "Strata:" in status.error and "Maya:" in status.error
+
+
+def test_strata_config_falls_back_to_base_url():
+    from octofan_controller.config import StrataConfig
+
+    cfg = StrataConfig(base_url="http://x:18080")
+    assert [(e.name, e.base_url) for e in cfg.resolved_endpoints()] == [("Strata", "http://x:18080")]
+    cfg = StrataConfig(endpoints=[{"name": "Maya", "base_url": "http://x:18090"}])
+    assert [e.name for e in cfg.resolved_endpoints()] == ["Maya"]

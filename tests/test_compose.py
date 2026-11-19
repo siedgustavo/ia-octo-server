@@ -50,14 +50,18 @@ def test_retired_llamacpp_health_check_is_disabled_but_host_watchdog_stays_enabl
     ]
     assert config["watchdog"]["gpus_expected"] == 4
     assert config["watchdog"]["gpu_recovery_enabled"] is True
-    assert config["watchdog"]["gpu_recovery_restart_containers"] == ["strata-qwen"]
+    assert config["watchdog"]["gpu_recovery_restart_containers"] == ["strata-qwen", "maya-deepseek"]
     assert config["watchdog"]["ai_recovery_enabled"] is True
     assert config["watchdog"]["ai_recovery_min_failures"] == 3
     assert config["watchdog"]["ai_recovery_cooldown_seconds"] == 900
-    assert config["watchdog"]["ai_recovery_restart_containers"] == ["strata-qwen"]
+    assert config["watchdog"]["ai_recovery_restart_containers"] == ["strata-qwen", "maya-deepseek"]
     assert config["ollama"]["enabled"] is False
     assert config["strata"]["enabled"] is True
     assert config["strata"]["base_url"] == "http://host.docker.internal:18080"
+    assert [(e["name"], e["base_url"]) for e in config["strata"]["endpoints"]] == [
+        ("Strata", "http://host.docker.internal:18080"),
+        ("Maya", "http://host.docker.internal:18090"),
+    ]
     assert config["flux"]["enabled"] is True
     assert config["flux"]["base_url"] == "http://host.docker.internal:7860"
 
@@ -209,8 +213,9 @@ def test_maya_deepseek_stack_is_isolated_from_strata():
     maya = compose["services"]["maya-deepseek"]
 
     assert maya["container_name"] != strata["services"]["strata-qwen"]["container_name"]
-    # Mismo criterio que strata-qwen: el que quedo parado a mano no vuelve tras un reboot.
-    assert maya["restart"] == "unless-stopped"
+    # llama-swap decide cual corre: Docker no levanta ninguno solo (ni tras un reboot).
+    assert maya["restart"] == "no"
+    assert strata["services"]["strata-qwen"]["restart"] == "no"
     assert "mem_limit" not in maya
     assert maya["ulimits"]["memlock"] == {"soft": -1, "hard": -1}
     assert maya["ports"][0].endswith(":${MAYA_PORT:-18090}:8080")

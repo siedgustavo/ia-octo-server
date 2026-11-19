@@ -140,10 +140,21 @@ class OllamaConfig(BaseModel):
     timeout_seconds: float = Field(default=8.0, ge=0.2, le=60.0)
 
 
+class StrataEndpoint(BaseModel):
+    name: str = Field(default="Strata", min_length=1, max_length=12)
+    base_url: str
+
+
 class StrataConfig(BaseModel):
     enabled: bool = False
     base_url: str = "http://host.docker.internal:18080"
+    # Backends OpenAI-compatibles (Strata, Maya) que comparten las GPU y se turnan (llama-swap): el
+    # estado es "up" si cualquiera responde. Vacio = solo base_url, con el nombre "Strata".
+    endpoints: list[StrataEndpoint] = Field(default_factory=list)
     timeout_seconds: float = Field(default=5.0, ge=0.2, le=60.0)
+
+    def resolved_endpoints(self) -> list[StrataEndpoint]:
+        return self.endpoints or [StrataEndpoint(name="Strata", base_url=self.base_url)]
 
 
 class FluxConfig(BaseModel):
