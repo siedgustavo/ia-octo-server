@@ -35,6 +35,6 @@ models:
 
 hooks:
   on_startup:
-    # Servicio diario: tras un reboot queda Maya.
+    # Servicio diario (desde 2026-11-19): tras un reboot queda Strata (Qwen).
     preload:
-      - "deepseek-v4.1-flash-abliterated"
+      - "huihui-qwen3.8-flash-next-abliterated-v2-ud-q4_k_xl"

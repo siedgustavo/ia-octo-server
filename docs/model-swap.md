@@ -12,7 +12,7 @@ solo. Desde 2026-11-19 los prende y apaga **llama-swap** segun el modelo que se 
 - Cada `cmd` hace primero `docker stop` del otro container, por si alguno se levanto por fuera.
 - Un pedido en curso termina antes del cambio. Medido: un pedido de 1500 tokens a Strata termino completo
   y recien despues se apago Strata.
-- Al arrancar el host queda **Maya** (`hooks.on_startup.preload`).
+- Al arrancar el host queda **Strata (Qwen)**, el modelo por defecto desde 2026-11-19 (`hooks.on_startup.preload`).
 - Los dos stacks tienen `restart: "no"`: Docker no levanta ninguno solo.
 
 | Cambio | Tiempo hasta la primera respuesta (medido 2026-11-19) |
@@ -50,7 +50,7 @@ journalctl -u llama-swap -f
 
 - **No** usar `docker compose ... up -d` / `stop` de Strata o Maya a mano: llama-swap no se entera. Si
   pasa igual, el proximo cambio lo corrige (cada `cmd` para el otro).
-- Si se cuelga: `systemctl restart llama-swap` (vuelve a precargar Maya).
+- Si se cuelga: `systemctl restart llama-swap` (vuelve a precargar Strata).
 - Instalar en otro host: copiar el binario de la release v272 a `/opt/llama-swap/`,
   `cp llama-swap/llama-swap.service /etc/systemd/system/`, `systemctl enable --now llama-swap`.
 - Validar la config: `/opt/llama-swap/llama-swap -validate -config llama-swap/config.yaml`.

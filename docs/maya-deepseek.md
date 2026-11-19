@@ -137,7 +137,7 @@ Primer pedido en frio con Mix-256G: 5,9 tok/s de prompt y 6,4 de generacion.
 - Calidad rapida Mix-128G: razonamiento aritmetico correcto; la abliteracion funciona (pedidos vulgares
   o de ganzuas se responden). Piensa largo: ~3,6k tokens de razonamiento aun con `reasoning_effort: low`,
   dar `max_tokens` holgado.
-- Decision: queda **Mix-128G encendido** como servicio diario. Desde 2026-11-19 Strata y Maya se turnan
+- Decision: Mix-128G fue el servicio diario del 2026-11-16 al 19; desde el 19 el default vuelve a ser Strata (Qwen) y Maya se prende a pedido. Desde 2026-11-19 Strata y Maya se turnan
   con llama-swap segun el modelo que pida OpenCode (`docs/model-swap.md`); el controller vigila los dos
   (`strata.endpoints`) y solo reinicia el que esta corriendo.
   Mix-256G queda en disco (`MAYA_CONFIG=maya-deepseek.json`).
