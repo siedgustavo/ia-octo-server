@@ -97,6 +97,9 @@ hasta medir si el drafting conviene, sampling de DeepSeek (`temperature 1.0`, `t
 
 ## Ventana de prueba
 
+Historico (2026-11-16). Hoy el cambio entre Strata y Maya lo hace llama-swap: ver `docs/model-swap.md`.
+
+
 1. Respaldar `config/octofan.yaml`; `PUT /api/config` con `ai_recovery_enabled: false` y
    `gpu_recovery_restart_containers: []` (si no, el watchdog vuelve a arrancar Strata).
 2. `docker compose -f docker-compose.strata-qwen.yml stop` y `docker compose -f docker-compose.flux.yml stop`.
@@ -134,6 +137,7 @@ Primer pedido en frio con Mix-256G: 5,9 tok/s de prompt y 6,4 de generacion.
 - Calidad rapida Mix-128G: razonamiento aritmetico correcto; la abliteracion funciona (pedidos vulgares
   o de ganzuas se responden). Piensa largo: ~3,6k tokens de razonamiento aun con `reasoning_effort: low`,
   dar `max_tokens` holgado.
-- Decision: queda **Mix-128G encendido** como servicio (Strata parado, `unless-stopped` respeta el stop).
-  El controller lo monitorea por `strata.base_url` -> `:18090` y la AI recovery reinicia `maya-deepseek`.
+- Decision: queda **Mix-128G encendido** como servicio diario. Desde 2026-11-19 Strata y Maya se turnan
+  con llama-swap segun el modelo que pida OpenCode (`docs/model-swap.md`); el controller vigila los dos
+  (`strata.endpoints`) y solo reinicia el que esta corriendo.
   Mix-256G queda en disco (`MAYA_CONFIG=maya-deepseek.json`).
