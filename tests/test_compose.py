@@ -66,34 +66,9 @@ def test_retired_llamacpp_health_check_is_disabled_but_host_watchdog_stays_enabl
     assert config["flux"]["base_url"] == "http://host.docker.internal:7860"
 
 
-def test_ollama_is_a_compose_profile_so_bare_up_leaves_it_down():
-    ollama = load_compose()["services"]["ollama"]
-
-    assert ollama["profiles"] == ["ollama"]
-
-
-def test_ollama_keeps_models_loaded_until_vram_pressure():
-    ollama = load_compose()["services"]["ollama"]
-
-    assert ollama["build"]["dockerfile"] == "ollama-custom/Dockerfile"
-    assert ollama["image"] == "${OLLAMA_IMAGE:-octofan/ollama:0.35.1-b11381}"
-    assert ollama["gpus"] == "all"
-    assert ollama["dns"] == ["${OLLAMA_DNS:-172.16.1.1}"]
-    assert "deploy" not in ollama
-    assert ollama["environment"]["OLLAMA_KEEP_ALIVE"] == "${OLLAMA_KEEP_ALIVE:--1}"
-    assert "OLLAMA_CONTEXT_LENGTH" not in ollama["environment"]
-    assert ollama["environment"]["OLLAMA_KV_CACHE_TYPE"] == "${OLLAMA_KV_CACHE_TYPE:-q8_0}"
-    assert "OLLAMA_MAX_LOADED_MODELS" not in ollama["environment"]
-    assert ollama["environment"]["OLLAMA_NUM_PARALLEL"] == "${OLLAMA_NUM_PARALLEL:-1}"
-    assert ollama["environment"]["OLLAMA_SCHED_SPREAD"] == "${OLLAMA_SCHED_SPREAD:-false}"
-    assert ollama["environment"]["OLLAMA_CONTEXT_SHIFT"] == "${OLLAMA_CONTEXT_SHIFT:-true}"
-    assert ollama["environment"]["OLLAMA_CACHE_RAM_MIB"] == "${OLLAMA_CACHE_RAM_MIB:-32768}"
-    assert "${MODELS_DIR:-/opt/llamacpp/models}:/models:ro" in ollama["volumes"]
-    assert (
-        "${MODELS_ARCHIVE_DIR:-/opt/models-archive}:/models-archive:ro"
-        in ollama["volumes"]
-    )
-
+def test_ollama_was_removed_from_the_main_compose():
+    # Retirado del server el 2026-11-19 (modelos archivados en inference2: docs/ollama-store-archive.md).
+    assert "ollama" not in load_compose()["services"]
 
 def test_ollama_image_pins_context_shift_to_avoid_reload_thrash():
     dockerfile = (ROOT / "ollama-custom" / "Dockerfile").read_text(encoding="utf-8")

@@ -81,49 +81,6 @@ services:
     depends_on:
       - prometheus
 
-  ollama:
-    build:
-      context: .
-      dockerfile: ollama-custom/Dockerfile
-    image: ${OLLAMA_IMAGE:-octofan/ollama:0.35.1-b11381}
-    container_name: octofan-ollama
-    # Fallback detenido: las GPU las ocupa strata-qwen. Un `docker compose up -d`
-    # a secas debe ignorarlo; arrancarlo con `--profile ollama up -d ollama`
-    # (o `docker start octofan-ollama`) tras parar el stack de Strata.
-    profiles: ["ollama"]
-    dns:
-      - ${OLLAMA_DNS:-172.16.1.1}
-    gpus: all
-    restart: unless-stopped
-    environment:
-      OLLAMA_HOST: 0.0.0.0:11434
-      # Keep loaded models resident until VRAM pressure requires eviction.
-      OLLAMA_KEEP_ALIVE: "${OLLAMA_KEEP_ALIVE:--1}"
-      OLLAMA_KV_CACHE_TYPE: "${OLLAMA_KV_CACHE_TYPE:-q8_0}"
-      OLLAMA_NUM_PARALLEL: "${OLLAMA_NUM_PARALLEL:-1}"
-      OLLAMA_SCHED_SPREAD: "${OLLAMA_SCHED_SPREAD:-false}"
-      # Pin context shift server-wide (custom patch). Otherwise clients that send
-      # shift=false (/api/chat) and clients that omit it (/v1) force a full model
-      # reload on every alternating request.
-      OLLAMA_CONTEXT_SHIFT: "${OLLAMA_CONTEXT_SHIFT:-true}"
-      # Host-RAM prompt cache per runner (llama-server --cache-ram, custom patch).
-      # Keeps idle conversations restorable when the single slot alternates
-      # between clients; llama.cpp default is 8192 MiB.
-      OLLAMA_CACHE_RAM_MIB: "${OLLAMA_CACHE_RAM_MIB:-32768}"
-    volumes:
-      - ${OLLAMA_DATA_DIR:-/opt/ollama}:/root/.ollama
-      - ${MODELS_DIR:-/opt/llamacpp/models}:/models:ro
-      - ${MODELS_ARCHIVE_DIR:-/opt/models-archive}:/models-archive:ro
-      - ./ollama:/model-definitions:ro
-    ports:
-      - "${OLLAMA_PORT:-11434}:11434"
-    healthcheck:
-      test: ["CMD", "ollama", "list"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 10s
-
 volumes:
   prometheus-data:
   grafana-data:
