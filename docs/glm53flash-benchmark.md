@@ -20,7 +20,7 @@ esta al final, en "Configuracion final desplegada".
 > **Estado al 2026-10-31.** Ni `glm53flash` ni `qwen38flash` tienen container en
 > produccion. Qwen3.8-Flash-Next paso al Ollama custom (2026-10-13) y desde el
 > 2026-10-30 el servicio diario en las cuatro GPU es Strata con Huihui Qwen3.8
-> abliterated V2 (`docs/strata-qwen.md`). Las referencias de este documento a
+> abliterated V2 (`docs/strata-qwen.md`); Ollama se retiro el 2026-11-19. Las referencias de este documento a
 > "produccion", al puerto 8090/8091 y al estado de `qwen38flash` describen el
 > momento de cada medicion. `docker-compose.glm53flash.yml` se conserva para
 > reproducir estos benchmarks.

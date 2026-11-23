@@ -12,15 +12,17 @@ Main `docker-compose.yml`:
 - `prometheus`: scrapes `octofan-controller:8000/metrics` and the node exporter at `host.docker.internal:9100`; evaluates the alert rules in `prometheus/rules/`.
 - `node-exporter`: exposes host CPU, memory, disk, filesystem and network metrics. It runs with `network_mode: host` so network counters come from the host namespace instead of the exporter container.
 - `grafana`: loads the Prometheus datasource and the Octofan dashboard set.
-- `ollama`: model server built from `ollama-custom/Dockerfile` with every host NVIDIA GPU visible and persistent model storage under `/opt/ollama`. Since 2026-11-16/17 the model store (`/opt/ollama/models`) is archived cold on inference2 (`/mnt/raid1hdd/archive/ollama/models`); only keys/history/cache remain on the host. In production it is currently stopped as a fallback while Strata owns the GPUs. It lives behind the Compose profile `ollama`, so a bare `docker compose up -d` never starts it.
+- `ollama`: **retired on 2026-11-19** (service removed from `docker-compose.yml`, container, images and `/opt/ollama` deleted). The model store is archived cold on inference2 (`/mnt/raid1hdd/archive/ollama/models`, see `docs/ollama-store-archive.md`); `ollama-custom/` keeps the image recipe.
 
 Dedicated Compose files (same project namespace, started with `-f`):
 
 - `strata-qwen` (`docker-compose.strata-qwen.yml`): Strata engine serving the daily Qwen model on port 18080 with an OpenAI-compatible API. Its config lives in `strata/strata-qwen.json`.
+- `maya-deepseek` (`docker-compose.maya-deepseek.yml`, own project `octofan-maya`): Project Maya serving DeepSeek-V4.1-Flash on port 18090, on demand. Its config lives in `maya/`.
+- `llama-swap` (host systemd service, port 18100, `llama-swap/config.yaml`): starts Strata or Maya according to the requested model and stops the other, so only one owns the GPUs. See `docs/model-swap.md`.
 - `qwen38flash` / `glm53flash` (`docker-compose.qwen38flash.yml`, `docker-compose.glm53flash.yml`): dedicated llama.cpp servers with disk-persisted KV slots, used for the benchmarks in `docs/`. Not deployed at the moment.
 - `flux` (`docker-compose.flux.yml`, own project `octofan-flux`): CPU-only image generation; independent of the GPU services.
 
-The controller polls llama.cpp (`llamacpp.servers`), Ollama (`ollama.base_url`), Strata (`strata.base_url`, via the OpenAI-compatible `/v1/models`) and Flux (`flux.base_url`). The OLED/LED AI health line follows the first enabled backend in the order Strata → Ollama → llama.cpp; Flux is reported only through `/api/status` and `octofan_flux_up`. While an enabled inference backend fails its health check, the watchdog's AI recovery restarts the containers in `watchdog.ai_recovery_restart_containers` (suppressing restarts while Docker health reports `starting`, i.e. model load) and restarts are rate-limited by `ai_recovery_cooldown_seconds`; unlike the GPU condition, AI failures never stop the firmware feed.
+The controller polls llama.cpp (`llamacpp.servers`), Ollama (`ollama.base_url`), Strata/Maya (`strata.endpoints`, via the OpenAI-compatible `/v1/models`; up when either answers) and Flux (`flux.base_url`). The OLED/LED AI health line follows the first enabled backend in the order Strata → Ollama → llama.cpp; Flux is reported only through `/api/status` and `octofan_flux_up`. While an enabled inference backend fails its health check, the watchdog's AI recovery restarts the running containers in `watchdog.ai_recovery_restart_containers` (stopped ones are skipped) (suppressing restarts while Docker health reports `starting`, i.e. model load) and restarts are rate-limited by `ai_recovery_cooldown_seconds`; unlike the GPU condition, AI failures never stop the firmware feed.
 
 ## Data Flow
 
@@ -54,4 +56,4 @@ Supported controller surfaces include:
 
 ## Network Model
 
-The compose stack uses the Docker network `octofan-ai` by default. Ollama is reachable within the network at `http://ollama:11434`; the controller does not depend on the inference service for hardware watchdog health. `strata-qwen` uses its own network (`strata-qwen`) and publishes port 18080 on the host; `flux` publishes 7860. The controller monitors both through `host.docker.internal` (`strata.base_url` / `flux.base_url`). The controller reaches the host sshd for the watchdog check, and Prometheus reaches the node exporter, through `host.docker.internal` (`extra_hosts: host-gateway`).
+The compose stack uses the Docker network `octofan-ai` by default; the controller does not depend on the inference service for hardware watchdog health. `strata-qwen` uses its own network (`strata-qwen`) and publishes port 18080 on the host; `maya-deepseek` publishes 18090 and `flux` 7860. The controller monitors them through `host.docker.internal` (`strata.endpoints` / `flux.base_url`). The controller reaches the host sshd for the watchdog check, and Prometheus reaches the node exporter, through `host.docker.internal` (`extra_hosts: host-gateway`).

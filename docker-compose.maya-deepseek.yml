@@ -1,6 +1,6 @@
 # Project Maya (maya-ds4) con DeepSeek-V4.1-Flash-1017 abliterado de orcarouter (Mix-128G; Mix-256G opcional).
 # Proyecto Compose propio: el stack principal no lo ve como huerfano (--remove-orphans).
-# Ocupa las cuatro GPU y casi toda la RAM: nunca levantarlo junto a strata-qwen, ollama ni flux.
+# Ocupa las cuatro GPU y casi toda la RAM: nunca levantarlo junto a strata-qwen ni flux.
 # Imagen, descarga, pack y ventana de prueba: docs/maya-deepseek.md.
 #
 #   docker compose -f docker-compose.maya-deepseek.yml up -d

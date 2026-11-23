@@ -8,8 +8,8 @@ al apagar y arrancar el contenedor.
 
 > **Estado al 2026-10-31.** Aplica solo a los stacks dedicados de llama.cpp
 > (`docker-compose.qwen38flash.yml`, `docker-compose.glm53flash.yml`), que hoy
-> no estan desplegados. El Ollama custom del compose principal no persiste
-> slots a disco: solo tiene el prompt cache en RAM (`OLLAMA_CACHE_RAM_MIB`,
+> no estan desplegados. El Ollama custom (retirado el 2026-11-19) no persistia
+> slots a disco: solo tenia el prompt cache en RAM (`OLLAMA_CACHE_RAM_MIB`,
 > equivalente al `--cache-ram` investigado mas abajo). Strata, el servicio
 > diario actual, maneja su propio cache de expertos y KV
 > (`docs/strata-qwen.md`). La investigacion sobre `--cache-ram` y `--parallel`

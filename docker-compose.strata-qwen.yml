@@ -1,5 +1,5 @@
 # Strata con Huihui Qwen3.8 Flash Next abliterated V2. Stack independiente:
-# nunca levantar al mismo tiempo que Ollama u otro modelo que ocupe las GPU.
+# nunca levantar al mismo tiempo que Maya u otro modelo que ocupe las GPU (lo maneja llama-swap).
 # Preparar el pack segun docs/strata-qwen.md antes de iniciarlo.
 services:
   strata-qwen:

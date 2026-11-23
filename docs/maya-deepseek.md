@@ -5,8 +5,8 @@ motor `maya-ds4` para DeepSeek) con el DeepSeek-V4.1-Flash-1017 abliterado de or
 nativa por Maya desde v1.1.6x (`--ds4-quant abliterated`).
 
 Stack: `docker-compose.maya-deepseek.yml` (proyecto propio `octofan-maya`, puerto 18090, modelo
-`deepseek-v4.1-flash-abliterated`). Ocupa las cuatro GPU: **nunca a la vez que `strata-qwen` ni
-`ollama`**. Desde 2026-11-16 queda encendido con **Mix-128G** (config `maya/maya-deepseek-128g.json`, default
+`deepseek-v4.1-flash-abliterated`). Ocupa las cuatro GPU: **nunca a la vez que `strata-qwen`** (lo
+maneja llama-swap, `docs/model-swap.md`). Desde 2026-11-16 queda encendido con **Mix-128G** (config `maya/maya-deepseek-128g.json`, default
 de `MAYA_CONFIG`) y Strata parado; ver Resultados.
 
 ## Modelo

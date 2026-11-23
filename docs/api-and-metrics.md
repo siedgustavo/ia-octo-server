@@ -15,12 +15,12 @@ The response also includes current LED control state under `leds`.
 The `ollama` object reports `enabled`, `up`, `running_models`, `available_models`, `vram_total_mib`,
 `vram_used_mib`, the `loaded` and `models` inventories and any polling `error`. When Ollama is
 enabled and generating, its activity also feeds the fan `ai_load_assist` boost and the GPU idle-stop
-guard. While Ollama is the stopped fallback, `ollama.enabled` is `false` and the object reports
-`up: false` with `enabled: false`.
+guard. Ollama was retired from production on 2026-11-19: `ollama.enabled` is `false` and the object reports
+`up: false` with `enabled: false`. The backend support remains in the controller.
 
 The `strata` object reports `enabled`, `up`, `total_models`, `loaded_models`, the `models`
 inventory (id, loaded flag, context) and any polling `error`; the controller polls the OpenAI-compatible
-`/v1/models`. The `flux` object reports the same minimal `enabled`/`up`/`error` shape for the sd-server
+`/v1/models` of every entry in `strata.endpoints` (Strata and Maya) and reports up when either answers. The `flux` object reports the same minimal `enabled`/`up`/`error` shape for the sd-server
 image API. When Strata is enabled, the OLED `ai` profile and the online/warning LEDs follow Strata
 (`Strata 1/1 loaded` / `Strata DOWN`); with Strata disabled they fall back to Ollama and then to
 llama.cpp. Flux health is not on the OLED or the LEDs.
@@ -147,8 +147,8 @@ Watchdog policy (config `watchdog.*`):
   mounted Docker socket and keeps feeding during the grace window; only if the condition
   persists does it stop feeding and let the firmware act.
 - `ai_recovery_enabled` / `ai_recovery_min_failures` / `ai_recovery_cooldown_seconds` /
-  `ai_recovery_restart_containers`: health of the enabled inference backend (Strata, else
-  Ollama). Persistent failures restart the listed containers (suppressed while Docker health
+  `ai_recovery_restart_containers`: health of the enabled inference backend (Strata/Maya, else
+  Ollama). Persistent failures restart the listed containers that are running (suppressed while Docker health
   reports `starting`, i.e. model load) without ever stopping the firmware feed.
 - The unhealthy counter ignores failures during the first 120 s after daemon startup
   (bridge-network flaps on container recreates).

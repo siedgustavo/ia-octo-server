@@ -1,7 +1,7 @@
 # Strata: Huihui Qwen3.8 Flash Next abliterated V2
 
-Stack dedicado, independiente del Compose principal. Mantener Ollama y otros
-servidores de modelos detenidos mientras Strata ocupa las cuatro GPU. No usar
+Stack dedicado, independiente del Compose principal. Ocupa las cuatro GPU: corre
+de a uno con Maya, y los prende y apaga llama-swap (`docs/model-swap.md`). No usar
 `--remove-orphans`: los stacks comparten el proyecto Compose.
 
 ## Evaluación en producción: 2026-10-30 a 2026-10-31
@@ -81,8 +81,8 @@ que los del microbenchmark inicial porque reflejan carga real mixta (salidas
 largas, caché KV grande), no una corrida óptima.
 
 **Decisión (2026-10-31):** Strata con Huihui V2 queda como servicio de
-inferencia diario en las cuatro GPU. Ollama permanece instalado y detenido
-como fallback. Quedan pendientes: uso concurrente real (limitado al slot
+inferencia diario en las cuatro GPU. Ollama quedó detenido como fallback (se
+retiró del server el 2026-11-19). Quedan pendientes: uso concurrente real (limitado al slot
 único), una evaluación formal de calidad contra otros modelos y un stress
 sostenido con el contexto de 262144 completo.
 
@@ -199,7 +199,7 @@ Escucha por defecto en todas las interfaces del host, puerto `18080` (se puede
 restringir con `STRATA_BIND`). API OpenAI compatible en `/v1`, sin autenticación.
 HTTP no cifra las solicitudes: usar solo una red de
 confianza, o un túnel SSH/TLS fuera de ella. No implementa la API
-nativa de Ollama. Solo texto; la visión no está configurada. Se permiten el
+nativa de Ollama (`/api/*`). Solo texto; la visión no está configurada. Se permiten el
 nombre `octoserver.core.sied.ar` y la IP `172.16.1.6` en `allowed_hosts`;
 actualizarlos si cambia la dirección del host. Se reserva el contexto nativo de
 262144 tokens, con un solo slot, MTP, presupuesto de 20 GiB
@@ -207,10 +207,10 @@ para expertos en RAM y límite de contenedor de 75 GiB para proteger al host.
 El límite y las reservas de VRAM son conservadores, no una garantía de que un
 contexto completo bajo carga real no pueda agotar memoria.
 
-Desde 2026-10-31 este stack es el servicio diario y se mantiene levantado.
-Ollama permanece instalado y detenido; puede restaurarse después de detener
-Strata con `docker start octofan-ollama`. No iniciar ambos modelos en las
-mismas GPU.
+Desde 2026-10-31 este stack es el servicio diario. Desde 2026-11-19 lo maneja
+llama-swap: queda precargado tras un reboot y se apaga cuando OpenCode pide Maya.
+No usar `compose up -d` / `stop` a mano (ver `docs/model-swap.md`). Ollama se
+retiró el 2026-11-19 (`ollama-custom/README.md`).
 Comprobar watchdog, ventiladores en automático, temperatura y memoria tras
 cualquier cambio de servicio.
 
@@ -220,23 +220,18 @@ cualquier cambio de servicio.
   `docker-compose.yml` y `docker-compose.strata-qwen.yml`. Por eso
   `--remove-orphans` desde el Compose principal **elimina `strata-qwen`**
   (ya pasó con `qwen38flash` el 2026-10-04). Nunca usarlo con Strata arriba.
-- `ollama` es un servicio del Compose principal y está `Exited` a mano. Un
-  `docker compose up -d` sin lista de servicios lo arrancaría junto a Strata.
-  Para desplegar monitoreo/controller usar siempre
+- Para desplegar monitoreo/controller usar siempre la lista de servicios:
   `docker compose up --build -d octofan-controller prometheus node-exporter grafana`.
-- El controller sigue con `ollama.enabled: true` apuntando a
-  `http://ollama:11434`, que no resuelve mientras el contenedor está parado.
-  Consecuencias esperadas: `/api/status` muestra `ollama.up: false`, el OLED
-  dice `Ollama DOWN`, el LED azul (online) queda apagado y el naranja (warning)
-  parpadea lento. No es una falla; si molesta, poner `ollama.enabled: false`
-  en la config de prod (el OLED pasa a `AI monitor off`).
-- `watchdog.gpu_recovery_restart_containers` apunta a `[strata-qwen]` (repo y prod).
-  Ante una falla de la condición GPU el daemon hace `docker restart strata-qwen`.
+- `ollama.enabled: false` (repo y prod): el servicio ya no existe.
+- `watchdog.gpu_recovery_restart_containers` y `ai_recovery_restart_containers`
+  listan `strata-qwen` y `maya-deepseek`; el controller solo reinicia los que están
+  corriendo, así que nunca prende el backend parado encima del activo.
 - Desde 2026-10-31 el controller monitorea Strata: `strata.enabled: true` hace que
-  sondee `http://host.docker.internal:18080/v1/models` y lo refleje en `/api/status`,
+  sondee `/v1/models` de cada entrada de `strata.endpoints` (Strata `:18080` y Maya
+  `:18090`; está arriba si responde cualquiera) y lo refleje en `/api/status`,
   el OLED (`Strata 1/1 loaded` / `Strata DOWN`), los LEDs y Prometheus
   (`octofan_ai_up{source="strata"}`, `octofan_ai_running_models`). Además el
-  watchdog de IA (`watchdog.ai_recovery_*`) reinicia `strata-qwen` tras tres ciclos
+  watchdog de IA (`watchdog.ai_recovery_*`) reinicia el contenedor que esté corriendo tras tres ciclos
   seguidos de health check fallando, con cooldown de 900 s y sin reiniciar mientras
   Docker reporta el contenedor `starting` (ventana de carga del modelo). AI recovery
   nunca corta el alimento del firmware: el reset de placa queda solo para el host.
@@ -254,5 +249,4 @@ En el OpenCode configurado para esta prueba, elegir en `/models` el modelo
 `strata/huihui-qwen3.8-flash-next-abliterated-v2-ud-q4_k_xl`. Ese proveedor
 es configuración local de OpenCode y no se distribuye automáticamente con este
 repositorio. El controller consulta la API OpenAI-compatible de Strata
-(`/v1/models`) para salud; no emula los endpoints nativos de Ollama, que siguen
-existentes solo en el fallback.
+(`/v1/models`) para salud; no emula los endpoints nativos de Ollama.
