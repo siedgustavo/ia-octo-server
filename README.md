@@ -6,7 +6,7 @@
 
 [![GPUs](https://img.shields.io/badge/GPU-4%C3%97_RTX_3090-76B900)](#the-hardware)
 [![VRAM](https://img.shields.io/badge/VRAM-96_GiB-0078D4)](#the-hardware)
-[![Inference](https://img.shields.io/badge/Inference-Strata_%2B_Ollama_%2B_llama.cpp-blue)](#services)
+[![Inference](https://img.shields.io/badge/Inference-Strata_%2B_Maya-blue)](#services)
 [![Monitoring](https://img.shields.io/badge/Monitoring-Prometheus_%2B_Grafana-orange)](#what-it-does)
 
 A mining chassis gets a new job: running large language models locally, with its
@@ -29,7 +29,7 @@ x8:
 
 | Workload | Result | What it means |
 |---|---:|---|
-| gpt-oss-120b MXFP4, Ollama, ~2k prompt | **104 tokens/s** generation | A 120B-class model running entirely on the GPUs |
+| gpt-oss-120b MXFP4, Ollama, ~2k prompt | **104 tokens/s** generation | A 120B-class model running entirely on the GPUs (Ollama was retired on 2026-11-19) |
 | Huihui Qwen3.8-Flash-Next abliterated V2, Strata 0.2.20, ~114k prompt | **4732 tokens/s** prompt · **115 tokens/s** generation | The current daily inference service since 2026-11-23 (MTP speculative decoding + expert cache, GPUs capped at 250 W); 147–165 tokens/s on short prompts |
 | Same model, Strata 0.2.7, ~6.8k prompt | **1286 tokens/s** prompt · **96–128 tokens/s** generation | The October 31 baseline; median 101 tokens/s over 24 h of real mixed use |
 | Qwen3.8-Flash-Next, llama.cpp b11381, ~4k prompt | **634 tokens/s** prompt · **58 tokens/s** generation | The former dedicated llama.cpp service, later served through custom Ollama; long-context decode improves more |
@@ -74,7 +74,7 @@ a matching Spark measurement.
 | CPU | 2 × Intel Xeon E5-2680 v4, 28 cores / 56 threads total |
 | Host memory | Approximately 125 GiB reported by the OS |
 | Storage | Samsung 980 PRO 2 TB NVMe |
-| Deployment | Docker Compose; Strata (daily), Ollama (fallback) and dedicated llama.cpp benchmark stacks |
+| Deployment | Docker Compose; Strata (daily) and Maya (on demand) swapped by llama-swap, plus dedicated llama.cpp benchmark stacks |
 
 The 96 GiB of VRAM is distributed across four cards, not a single unified memory
 pool. Model placement, KV cache and temporary buffers all matter.
@@ -100,7 +100,7 @@ The original HiveOS package files are preserved as reference material under
 - Updates the controller OLED with host, thermal, power and AI status.
 - Drives the front-panel LEDs from controller health and GPU activity.
 - Feeds the hardware watchdog only when configured host checks (TCP, HTTP, SSH banner or a disk write+fsync heartbeat) and the GPU inventory condition pass; the firmware pulses the motherboard RESET line when feeding stops.
-- Serves LLM inference on all four GPUs: Strata for daily use, Ollama kept as a stopped fallback.
+- Serves LLM inference on all four GPUs: Strata (Qwen) for daily use and Maya (DeepSeek) on demand, one at a time, swapped by llama-swap.
 
 ## Services
 
@@ -110,12 +110,13 @@ Main `docker-compose.yml`:
 - `prometheus`: metrics storage and alert rules (`prometheus/rules/`).
 - `node-exporter`: host system and network metrics, running in the host network namespace.
 - `grafana`: dashboard at `http://localhost:3000` (`admin` / `octofan`).
-- `ollama`: Ollama API at `http://localhost:11434`, with every host GPU visible, built from `ollama-custom/Dockerfile`. **Stopped in production as a fallback** while Strata owns the GPUs; it lives behind the Compose profile `ollama` so a bare `docker compose up -d` never starts it.
 
 Dedicated Compose files (same Compose project, started with `-f`; see the
 `--remove-orphans` warning in `docs/operations.md`):
 
-- `strata-qwen`: Strata serving Huihui Qwen3.8-Flash-Next abliterated V2 on port `18080` (OpenAI-compatible, no API key), defined in `docker-compose.strata-qwen.yml`. **The daily inference service since 2026-10-31.** The controller polls its `/v1/models` for OLED/LED/status health and auto-restarts the container when it stops answering. See `docs/strata-qwen.md`.
+- `strata-qwen`: Strata 0.2.20 serving Huihui Qwen3.8-Flash-Next abliterated V2 on port `18080` (OpenAI-compatible, no API key), defined in `docker-compose.strata-qwen.yml`. **The daily inference service since 2026-10-31**, and the model llama-swap preloads after a reboot. The controller polls its `/v1/models` for OLED/LED/status health and restarts the container when it stops answering. See `docs/strata-qwen.md`.
+- `maya-deepseek`: Project Maya serving DeepSeek-V4.1-Flash abliterated (Mix-128G, 1M context, vision) on port `18090`, defined in `docker-compose.maya-deepseek.yml` (own Compose project `octofan-maya`). Started on demand. See `docs/maya-deepseek.md`.
+- `llama-swap` (host systemd service, port `18100`, config `llama-swap/config.yaml`): starts Strata or Maya according to the requested `model` and stops the other. Only OpenCode goes through it; never start or stop those two stacks by hand. See `docs/model-swap.md`.
 - `qwen38flash`: dedicated llama.cpp service on port `8091`, defined in `docker-compose.qwen38flash.yml`. Not deployed at the moment; kept to reproduce benchmarks.
 - `glm53flash`: dedicated llama.cpp service on port `8090`, defined in `docker-compose.glm53flash.yml`. Not deployed at the moment; kept to reproduce benchmarks.
 - `flux`: CPU-only FLUX.1-schnell image generation (stable-diffusion.cpp `sd-server`) on port `7860`, defined in `docker-compose.flux.yml` as its own Compose project (`octofan-flux`). Health-polled by the controller (`octofan_flux_up`). See `docs/operations.md`.
@@ -132,8 +133,9 @@ a time. The benchmarks above ran them individually.
 - `reference/octofan-hiveos-originals/`: original HiveOS files retained for reference.
 - `tests/`: parser, control, display, watchdog, compose and API tests.
 - `llamacpp/`: dedicated llama.cpp images and KV-cache persistence entrypoint.
-- `ollama/`: model manifests (Modelfiles) for the Ollama service.
-- `ollama-custom/`: Dockerfile and patches for the custom Ollama image (`num_ubatch`, context-shift pin, `--cache-ram`).
+- `ollama/`, `ollama-custom/`: Modelfiles, Dockerfile and patches of the retired Ollama service, kept as a recipe (`ollama-custom/README.md`).
+- `maya/`: Maya engine configuration.
+- `llama-swap/`: llama-swap configuration for the Strata/Maya swap.
 - `strata/`: Strata engine configuration.
 - `scripts/`: model download helpers.
 - `host/`: host-level sysctl tuning.
@@ -153,7 +155,6 @@ Open:
 - Controller UI: `http://localhost:8000`
 - Prometheus: `http://localhost:9090`
 - Grafana: `http://localhost:3000`
-- Ollama: `http://localhost:11434`
 
 Grafana provisions these dashboards under the `Octofan` folder:
 
@@ -196,9 +197,9 @@ Important sections:
 - `watchdog`: hardware watchdog timeouts, TCP/HTTP/SSH health checks, expected GPU count and container recovery before the firmware escalates.
 - `display`: OLED profile and refresh interval.
 - `leds`: front-panel LED policy. By default LED `0` is orange warning, LED `1` is blue online and LED `2` is white activity.
-- `llamacpp`: optional legacy health polling; disabled when Ollama is the only inference service.
-- `ollama`: on-demand inference health polling (`enabled`, `base_url`, `timeout_seconds`). Disabled in production while the fallback container is stopped.
-- `strata`: inference health polling for the daily service (`enabled`, `base_url` → `http://host.docker.internal:18080`, `timeout_seconds`). When enabled, the controller polls `/v1/models` and reflects it in `/api/status`, the OLED `ai` profile and the online/warning LEDs, and the watchdog's AI recovery restarts `strata-qwen` on persistent failure.
+- `llamacpp`: optional legacy health polling; disabled in production.
+- `ollama`: legacy health polling for the retired Ollama service (`enabled`, `base_url`, `timeout_seconds`); `enabled: false` in production.
+- `strata`: inference health polling for the daily service (`enabled`, `base_url`, `endpoints`, `timeout_seconds`). `endpoints` lists Strata (`:18080`) and Maya (`:18090`): the backend is up when either answers `/v1/models`. It is reflected in `/api/status`, the OLED `ai` profile and the online/warning LEDs, and the watchdog's AI recovery restarts whichever of `strata-qwen` / `maya-deepseek` is running on persistent failure.
 - `flux`: image-generation health polling (`enabled`, `base_url` → `http://host.docker.internal:7860`, `timeout_seconds`). Reported in `/api/status` and `octofan_flux_up` only.
 
 Automatic fan control combines BME280 intake, exhaust, exhaust-minus-intake delta and a capped
@@ -224,96 +225,21 @@ The OLED `ai` profile shows the host IP, AI health (`Strata N/N loaded`, `Strata
 - `POST /api/calibrate-fans`
 - `GET /metrics`
 
-## Ollama
+## Ollama (retired)
 
-> In production Ollama is currently **stopped** (`docker stop octofan-ollama`) while Strata
-> serves the GPUs. The service sits behind the Compose profile `ollama`: a bare
-> `docker compose up -d` ignores it, and a start requires
-> `docker compose --profile ollama up -d ollama` (or `docker start octofan-ollama`) after
-> stopping `strata-qwen`. See `docs/strata-qwen.md`.
+Ollama was removed from octoserver on 2026-11-19: the `ollama` service left
+`docker-compose.yml` and its container, images and `/opt/ollama` were deleted.
+Strata replaced it as the daily service on 2026-10-31, and Maya covers DeepSeek.
 
-The stack includes one custom Ollama instance with every NVIDIA GPU on the host visible. It processes one request
-per model in parallel, packs a model into one GPU whenever it fits, uses an 8-bit KV cache to
-reduce context memory, and uses `OLLAMA_KEEP_ALIVE=-1` so loaded models remain resident indefinitely.
-Ollama can still evict them when another model needs their VRAM. Request-level `keep_alive` can override
-this default. Models that do not fit in one card are still
-split across the available GPUs automatically. Compose uses `gpus: all`, so adding or removing a card does
-not require maintaining a list of GPU indices. The image is built from `ollama-custom/Dockerfile`
-(Ollama 0.35.1 with llama.cpp b11381 and three patches: a separate `num_ubatch` option, a
-server-wide context-shift pin via `OLLAMA_CONTEXT_SHIFT`, and a host-RAM prompt cache via
-`OLLAMA_CACHE_RAM_MIB`).
+- The model store is archived cold on inference2: see
+  [Ollama store archive](docs/ollama-store-archive.md) for tags, verification and restore.
+- `ollama-custom/` (Dockerfile + patches) and the Modelfiles in `ollama/` stay as a recipe;
+  `ollama-custom/README.md` explains how to bring the service back from git history
+  (`git log -S "octofan-ollama" -- docker-compose.yml`).
+- Never run it next to Strata or Maya: they all need the four GPUs.
 
-Ollama stores its active model inventory under `${OLLAMA_DATA_DIR:-/opt/ollama}`. Cold GGUF files live under `${MODELS_ARCHIVE_DIR:-/opt/models-archive}`, mounted read-only at `/models-archive`, and can be registered without downloading them again. **Since 2026-11-16/17 the active Ollama store (`/opt/ollama/models`) is archived cold on inference2's RAID1 at `/mnt/raid1hdd/archive/ollama/models`** to free 399 GiB on octoserver; only keys/history/cache remain locally. Restore it before starting `octofan-ollama` again. See [Ollama store archive](docs/ollama-store-archive.md) for the tags, verification and restore steps. **GLM-5.3 models moved cold on 2026-11-17** under `/mnt/raid1hdd/archive/models-archive/` (IQ1_S, IQ1_S-upstream and Q2_K_XL); see [GLM models archive](docs/glm-models-archive.md). **The legacy llama.cpp coder models also moved cold that day** to `/mnt/raid1hdd/archive/llamacpp/models` (Llama-3.1-Pro-Coder, Qwen2.5-Coder-7B and the broken `qwen3.6-uncensored` symlink); see [llama.cpp models archive](docs/llamacpp-models-archive.md).
-
-```bash
-docker compose up -d ollama
-docker compose exec ollama ollama create qwen3.8-flash-next:176b -f /model-definitions/qwen3.8-flash-next.Modelfile
-docker compose exec ollama ollama create qwen3.8-flash-next-uncensored:176b -f /model-definitions/qwen3.8-flash-next-uncensored.Modelfile
-docker compose exec ollama ollama list
-```
-
-Each installed model pins its context in its own manifest; there is no container-wide context override. Interactive models use their native maximum and are never configured below 128k. The dedicated `mistral-medium-3.5:128b` writing model is the exception: sied-poster caps scraped input at 8,000 characters and requests at most 4,096 output tokens, so its IQ2_S manifest uses 32k to keep more layers on the GPUs. The DeepSeek manifest also sets `num_batch=128` and `repeat_penalty=1.0` to avoid the large sampler overhead measured on large vocabularies. Qwen3.8-Flash-Next pins `num_batch=512`, `num_ubatch=256`, and the production layer split (`tensor_split 0.9,1,1,1.1`) in its own manifest. Other models can be added with `ollama pull`, and Ollama loads them only when requested:
-
-Qwen3.8-Flash-Next vision depends on the separate Unsloth
-`UD-Q4_K_XL/mmproj-F16.gguf` projector. Its Modelfile imports the projector with
-an additional `FROM`; without it, Ollama registers a text-only model and rejects
-images. See [Qwen3.8-Flash-Next vision support](docs/operations.md#qwen38-flash-next-vision-support)
-for diagnosis, model recreation, and an end-to-end image test.
-
-`qwen3.8-flash-next-uncensored:176b` is the abliterated build from
-`orcarouter/Qwen3.8-Flash-Next-Uncensored-GGUF` (gated; downloaded with the
-`HF_TOKEN` from `.env`). It uses `Q4_K_S`, the closest size to the stock
-`UD-Q4_K_XL`, plus its own mmproj, and copies the stock manifest's parameters
-verbatim. Both 176b variants fill the four GPUs, so Ollama swaps them on demand.
-
-```bash
-docker compose exec ollama ollama pull gemma3
-curl http://localhost:11434/api/chat -d '{
-  "model": "gemma3",
-  "messages": [{"role": "user", "content": "Hello"}],
-  "stream": false
-}'
-docker compose exec ollama ollama ps
-```
-
-The scheduler can distribute a model across all visible GPUs and unload idle models when another request needs their VRAM.
-
-The installed inventory uses `name:parameter-count` tags (production, 2026-10-31):
-
-```bash
-gpt-oss:120b
-mistral-medium-3.5:128b
-qwen3-coder-next:80b
-qwen3.8:27b-q8_0
-qwen3.8-uncensored:27b
-qwen3.8-flash-next:176b
-qwen3.8-flash-next-uncensored:176b
-```
-
-`gpt-oss:120b` and `qwen3.8-uncensored:27b` were pulled/created directly and have
-no Modelfile in `ollama/`.
-
-`ollama/deepseek-v4-flash-284b.Modelfile` and `scripts/download-deepseek-v4-flash.sh`
-describe a planned DeepSeek V4 Flash import (native 1,048,576-token context,
-`num_batch=128`, `repeat_penalty=1.0`). The model is **not installed** in
-production: no shards are staged and no `deepseek-v4-flash` tag is registered.
-Note that the script downloads `UD-IQ2_M` into `MODELS_DIR`, while
-`docs/operations.md` describes a `UD-Q8_K_XL` staging under `/opt/models-archive`;
-reconcile the quantization and path before importing. Either way the model
-needs all four GPUs plus host RAM, so expect partial CPU offload.
-
-Reapply a model's configured context through a temporary manifest without changing its stable tag:
-
-```bash
-docker compose exec ollama ollama create qwen3-coder-next:configured \
-  -f /model-definitions/qwen3-coder-next-80b.Modelfile
-docker compose exec ollama ollama cp qwen3-coder-next:configured qwen3-coder-next:80b
-docker compose exec ollama ollama rm qwen3-coder-next:configured
-```
-
-When weights plus KV cache do not fit on one GPU, Ollama spreads the GPU-resident portion across
-the visible cards and offloads the remainder to host RAM. Loading this
-model can evict the smaller resident models; benchmark it before routing production traffic.
+Other cold archives: GLM-5.3 models ([GLM models archive](docs/glm-models-archive.md)) and the
+legacy llama.cpp coder models ([llama.cpp models archive](docs/llamacpp-models-archive.md)).
 
 ## Validation
 
