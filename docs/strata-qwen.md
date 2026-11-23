@@ -118,6 +118,12 @@ de MTP igual (53–62 % en largos, ~85 % en corto). Tool calling verificado
 (`tool_calls` con argumentos correctos). En carga: ~26–29 GiB de RAM del
 contenedor (antes ~47), GPU 19,4–22,5 GiB.
 
+Límite de potencia (mismo día, misma instancia): sin el tope de 250 W (de fábrica
+350/350/370/350 W) el decode queda igual (115–167 tok/s en ambos) y el prefill
+largo gana solo 3–6 % (114k: 4680 → 4890 tok/s, 28,9 → 27,9 s). Los picos fueron
+298–326 W sin tope contra 242–250 W con tope. No compensa el riesgo de caída de
+bus que motivó el límite: queda en 250 W.
+
 Rollback: volver `docker-compose.strata-qwen.yml` y `strata/strata-qwen.json` al
 commit anterior (imagen 0.2.7, engine 0.1.52) y reiniciar `llama-swap`.
 
