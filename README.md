@@ -29,14 +29,16 @@ x8:
 
 | Workload | Result | What it means |
 |---|---:|---|
+| Huihui Qwen3.8-Flash-Next abliterated V2, Strata 0.2.20, ~114k prompt | **4732 tokens/s** prompt · **115 tokens/s** generation | The daily inference service (MTP speculative decoding + expert cache, GPUs capped at 250 W); 147–165 tokens/s on short prompts. A 114k-token request finishes in 29 s |
+| Same model and settings, Strata 0.2.7, ~114k prompt | **1404 tokens/s** prompt · **98 tokens/s** generation | The previous engine, measured the same day: 0.2.20 decodes 15–25% faster and reads prompts 2–3.4× faster |
+| DeepSeek-V4.1-Flash abliterated Mix-128G, Project Maya, ~8.5k prompt | **1008 tokens/s** prompt · **43.5 tokens/s** generation | The on-demand 1M-context model with vision, fully in VRAM + RAM |
 | gpt-oss-120b MXFP4, Ollama, ~2k prompt | **104 tokens/s** generation | A 120B-class model running entirely on the GPUs (Ollama was retired on 2026-11-19) |
-| Huihui Qwen3.8-Flash-Next abliterated V2, Strata 0.2.20, ~114k prompt | **4732 tokens/s** prompt · **115 tokens/s** generation | The current daily inference service since 2026-11-23 (MTP speculative decoding + expert cache, GPUs capped at 250 W); 147–165 tokens/s on short prompts |
-| Same model, Strata 0.2.7, ~6.8k prompt | **1286 tokens/s** prompt · **96–128 tokens/s** generation | The October 31 baseline; median 101 tokens/s over 24 h of real mixed use |
-| Qwen3.8-Flash-Next, llama.cpp b11381, ~4k prompt | **634 tokens/s** prompt · **58 tokens/s** generation | The former dedicated llama.cpp service, later served through custom Ollama; long-context decode improves more |
+| Qwen3.8-Flash-Next, llama.cpp b11381, ~4k prompt | **634 tokens/s** prompt · **58 tokens/s** generation | The former dedicated llama.cpp service |
 | GLM-5.3-Flash IQ1_S, auto-fit, ~4k prompt | **227 tokens/s** prompt · **21.5 tokens/s** generation | A larger MoE model using GPU memory plus CPU offload |
 
-The Strata figures come from a configuration comparison, not an engine shootout
-with identical optimizations: see [Strata notes](docs/strata-qwen.md).
+The two Strata rows are a same-day A/B with the same model files and arguments
+([Strata notes](docs/strata-qwen.md)). The other rows were measured on different
+dates and engines, so read them as configurations, not an engine shootout.
 
 ### How does it compare with a DGX Spark?
 
@@ -61,19 +63,30 @@ a matching Spark measurement.
   left GPU 0 and GPU 1 almost empty. Auto-fit made substantially better use of
   the available VRAM. [Results →](docs/glm53flash-benchmark.md)
 - **Capacity and speed are different constraints.** A model fitting entirely
-  on the GPUs behaves very differently from one that needs CPU offload.
+  on the GPUs behaves very differently from one that needs CPU offload. DeepSeek
+  Mix-128G fits in VRAM + RAM; Mix-256G streams experts from the SSD and runs
+  about 4× slower. [Results →](docs/maya-deepseek.md)
+- **Long context is where engines differ.** llama.cpp v1.0.0 with MTP matches
+  Strata on short prompts, but at 111k tokens Strata still decodes 2× faster.
+  [Results →](docs/llamacpp-v1-vs-strata.md)
+- **The power cap costs almost nothing.** Lifting the 250 W per-GPU cap left
+  decode unchanged and made long prompts only 3–6% faster, so the cap stays.
+  The DFlash2 drafter beat MTP on short prompts but lost 5–8% decode on long
+  ones, so MTP stays. [Results →](docs/strata-qwen.md)
 
 ## The hardware
 
 | Component | Octoserver |
 |---|---|
 | Chassis | Repurposed Octominer / Octofan mining enclosure |
-| GPUs | **4 × NVIDIA RTX 3090**, 24 GiB each, Ampere |
+| GPUs | **4 × NVIDIA RTX 3090**, 24 GiB each, Ampere, power-capped at 250 W each |
 | GPU links | PCIe Gen3 x8 per card, direct CPU root ports |
 | GPU peer-to-peer | Unavailable in the measured configuration |
 | CPU | 2 × Intel Xeon E5-2680 v4, 28 cores / 56 threads total |
 | Host memory | Approximately 125 GiB reported by the OS |
 | Storage | Samsung 980 PRO 2 TB NVMe |
+| Power | Octominer PSU plus a 120 W pico ATX for the 24-pin board connector ([hardware mods](docs/hardware-mods.md)) |
+| OS | AlmaLinux 10.1 |
 | Deployment | Docker Compose; Strata (daily) and Maya (on demand) swapped by llama-swap, plus dedicated llama.cpp benchmark stacks |
 
 The 96 GiB of VRAM is distributed across four cards, not a single unified memory
@@ -92,14 +105,15 @@ The original HiveOS package files are preserved as reference material under
 ## What It Does
 
 - Reads Octofan controller telemetry through the original USB CLI.
-- Controls chassis fans from internal case temperature.
+- Controls chassis fans from intake, exhaust and intake-to-exhaust delta temperatures, with a capped assist from the hottest GPU.
 - Exposes all controller telemetry as Prometheus metrics.
-- Adds NVIDIA GPU telemetry from `nvidia-smi`.
+- Adds NVIDIA GPU telemetry from `nvidia-smi`, plus the GDDR6X memory temperature read from each card's BAR0 (GeForce cards report it as N/A).
 - Adds host CPU, memory, disk and network telemetry through node exporter.
-- Ships Grafana dashboards for overview, PSUs, environment, cooling, GPUs and host/network, plus Prometheus alert rules for GPU inventory, frozen GPU readings, GPU temperature and controller availability.
+- Ships Grafana dashboards for overview, PSUs, environment, cooling, GPUs and host/network, plus Prometheus alert rules for GPU inventory, `nvidia-smi` availability, frozen GPU readings, GPU core and memory temperature, watchdog health, and Strata/Flux availability.
 - Updates the controller OLED with host, thermal, power and AI status.
 - Drives the front-panel LEDs from controller health and GPU activity.
-- Feeds the hardware watchdog only when configured host checks (TCP, HTTP, SSH banner or a disk write+fsync heartbeat) and the GPU inventory condition pass; the firmware pulses the motherboard RESET line when feeding stops.
+- Feeds two hardware watchdogs only when configured host checks (TCP, HTTP, SSH banner or a disk write+fsync heartbeat) and the GPU inventory condition pass: the chipset iTCO (`/dev/watchdog`), which resets the host about 3 minutes after feeding stops, and the Octofan firmware watchdog (its reset cable is disconnected since 2026-11-16, see [watchdog decisions](docs/watchdog-power-cycle.md)).
+- Restarts the running inference container when its API stops answering or a GPU drops out, before any board reset.
 - Serves LLM inference on all four GPUs: Strata (Qwen) for daily use and Maya (DeepSeek) on demand, one at a time, swapped by llama-swap.
 
 ## Services
@@ -111,10 +125,11 @@ Main `docker-compose.yml`:
 - `node-exporter`: host system and network metrics, running in the host network namespace.
 - `grafana`: dashboard at `http://localhost:3000` (`admin` / `octofan`).
 
-Dedicated Compose files (same Compose project, started with `-f`; see the
-`--remove-orphans` warning in `docs/operations.md`):
+Dedicated stacks, started with `-f`. `strata-qwen`, `qwen38flash` and `glm53flash` share
+the main Compose project (see the `--remove-orphans` warning in `docs/operations.md`);
+`maya-deepseek` and `flux` are separate Compose projects:
 
-- `strata-qwen`: Strata 0.2.20 serving Huihui Qwen3.8-Flash-Next abliterated V2 on port `18080` (OpenAI-compatible, no API key), defined in `docker-compose.strata-qwen.yml`. **The daily inference service since 2026-10-31**, and the model llama-swap preloads after a reboot. The controller polls its `/v1/models` for OLED/LED/status health and restarts the container when it stops answering. See `docs/strata-qwen.md`.
+- `strata-qwen`: Strata 0.2.20 serving Huihui Qwen3.8-Flash-Next abliterated V2 on port `18080` (OpenAI-compatible, no API key), defined in `docker-compose.strata-qwen.yml`. **The daily inference service since 2026-10-31**, and the model llama-swap preloads after a reboot. Text only, one request slot, native 262,144-token context. The controller polls its `/v1/models` for OLED/LED/status health and restarts the container when it stops answering. See `docs/strata-qwen.md`.
 - `maya-deepseek`: Project Maya serving DeepSeek-V4.1-Flash abliterated (Mix-128G, 1M context, vision) on port `18090`, defined in `docker-compose.maya-deepseek.yml` (own Compose project `octofan-maya`). Started on demand. See `docs/maya-deepseek.md`.
 - `llama-swap` (host systemd service, port `18100`, config `llama-swap/config.yaml`): starts Strata or Maya according to the requested `model` and stops the other. Only OpenCode goes through it; never start or stop those two stacks by hand. See `docs/model-swap.md`.
 - `qwen38flash`: dedicated llama.cpp service on port `8091`, defined in `docker-compose.qwen38flash.yml`. Not deployed at the moment; kept to reproduce benchmarks.
@@ -131,13 +146,13 @@ a time. The benchmarks above ran them individually.
 - `grafana/`: provisioned datasource and dashboards.
 - `prometheus/`: scrape configuration and alert rules.
 - `reference/octofan-hiveos-originals/`: original HiveOS files retained for reference.
-- `tests/`: parser, control, display, watchdog, compose and API tests.
+- `tests/`: parser, fan control, display, watchdog, host watchdog, NVIDIA, Strata, Flux, llama.cpp, compose and API tests.
 - `llamacpp/`: dedicated llama.cpp images and KV-cache persistence entrypoint.
 - `ollama/`, `ollama-custom/`: Modelfiles, Dockerfile and patches of the retired Ollama service, kept as a recipe (`ollama-custom/README.md`).
 - `maya/`: Maya engine configuration.
 - `llama-swap/`: llama-swap configuration for the Strata/Maya swap.
 - `strata/`: Strata engine configuration.
-- `scripts/`: model download helpers.
+- `scripts/`: model download helpers (Maya DeepSeek, FLUX, the planned DeepSeek V4 import) and `bench-openai-timings.py`, the benchmark used for the Strata, Maya and llama.cpp comparisons.
 - `host/`: host-level sysctl tuning.
 - `docs/`: benchmarks, hardware investigations and operating notes.
 - `tools/expert-profiler/`: MoE expert profiling experiments.
@@ -194,7 +209,7 @@ docker compose restart octofan-controller
 Important sections:
 
 - `fans`: auto/manual mode, target temperature, min/max fan limits and fail-safe speed.
-- `watchdog`: hardware watchdog timeouts, TCP/HTTP/SSH health checks, expected GPU count and container recovery before the firmware escalates.
+- `watchdog`: firmware watchdog timeouts, the chipset watchdog (`host_device`, `host_timeout_seconds`), TCP/HTTP/SSH/disk health checks, expected GPU count, and GPU/AI container recovery before a reset. `POST /api/watchdog/maintenance` keeps feeding for up to 240 minutes during planned work.
 - `display`: OLED profile and refresh interval.
 - `leds`: front-panel LED policy. By default LED `0` is orange warning, LED `1` is blue online and LED `2` is white activity.
 - `llamacpp`: optional legacy health polling; disabled in production.
@@ -210,7 +225,7 @@ override normal slew limits. The API, Prometheus and Cooling dashboard expose ea
 
 `fans.gpu_idle_stop_enabled` can hold the chassis fans at the lowest active configured speed while NVIDIA GPUs are idle and cool. Manual and automatic targets are clamped to `fans.min_percent..fans.max_percent`, and the idle policy falls back to the normal auto curve when GPU load, GPU temperature, intake temperature or telemetry health no longer matches the configured idle thresholds.
 
-The OLED `ai` profile shows the host IP, AI health (`Strata N/N loaded`, `Strata DOWN`, `Ollama N loaded`, `Ollama DOWN`, `AI services OK` or `AI monitor off`, preferring Strata, then Ollama, then llama.cpp), hottest-GPU temperature and load, intake temperature with the current fan percent, and total power. The host IP is auto-detected from the host hostname and `/etc/hosts` (both mounted read-only into the controller); set `OCTOFAN_DISPLAY_IP` in `.env` to pin a specific address.
+The OLED `ai` profile shows a large title taken from the host name (`OCTOSERVER`, or `display.title`), the host IP, AI health (whichever of Strata or Maya answers, as `Strata 1/1 loaded` / `Maya 1/1 loaded`, or `Strata DOWN`; the legacy backends show `Ollama N loaded`, `AI services OK` or `AI monitor off`), hottest-GPU temperature and load, intake temperature with the current fan percent, and total power. The host IP is auto-detected from the host hostname and `/etc/hosts` (both mounted read-only into the controller); set `OCTOFAN_DISPLAY_IP` in `.env` to pin a specific address.
 
 ## API
 
@@ -269,6 +284,9 @@ OCTOFAN_MOCK=1 docker compose up --build
 - [Operations](docs/operations.md)
 - [API and metrics](docs/api-and-metrics.md)
 - [Strata daily inference service](docs/strata-qwen.md)
+- [DeepSeek-V4.1-Flash with Project Maya](docs/maya-deepseek.md)
+- [Strata/Maya model swap with llama-swap](docs/model-swap.md)
+- [llama.cpp v1.0.0 vs Strata](docs/llamacpp-v1-vs-strata.md)
 - [GLM-5.3-Flash tuning and lessons](docs/glm53flash-benchmark.md)
 - [Qwen3.8-Flash-Next split benchmark](docs/qwen38flash-split-benchmark.md)
 - [Octoserver vs NVIDIA DGX Spark](docs/octoserver-vs-dgx-spark.md)
@@ -276,3 +294,7 @@ OCTOFAN_MOCK=1 docker compose up --build
 - [GLM-5.3-Flash expert affinity](docs/glm53flash-expert-affinity.md) and [ktransformers POC](docs/glm53flash-ktransformers-poc.md)
 - [Hardware mods](docs/hardware-mods.md)
 - [Watchdog and power-cycle decisions](docs/watchdog-power-cycle.md)
+- [NVMe drops and the worn pico ATX (2026-11-16 incident)](docs/incidente-2026-11-16-nvme-pico-atx.md)
+- Cold model archives: [Ollama store](docs/ollama-store-archive.md), [GLM models](docs/glm-models-archive.md), [llama.cpp models](docs/llamacpp-models-archive.md)
+
+Most operating notes and benchmark write-ups are in Spanish; the README, architecture, operations and API docs are in English.
