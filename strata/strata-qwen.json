@@ -24,6 +24,7 @@
   "log": "/data/huihui-v2.engine.log",
   "gpu": [0, 1, 2, 3],
   "layer_split": "auto",
+  "drafting": "mtp",
   "env": {
     "STRATA_HC_Q8": "1",
     "STRATA_ROUTE_TAIL_SKIP": "0",

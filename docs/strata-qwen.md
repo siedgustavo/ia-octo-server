@@ -124,6 +124,30 @@ largo gana solo 3–6 % (114k: 4680 → 4890 tok/s, 28,9 → 27,9 s). Los picos 
 298–326 W sin tope contra 242–250 W con tope. No compensa el riesgo de caída de
 bus que motivó el límite: queda en 250 W.
 
+DFlash2 en vez de MTP (mismo día, 250 W): drafter tuneado de Strata
+`qwen3.8-flash-next-dflash2.strata1.q4_0-selq4.pack` (release v0.2.16, SHA-256
+`4df2e5ab…664c`), `--draft dflash2 --draft-fallback none --spec 6 --draft-conf
+0.35`. Para que el server lo use con Huihui hay que pasar el pack en
+`"user_args": ["--draft-model", …]` y `"drafting": "dflash2"`; si no, como el
+nombre del modelo no es un set Unsloth conocido, dice "the DFlash2 drafter isn't
+downloaded yet" y arranca con MTP. Dos corridas de los casos largos:
+
+| Caso | Decode MTP | Decode DFlash2 | Prefill MTP | Prefill DFlash2 |
+| --- | ---: | ---: | ---: | ---: |
+| Corto | 162 / 162 / 162 | 171 / 171 / 188 | 170 | 149–162 |
+| Código | 164 / 168 | 167 / 176 | 199–207 | 194–201 |
+| 8,7k | 120,5 / 122,5 | 110,1 / 115,5 | 1786–1792 | 1925–1937 |
+| 37k | 114,9 / 118,9 | 106,6 / 111,1 | 3552–3564 | 3782–3952 |
+| 114k | 115,4 / 116,7 | 115,3 / 107,2 | 4680–4732 | 4943–5180 |
+
+DFlash2 gana 5–15 % de decode en contexto corto y 5–10 % de prefill (no carga la
+capa MTP, más VRAM para expertos), pero pierde 5–8 % de decode con prompts
+largos: acepta ~50 % de lo propuesto contra 53–62 % de MTP. Strata mismo marca
+DFlash2 como `slower` en sm_86. Como el uso real (OpenCode) es de contexto
+largo, **se queda MTP**, fijado con `"drafting": "mtp"` en
+`strata/strata-qwen.json` para que el modo `auto` no cambie solo. El pack queda
+en `/opt/strata-test-df2` para futuras pruebas.
+
 Rollback: volver `docker-compose.strata-qwen.yml` y `strata/strata-qwen.json` al
 commit anterior (imagen 0.2.7, engine 0.1.52) y reiniciar `llama-swap`.
 
