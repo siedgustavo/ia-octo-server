@@ -3,7 +3,7 @@
 # Preparar el pack segun docs/strata-qwen.md antes de iniciarlo.
 services:
   strata-qwen:
-    image: ghcr.io/niko1221/strata:0.2.7-cuda13@sha256:db96cd9b111c930f7deb77444f38f66e53db43af57644a33a9e8a2f05f038360
+    image: ghcr.io/niko1221/strata:0.2.20-cuda13@sha256:ca61966471c97478f02a519386bdae1636c853705baffc413a6a4d92f82718d7
     container_name: strata-qwen
     gpus: all
     # Lo prende y apaga llama-swap (docs/model-swap.md): nunca junto a Maya en las GPU.

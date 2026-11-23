@@ -10,8 +10,8 @@ Objetivo: evaluar Strata durante uso cotidiano con un Qwen abliterado antes de
 decidir si reemplaza a Ollama. Resultado: aprobado, quedó como servicio diario
 (ver Decisión más abajo). La máquina tiene cuatro RTX 3090 de 24 GiB,
 125 GiB de RAM y PCIe Gen3 x8 por GPU, sin P2P ni NVLink. Strata usa reparto
-por capas, sin depender de P2P. La imagen es Strata 0.2.7 CUDA 13, motor
-0.1.52; el modelo activo es Huihui V2 UD-Q4_K_XL, no el Qwen original con que
+por capas, sin depender de P2P. La imagen era Strata 0.2.7 CUDA 13, motor
+0.1.52 (desde 2026-11-23, 0.2.20 / 0.1.66: ver más abajo); el modelo activo es Huihui V2 UD-Q4_K_XL, no el Qwen original con que
 se hizo la comparación inicial. Ollama quedó detenido, no desinstalado.
 
 El primer arranque con el Qwen original agotó la RAM del host: el kernel mató
@@ -86,6 +86,41 @@ como fallback. Quedan pendientes: uso concurrente real (limitado al slot
 único), una evaluación formal de calidad contra otros modelos y un stress
 sostenido con el contexto de 262144 completo.
 
+## Actualización a Strata 0.2.20 (2026-11-23)
+
+Desde el 2026-11-23 prod corre `ghcr.io/niko1221/strata:0.2.20-cuda13`, motor
+0.1.66. Mismo pack, GGUF, MTP y argumentos que con 0.2.7; solo cambian el
+`exe` del engine y dos variables de entorno.
+
+**Workaround obligatorio:** `STRATA_HC_Q8_TC=0` y `STRATA_HC_Q8_BF16TC=0` en el
+`env` de `strata/strata-qwen.json`. Sin ellas el engine 0.1.66 carga, pero la
+primera request falla con `verify: layer 0 never rang (operation not supported
+on global/shared address space)` y el server reinicia el engine en bucle. Es el
+bug upstream #6713 (kernels Tensor Core de hyper-connection Q8_0 que leen
+memoria compartida con `__ldg`; afecta archivos Unsloth `UD-*` en RTX 30/40),
+con fix #6714 anunciado para 0.2.21. Hacen falta las dos: con una sola sigue
+fallando. Al pasar a 0.2.21, probar sin ellas.
+
+A/B con `scripts/bench-openai-timings.py` (temperatura 0, sin razonamiento,
+nonce, `cache_n = 0`), mismos prompts (snapshot de `docs/*.md`), mismo día, 4
+GPU a 250 W, MTP `--spec 4` en ambos:
+
+| Caso | Decode 0.2.7 | Decode 0.2.20 | Prefill 0.2.7 | Prefill 0.2.20 |
+| --- | ---: | ---: | ---: | ---: |
+| Corto (~64 tok, 256 de salida) | 104 / 141 / 147 | 147 / 163 / 164 | — | — |
+| Código (~97 tok, 1024 de salida) | 131 / 141 | 161 / 165 | — | — |
+| 8,7k de prompt | 99,9 | 120,5 | 873 | 1786 |
+| 37k de prompt | 94,7 | 118,9 | 1249 | 3564 |
+| 114k de prompt | 97,6 | 115,4 | 1404 | 4732 |
+
+Tiempo total de la request de 114k + 512 de salida: 86,6 s → 28,7 s. Aceptación
+de MTP igual (53–62 % en largos, ~85 % en corto). Tool calling verificado
+(`tool_calls` con argumentos correctos). En carga: ~26–29 GiB de RAM del
+contenedor (antes ~47), GPU 19,4–22,5 GiB.
+
+Rollback: volver `docker-compose.strata-qwen.yml` y `strata/strata-qwen.json` al
+commit anterior (imagen 0.2.7, engine 0.1.52) y reiniciar `llama-swap`.
+
 ## Modelo y preparación
 
 Se usa `huihui-ai/Huihui-Qwen3.8-Flash-Next-abliterated-v2-GGUF`, carpeta
@@ -113,7 +148,7 @@ docker run --rm --memory 12g \
   --entrypoint /opt/strata/terminal/python/bin/python \
   -v /opt/models-archive/Huihui-Qwen38-abliterated-v2-UD-Q4_K_XL:/models:ro \
   -v /opt/strata-test:/data -w /opt/strata/terminal \
-  ghcr.io/niko1221/strata:0.2.7-cuda13@sha256:db96cd9b111c930f7deb77444f38f66e53db43af57644a33a9e8a2f05f038360 \
+  ghcr.io/niko1221/strata:0.2.20-cuda13@sha256:ca61966471c97478f02a519386bdae1636c853705baffc413a6a4d92f82718d7 \
   tools/iq_pack.py --gguf /models/Qwen3.8-Flash-Next-UD-Q4_K_XL-00001-of-00004.gguf \
   --out /data/Strata-data/packs/huihui-v2-ud-q4_k_xl --compat-bf16
 ```
