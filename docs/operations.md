@@ -6,7 +6,8 @@ GPU inference services share the four RTX 3090 and run **one at a time**:
 
 | Service | Compose file | Port | State in production |
 | --- | --- | --- | --- |
-| `strata-qwen` (Strata, Huihui Qwen3.8-Flash-Next abliterated V2) | `docker-compose.strata-qwen.yml` | `18080` | **Running: daily service** (see [strata-qwen.md](strata-qwen.md)) |
+| `strata-qwen` (Strata 0.2.20, Huihui Qwen3.8-Flash-Next abliterated V2) | `docker-compose.strata-qwen.yml` | `18080` | **Running: daily service**, started/stopped by llama-swap (see [strata-qwen.md](strata-qwen.md), [model-swap.md](model-swap.md)) |
+| `maya-deepseek` (Project Maya v1.1.65, DeepSeek-V4.1-Flash abliterated) | `docker-compose.maya-deepseek.yml` | `18090` | On demand through llama-swap (see [maya-deepseek.md](maya-deepseek.md)) |
 | `ollama` (custom Ollama 0.35.1-b11381) | `docker-compose.yml` (profile `ollama`) | `11434` | Stopped by hand (`Exited`), kept as fallback with its models registered |
 | `qwen38flash` / `glm53flash` (dedicated llama.cpp) | `docker-compose.qwen38flash.yml` / `docker-compose.glm53flash.yml` | `8091` / `8090` | No containers; kept to reproduce benchmarks |
 | `flux` (CPU FLUX.1-schnell) | `docker-compose.flux.yml` (own project `octofan-flux`) | `7860` | Running; uses no GPU |

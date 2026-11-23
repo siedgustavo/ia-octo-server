@@ -141,3 +141,22 @@ Primer pedido en frio con Mix-256G: 5,9 tok/s de prompt y 6,4 de generacion.
   con llama-swap segun el modelo que pida OpenCode (`docs/model-swap.md`); el controller vigila los dos
   (`strata.endpoints`) y solo reinicia el que esta corriendo.
   Mix-256G queda en disco (`MAYA_CONFIG=maya-deepseek.json`).
+
+## Versiones nuevas sin probar (2026-11-23)
+
+Prod sigue en v1.1.65. Upstream ya publicó hasta **v1.1.75** (2026-11-23). Según las notas de
+v1.1.66 a v1.1.75, lo que nos podría importar:
+
+- Decode con drafts en varias GPU +9-12 % (#1056); en RTX 30 o más nuevas, además, un segundo
+  stream de GPU.
+- El engine elige solo el chunk de prompt más grande que entra: ~+30 % de prefill en multi-GPU.
+- DeepSeek respeta `--vram-reserve-mib` durante toda la corrida (#1026, v1.1.73); el primer
+  arranque tras actualizar puede reiniciar el engine una vez para medirlo.
+- Fixes de DeepSeek: cuelgue tras cargar en dos GPU NVIDIA (#1006), recuperación tras un peer
+  all-reduce fallido (#1059), drafter con sus expertos contados en el perfil (#501).
+- Opt-in nuevo: `MAYA_DS4_AR2_DECODE=2` (pares de GPU, no aplica a 4).
+
+No se anuncian cambios de formato del pack. Para probarla: compilar
+`docker/build.sh --ref v1.1.75 --cuda 13 --archs "86" --jobs 6` en `/opt/project-maya`, tomar una
+línea base de v1.1.65 el mismo día y repetir `scripts/bench-openai-timings.py` (incluyendo
+`long32k`/`long100k`) con las GPU a 250 W. Acordarse de que llama-swap maneja el container.

@@ -24,13 +24,14 @@ explanation wrong.
 
 ## Measured, not just built
 
-Results recorded through October 31, 2026, with all four GPU links at PCIe Gen3
+Results recorded through November 23, 2026, with all four GPU links at PCIe Gen3
 x8:
 
 | Workload | Result | What it means |
 |---|---:|---|
 | gpt-oss-120b MXFP4, Ollama, ~2k prompt | **104 tokens/s** generation | A 120B-class model running entirely on the GPUs |
-| Huihui Qwen3.8-Flash-Next abliterated V2, Strata 0.2.7, ~6.8k prompt | **1286 tokens/s** prompt · **96–128 tokens/s** generation | The current daily inference service (MTP speculative decoding + expert cache); median 101 tokens/s over 24 h of real mixed use |
+| Huihui Qwen3.8-Flash-Next abliterated V2, Strata 0.2.20, ~114k prompt | **4732 tokens/s** prompt · **115 tokens/s** generation | The current daily inference service since 2026-11-23 (MTP speculative decoding + expert cache, GPUs capped at 250 W); 147–165 tokens/s on short prompts |
+| Same model, Strata 0.2.7, ~6.8k prompt | **1286 tokens/s** prompt · **96–128 tokens/s** generation | The October 31 baseline; median 101 tokens/s over 24 h of real mixed use |
 | Qwen3.8-Flash-Next, llama.cpp b11381, ~4k prompt | **634 tokens/s** prompt · **58 tokens/s** generation | The former dedicated llama.cpp service, later served through custom Ollama; long-context decode improves more |
 | GLM-5.3-Flash IQ1_S, auto-fit, ~4k prompt | **227 tokens/s** prompt · **21.5 tokens/s** generation | A larger MoE model using GPU memory plus CPU offload |
 
