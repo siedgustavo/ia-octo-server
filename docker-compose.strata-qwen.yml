@@ -24,6 +24,8 @@ services:
       - ${STRATA_MODELS_DIR:-/opt/models-archive/Huihui-Qwen38-abliterated-v2-UD-Q4_K_XL}:/models:ro
       - ${STRATA_DATA_DIR:-/opt/strata-test}:/data
       - ./strata/strata-qwen.json:/config/strata-qwen.json:ro
+      # Vision: proyector (mmproj) de Unsloth para Qwen3.8-Flash-Next; Huihui no publica uno propio.
+      - ${STRATA_MMPROJ:-/opt/models-archive/UD-Q4_K_XL/mmproj-F16.gguf}:/models-vision/mmproj-F16.gguf:ro
     ports:
       - "${STRATA_BIND:-0.0.0.0}:${STRATA_PORT:-18080}:8080"
     healthcheck:

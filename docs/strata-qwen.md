@@ -55,7 +55,7 @@ concurrida.
 
 Se verificó una llamada de herramienta `pwd` desde OpenCode con Huihui, una
 generación simple y el listado de modelos desde otra máquina sin clave. El
-servicio es solo texto y un slot.
+servicio era solo texto y un slot (visión activa desde 2026-11-24, ver más abajo).
 
 ### Uso diario validado (2026-10-30 a 2026-10-31)
 
@@ -148,6 +148,26 @@ largo, **se queda MTP**, fijado con `"drafting": "mtp"` en
 `strata/strata-qwen.json` para que el modo `auto` no cambie solo. El pack queda
 en `/opt/strata-test-df2` para futuras pruebas.
 
+## Visión (desde 2026-11-24)
+
+Strata acepta imágenes (`image_url` de OpenAI, bloques `image` de Anthropic) con el lector
+`strata-vision` del engine y el proyector de Unsloth para Qwen3.8-Flash-Next
+(`/opt/models-archive/UD-Q4_K_XL/mmproj-F16.gguf`, 904 MB). Huihui no publica un proyector
+propio; la abliteración no toca la torre visual y el de Unsloth funciona.
+
+- Config: sección `"vision"` en `strata/strata-qwen.json` (`exe`, `mmproj`, `model`,
+  `"gpu": true`). El server agrega `--vision` solo; como ya hay `--vram-reserve-mib 1200` no
+  suma reserva extra. El compose monta el proyector en `/models-vision` (`STRATA_MMPROJ`).
+- `/v1/models` declara `input_modalities: ["text", "image"]` y el log dice `images on`.
+- El lector corre en la GPU 0 (la que tiene las primeras capas): ~1,3 GB más, quedan
+  ~3,4 GB libres.
+- Prueba: imagen sintética (cuadrado rojo, círculo azul, texto `OCTO 4729`) descrita
+  correctamente, directo en `:18080` y por llama-swap `:18100`, ~2 s.
+- Rendimiento con la batería de siempre: sin cambios (decode 114–166 tok/s; prefill
+  1788 / 3531 / 4787 tok/s en 8,7k / 37k / 114k).
+- OpenCode: el modelo `strata/huihui-…` declara `"input": ["text", "image"]` en
+  `~/.config/opencode/opencode.json` (config local, no está en el repo).
+
 Rollback: volver `docker-compose.strata-qwen.yml` y `strata/strata-qwen.json` al
 commit anterior (imagen 0.2.7, engine 0.1.52) y reiniciar `llama-swap`.
 
@@ -199,7 +219,7 @@ Escucha por defecto en todas las interfaces del host, puerto `18080` (se puede
 restringir con `STRATA_BIND`). API OpenAI compatible en `/v1`, sin autenticación.
 HTTP no cifra las solicitudes: usar solo una red de
 confianza, o un túnel SSH/TLS fuera de ella. No implementa la API
-nativa de Ollama (`/api/*`). Solo texto; la visión no está configurada. Se permiten el
+nativa de Ollama (`/api/*`). Acepta imágenes desde 2026-11-24 (ver "Visión"). Se permiten el
 nombre `octoserver.core.sied.ar` y la IP `172.16.1.6` en `allowed_hosts`;
 actualizarlos si cambia la dirección del host. Se reserva el contexto nativo de
 262144 tokens, con un solo slot, MTP, presupuesto de 20 GiB
